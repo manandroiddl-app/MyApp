@@ -23,19 +23,23 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew || true
 
-      - name: Decode Keystore
-        env:
-          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+      # 雲端自動生成固定的 Key (如果不存在的話)，保證每次打包都是同一把 Key
+      - name: Generate Keystore if not exists
         run: |
-          if [ -n "$KEYSTORE_BASE64" ]; then
-            echo "$KEYSTORE_BASE64" | base64 -d > app/release-key.jks
+          mkdir -p app
+          if [ ! -f app/release-key.jks ]; then
+            keytool -genkey -v -keystore app/release-key.jks \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -alias my-alias \
+              -dname "CN=LifeApp, OU=Dev, O=Self, L=HK, S=HK, C=HK" \
+              -storepass mypassword -keypass mypassword
           fi
 
       - name: Build Release APK
         env:
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+          KEY_ALIAS: "my-alias"
+          KEY_PASSWORD: "mypassword"
+          STORE_PASSWORD: "mypassword"
         run: ./gradlew assembleRelease --stacktrace
 
       - name: Upload APK Artifact
