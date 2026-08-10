@@ -29,16 +29,23 @@ class WeatherRepository @Inject constructor(
         runCatching { nineDay = apiService.getNineDayForecast() }
             .onFailure { Log.e("WeatherRepo", "NineDay API Error", it) }
 
-        // 1. 詳細警告資訊整理
+        // 1. 詳細天氣警告資訊（自動清除 HTML 標籤）
         val warningList = mutableListOf<String>()
-        // 優先顯示詳細 warningMessage
         if (!realtime?.warningMessage.isNullOrEmpty()) {
-            realtime?.warningMessage?.let { warningList.addAll(it) }
-        } else {
-            warningsRaw?.values?.forEach { warningList.add(it.name) }
+            realtime?.warningMessage?.forEach { msg ->
+                val cleanMsg = msg.replace("<br/>", "\n").replace("<br>", "\n").trim()
+                if (cleanMsg.isNotEmpty()) warningList.add(cleanMsg)
+            }
+        }
+        
+        // 如果沒有 warningMessage，則使用 warnsum API 的名稱
+        if (warningList.isEmpty() && warningsRaw != null) {
+            warningsRaw?.values?.forEach { item ->
+                if (item.name.isNotEmpty()) warningList.add(item.name)
+            }
         }
 
-        // 2. 分區氣溫 (按英文名 A-Z 排序)
+        // 2. 爬取全香港 20+ 分區氣溫，並按英文名 (A-Z) 排序
         val locationList = mutableListOf<LocationStation>()
         realtime?.temperature?.data?.forEach { rec ->
             val enName = stationNameEnMap[rec.place] ?: rec.place
@@ -46,21 +53,21 @@ class WeatherRepository @Inject constructor(
         }
         locationList.sortBy { it.nameEn }
 
-        val defaultLoc = locationList.firstOrNull { it.nameTc == "香港天文台" } 
-            ?: locationList.firstOrNull() 
-            ?: LocationStation("香港天文台", "Hong Kong Observatory", null)
+        // 預設選取「香港天文台」
+        val defaultLoc = locationList.firstOrNull { it.nameTc == "香港天文台" }
+            ?: locationList.firstOrNull()
 
+        // 3. 濕度與 UV
         val humidityVal = realtime?.humidity?.data?.firstOrNull()?.let { "${it.value}%" } ?: "--%"
         val uvVal = realtime?.uvindex?.data?.firstOrNull()?.let { "${it.value} (${it.desc})" } ?: "低 / 無數據"
         val todayDesc = today?.forecastDesc ?: today?.generalSituation ?: "天文台現正更新天氣預報資訊。"
         val nineDays = nineDay?.weatherForecast ?: emptyList()
 
-        // 3. 格式化最後更新時間
-        val rawTime = realtime?.updateTime ?: ""
+        // 4. 解析真正的記錄時間 (recordTime: e.g. "2026-08-11T00:20:00+08:00")
+        val rawTime = realtime?.recordTime ?: realtime?.temperature?.recordTime ?: ""
         val formattedTime = if (rawTime.length >= 16) {
             try {
-                // e.g. 2026-08-10T23:50:00+08:00 -> 23:50
-                rawTime.substring(11, 16)
+                rawTime.substring(11, 16) // 提取 "00:20"
             } catch (e: Exception) {
                 ""
             }
@@ -75,7 +82,7 @@ class WeatherRepository @Inject constructor(
             currentUv = uvVal,
             todayForecastDesc = todayDesc,
             nineDayForecasts = nineDays,
-            updateTimeText = if (formattedTime.isNotEmpty()) "最後更新時間：$formattedTime" else "",
+            updateTimeText = if (formattedTime.isNotEmpty()) "最後更新時間：$formattedTime" else "剛剛更新",
             errorMessage = if (realtime == null && today == null) "無法連接香港天文台，請檢查網路連線。" else null
         )
     }
