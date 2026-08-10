@@ -1,14 +1,12 @@
 package com.example.lifeapp.data.model
 
-import com.google.gson.annotations.SerializedName
-
 // (A) 即時天氣 rhrread 精確結構
 data class RealtimeWeatherResponse(
     val temperature: StationGroup?,
     val humidity: StationGroup?,
     val uvindex: UvGroup?,
     val warningMessage: List<String>?,
-    val recordTime: String? // 天文台 API 真正的更新時間欄位名稱是 recordTime
+    val recordTime: String?
 )
 
 data class StationGroup(
@@ -42,9 +40,7 @@ typealias WarningSummaryResponse = Map<String, WarningItem>?
 data class WarningItem(
     val name: String,
     val code: String,
-    val actionCode: String,
-    val issueTime: String?,
-    val updateTime: String?
+    val actionCode: String
 )
 
 // (B) 本日預報 flw
