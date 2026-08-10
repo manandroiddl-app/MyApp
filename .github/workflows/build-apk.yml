@@ -19,20 +19,11 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      # 使用 GitHub 官方 Gradle Actions 自動安裝適當 Gradle 版本
-      - name: Setup Gradle
+      # 使用 GitHub 官方 Gradle Action 自動管理與執行 Gradle 8.5
+      - name: Setup and Build with Gradle
         uses: gradle/actions/setup-gradle@v3
         with:
           gradle-version: '8.5'
-
-      # 如果 Repo 內缺乏 Wrapper，自動生成
-      - name: Generate Gradle Wrapper if missing
-        run: |
-          if [ ! -f ./gradlew ]; then
-            echo "gradlew not found, generating wrapper via system Gradle..."
-            gradle wrapper --gradle-version 8.5
-          fi
-          chmod +x gradlew
 
       # 雲端自動生成固定的 Key，保證每次打包都是同一把 Key (可直接覆蓋更新)
       - name: Generate Keystore if not exists
@@ -46,12 +37,19 @@ jobs:
               -storepass mypassword -keypass mypassword
           fi
 
+      # 如果專案沒有 gradlew，直接使用 gradle 命令行編譯，省去中間轉換步驟
       - name: Build Release APK
         env:
           KEY_ALIAS: "my-alias"
           KEY_PASSWORD: "mypassword"
           STORE_PASSWORD: "mypassword"
-        run: ./gradlew assembleRelease --stacktrace
+        run: |
+          if [ -f ./gradlew ]; then
+            chmod +x gradlew
+            ./gradlew assembleRelease --stacktrace
+          else
+            gradle assembleRelease --stacktrace
+          fi
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
