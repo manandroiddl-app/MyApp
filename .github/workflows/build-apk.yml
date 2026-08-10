@@ -11,21 +11,20 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
 
-      # 使用 Gradle 最新版 Actions (@v4) 處理環境與快取
-      - name: Setup and Build with Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.5'
-          # 如果 GitHub 快取服務不穩定，允許跳過 Cache 以免洗版報錯
-          cache-read-only: false
+      # 直接使用 setup-java 內建的 Gradle 快取支援，不依賴額外的 setup-gradle Action
+      - name: Setup Gradle
+        run: |
+          wget -q https://services.gradle.org/distributions/gradle-8.5-bin.zip
+          unzip -q gradle-8.5-bin.zip
+          echo "$GITHUB_WORKSPACE/gradle-8.5/bin" >> $GITHUB_PATH
 
       # 雲端自動生成固定的 Key，保證每次打包都是同一把 Key (可直接覆蓋更新)
       - name: Generate Keystore if not exists
@@ -53,7 +52,7 @@ jobs:
           fi
 
       - name: Upload APK Artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v4
         with:
           name: LifeApp-Release-APK
           path: app/build/outputs/apk/release/*.apk
