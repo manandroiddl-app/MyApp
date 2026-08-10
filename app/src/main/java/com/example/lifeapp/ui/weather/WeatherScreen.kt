@@ -228,3 +228,15 @@ fun WeatherScreen(viewModel: WeatherViewModel = hiltViewModel()) {
         }
     }
 }
+
+// 格式化日期：20260811 -> 8月11日 (補回原本遺漏的輔助函數)
+fun formatDate(rawDate: String): String {
+    if (rawDate.length == 8) {
+        val month = rawDate.substring(4, 6).toIntOrNull()
+        val day = rawDate.substring(6, 8).toIntOrNull()
+        if (month != null && day != null) {
+            return "${month}月${day}日"
+        }
+    }
+    return rawDate
+}
