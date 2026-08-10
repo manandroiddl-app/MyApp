@@ -20,10 +20,17 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
-      - name: Grant execute permission for gradlew
-        run: chmod +x gradlew || true
+      # 如果 Repo 內沒有 gradlew，自動安裝 Gradle 並生成 gradlew
+      - name: Setup Gradle Wrapper if missing
+        run: |
+          if [ ! -f ./gradlew ]; then
+            echo "gradlew not found, installing gradle and generating wrapper..."
+            sudo apt-get update && sudo apt-get install -y gradle
+            gradle wrapper
+          fi
+          chmod +x gradlew
 
-      # 雲端自動生成固定的 Key (如果不存在的話)，保證每次打包都是同一把 Key
+      # 雲端自動生成固定的 Key，保證每次打包都是同一把 Key (可直接覆蓋更新)
       - name: Generate Keystore if not exists
         run: |
           mkdir -p app
