@@ -1,21 +1,18 @@
 package com.example.lifeapp.data.api
 
-import com.example.lifeapp.data.model.*
+import com.example.lifeapp.data.model.ForecastLocalWeatherResponse
+import com.example.lifeapp.data.model.NineDayForecastResponse
+import com.google.gson.JsonObject
 import retrofit2.http.GET
 import retrofit2.http.Query
 
 interface HkoApiService {
+    // 使用 JsonObject 接收 Raw JSON，徹底防止因格式微調導致的解析失敗
     @GET("weatherAPI/opendata/weather.php")
-    suspend fun getRealtimeWeather(
+    suspend fun getRealtimeWeatherRaw(
         @Query("dataType") dataType: String = "rhrread",
         @Query("lang") lang: String = "tc"
-    ): RealtimeWeatherResponse
-
-    @GET("weatherAPI/opendata/weather.php")
-    suspend fun getWarningSummary(
-        @Query("dataType") dataType: String = "warnsum",
-        @Query("lang") lang: String = "tc"
-    ): WarningSummaryResponse
+    ): JsonObject
 
     @GET("weatherAPI/opendata/weather.php")
     suspend fun getTodayForecast(
