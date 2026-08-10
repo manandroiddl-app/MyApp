@@ -13,13 +13,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # 修正：升級為官方建議的 @v5 版本
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: '17'
           distribution: 'temurin'
 
-      # 直接使用 setup-java 內建的 Gradle 快取支援，不依賴額外的 setup-gradle Action
+      # 手動處理 Gradle 環境，避開第三方 Action 的 Node 警告
       - name: Setup Gradle
         run: |
           wget -q https://services.gradle.org/distributions/gradle-8.5-bin.zip
