@@ -1,18 +1,35 @@
 package com.example.lifeapp.data.model
 
+import com.google.gson.annotations.SerializedName
+
+// (A) 即時天氣 rhrread 精確結構
 data class RealtimeWeatherResponse(
     val temperature: StationGroup?,
     val humidity: StationGroup?,
     val uvindex: UvGroup?,
     val warningMessage: List<String>?,
-    val updateTime: String?
+    val recordTime: String? // 天文台 API 真正的更新時間欄位名稱是 recordTime
 )
 
-data class StationGroup(val data: List<StationRecord>?)
-data class StationRecord(val place: String, val value: Int, val unit: String)
+data class StationGroup(
+    val data: List<StationRecord>?,
+    val recordTime: String?
+)
 
-data class UvGroup(val data: List<UvRecord>?)
-data class UvRecord(val value: Float, val desc: String)
+data class StationRecord(
+    val place: String,
+    val value: Int,
+    val unit: String?
+)
+
+data class UvGroup(
+    val data: List<UvRecord>?
+)
+
+data class UvRecord(
+    val value: Float,
+    val desc: String
+)
 
 data class LocationStation(
     val nameTc: String,
@@ -21,14 +38,24 @@ data class LocationStation(
 )
 
 typealias WarningSummaryResponse = Map<String, WarningItem>?
-data class WarningItem(val name: String, val code: String, val actionCode: String)
 
+data class WarningItem(
+    val name: String,
+    val code: String,
+    val actionCode: String,
+    val issueTime: String?,
+    val updateTime: String?
+)
+
+// (B) 本日預報 flw
 data class ForecastLocalWeatherResponse(
     val generalSituation: String?,
     val forecastDesc: String?,
-    val outlook: String?
+    val outlook: String?,
+    val updateTime: String?
 )
 
+// (C) 九日預報 fnd
 data class NineDayForecastResponse(
     val generalSituation: String?,
     val weatherForecast: List<DayForecast>?
@@ -45,8 +72,12 @@ data class DayForecast(
     val forecastMinrh: TempVal?
 )
 
-data class TempVal(val value: Int, val unit: String)
+data class TempVal(
+    val value: Int,
+    val unit: String
+)
 
+// UI 綜合狀態
 data class FullWeatherUiState(
     val isLoading: Boolean = true,
     val warnings: List<String> = emptyList(),
@@ -60,6 +91,7 @@ data class FullWeatherUiState(
     val errorMessage: String? = null
 )
 
+// 地點中英對照表 (用於按英文 Alphabetical A-Z 排序)
 val stationNameEnMap = mapOf(
     "香港天文台" to "Hong Kong Observatory",
     "京士柏" to "King's Park",
