@@ -67,7 +67,7 @@ class WeatherRepository @Inject constructor(
         val rawTime = realtime?.recordTime ?: realtime?.temperature?.recordTime ?: ""
         val formattedTime = if (rawTime.length >= 16) {
             try {
-                rawTime.substring(11, 16) // 提取 "00:20"
+                rawTime.substring(11, 16)
             } catch (e: Exception) {
                 ""
             }
