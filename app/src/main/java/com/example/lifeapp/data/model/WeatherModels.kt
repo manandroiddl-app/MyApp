@@ -4,7 +4,8 @@ data class RealtimeWeatherResponse(
     val temperature: StationGroup?,
     val humidity: StationGroup?,
     val uvindex: UvGroup?,
-    val warningMessage: List<String>?
+    val warningMessage: List<String>?,
+    val updateTime: String?
 )
 
 data class StationGroup(val data: List<StationRecord>?)
@@ -55,6 +56,7 @@ data class FullWeatherUiState(
     val currentUv: String = "無數據",
     val todayForecastDesc: String = "載入中...",
     val nineDayForecasts: List<DayForecast> = emptyList(),
+    val updateTimeText: String = "",
     val errorMessage: String? = null
 )
 
