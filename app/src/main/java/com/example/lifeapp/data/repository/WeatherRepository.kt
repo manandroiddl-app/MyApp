@@ -32,43 +32,49 @@ class WeatherRepository @Inject constructor(
         var uvVal = "無數據"
         var updateTimeText = "剛剛更新"
 
-        // === 手動精密解析 rhrread JSON ===
+        // === 精密解析 rhrread JsonObject (100% 容錯防崩潰) ===
         realtimeRaw?.let { root ->
             // 1. 解析生效中警告訊息
             if (root.has("warningMessage") && !root.get("warningMessage").isJsonNull) {
                 val warnArray = root.getAsJsonArray("warningMessage")
-                warnArray.forEach { element ->
-                    val msg = element.asString.replace("<br/>", "\n").replace("<br>", "\n").trim()
+                for (i in 0 until warnArray.size()) {
+                    val msg = warnArray.get(i).asString.replace("<br/>", "\n").replace("<br>", "\n").trim()
                     if (msg.isNotEmpty()) warningList.add(msg)
                 }
             }
 
             // 2. 解析分區氣溫 (全港測量站)
-            if (root.has("temperature") && root.getAsJsonObject("temperature").has("data")) {
-                val tempArray = root.getAsJsonObject("temperature").getAsJsonArray("data")
-                tempArray.forEach { element ->
-                    val obj = element.asJsonObject
-                    val place = obj.get("place").asString
-                    val value = obj.get("value").asInt
-                    val enName = stationNameEnMap[place] ?: place
-                    locationList.add(LocationStation(nameTc = place, nameEn = enName, temp = value))
+            if (root.has("temperature") && !root.get("temperature").isJsonNull) {
+                val tempObj = root.getAsJsonObject("temperature")
+                if (tempObj.has("data") && !tempObj.get("data").isJsonNull) {
+                    val tempArray = tempObj.getAsJsonArray("data")
+                    for (i in 0 until tempArray.size()) {
+                        val obj = tempArray.get(i).asJsonObject
+                        val place = obj.get("place").asString
+                        val value = obj.get("value").asInt
+                        val enName = stationNameEnMap[place] ?: place
+                        locationList.add(LocationStation(nameTc = place, nameEn = enName, temp = value))
+                    }
+                    locationList.sortBy { it.nameEn } // 依英文 Alphabetical A-Z 排序
                 }
-                locationList.sortBy { it.nameEn } // 依英文 Alphabetical A-Z 排序
             }
 
             // 3. 解析相對濕度
-            if (root.has("humidity") && root.getAsJsonObject("humidity").has("data")) {
-                val humiArray = root.getAsJsonObject("humidity").getAsJsonArray("data")
-                if (humiArray.size() > 0) {
-                    val humiVal = humiArray.get(0).asJsonObject.get("value").asInt
-                    humidityVal = "$humiVal%"
+            if (root.has("humidity") && !root.get("humidity").isJsonNull) {
+                val humiObj = root.getAsJsonObject("humidity")
+                if (humiObj.has("data") && !humiObj.get("data").isJsonNull) {
+                    val humiArray = humiObj.getAsJsonArray("data")
+                    if (humiArray.size() > 0) {
+                        val humiVal = humiArray.get(0).asJsonObject.get("value").asInt
+                        humidityVal = "$humiVal%"
+                    }
                 }
             }
 
             // 4. 解析紫外線指數
             if (root.has("uvindex") && !root.get("uvindex").isJsonNull) {
                 val uvObj = root.getAsJsonObject("uvindex")
-                if (uvObj.has("data")) {
+                if (uvObj.has("data") && !uvObj.get("data").isJsonNull) {
                     val uvArray = uvObj.getAsJsonArray("data")
                     if (uvArray.size() > 0) {
                         val firstUv = uvArray.get(0).asJsonObject
@@ -80,8 +86,9 @@ class WeatherRepository @Inject constructor(
             }
 
             // 5. 解析更新時間 (記錄時間)
-            val rawTime = if (root.has("recordTime")) root.get("recordTime").asString
-            else if (root.has("temperature") && root.getAsJsonObject("temperature").has("recordTime")) {
+            val rawTime = if (root.has("recordTime")) {
+                root.get("recordTime").asString
+            } else if (root.has("temperature") && root.getAsJsonObject("temperature").has("recordTime")) {
                 root.getAsJsonObject("temperature").get("recordTime").asString
             } else ""
 
