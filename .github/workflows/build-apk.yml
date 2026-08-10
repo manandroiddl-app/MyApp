@@ -20,13 +20,15 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
-      # 如果 Repo 內沒有 gradlew，自動安裝 Gradle 並生成 gradlew
+      # 如果 Repo 內沒有 gradlew，下載最新的 Gradle 8.5 來生成符合 Java 17 的 gradlew
       - name: Setup Gradle Wrapper if missing
         run: |
           if [ ! -f ./gradlew ]; then
-            echo "gradlew not found, installing gradle and generating wrapper..."
-            sudo apt-get update && sudo apt-get install -y gradle
-            gradle wrapper
+            echo "gradlew not found, downloading Gradle 8.5 to generate wrapper..."
+            wget -q https://services.gradle.org/distributions/gradle-8.5-bin.zip
+            unzip -q gradle-8.5-bin.zip
+            ./gradle-8.5/bin/gradle wrapper --gradle-version 8.5
+            rm -rf gradle-8.5 gradle-8.5-bin.zip
           fi
           chmod +x gradlew
 
