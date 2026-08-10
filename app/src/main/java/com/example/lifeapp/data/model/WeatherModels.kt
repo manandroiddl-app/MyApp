@@ -1,57 +1,13 @@
 package com.example.lifeapp.data.model
 
-// (A) 即時天氣 rhrread 精確結構
-data class RealtimeWeatherResponse(
-    val temperature: StationGroup?,
-    val humidity: StationGroup?,
-    val uvindex: UvGroup?,
-    val warningMessage: List<String>?,
-    val recordTime: String?
-)
-
-data class StationGroup(
-    val data: List<StationRecord>?,
-    val recordTime: String?
-)
-
-data class StationRecord(
-    val place: String,
-    val value: Int,
-    val unit: String?
-)
-
-data class UvGroup(
-    val data: List<UvRecord>?
-)
-
-data class UvRecord(
-    val value: Float,
-    val desc: String
-)
-
+// 地點模型
 data class LocationStation(
     val nameTc: String,
     val nameEn: String,
     val temp: Int?
 )
 
-typealias WarningSummaryResponse = Map<String, WarningItem>?
-
-data class WarningItem(
-    val name: String,
-    val code: String,
-    val actionCode: String
-)
-
-// (B) 本日預報 flw
-data class ForecastLocalWeatherResponse(
-    val generalSituation: String?,
-    val forecastDesc: String?,
-    val outlook: String?,
-    val updateTime: String?
-)
-
-// (C) 九日預報 fnd
+// 九日預報 Data Models
 data class NineDayForecastResponse(
     val generalSituation: String?,
     val weatherForecast: List<DayForecast>?
@@ -73,6 +29,14 @@ data class TempVal(
     val unit: String
 )
 
+// 本日預報
+data class ForecastLocalWeatherResponse(
+    val generalSituation: String?,
+    val forecastDesc: String?,
+    val outlook: String?,
+    val updateTime: String?
+)
+
 // UI 綜合狀態
 data class FullWeatherUiState(
     val isLoading: Boolean = true,
@@ -87,7 +51,7 @@ data class FullWeatherUiState(
     val errorMessage: String? = null
 )
 
-// 地點中英對照表 (用於按英文 Alphabetical A-Z 排序)
+// 香港天文台 25+ 個測量站中英對照表 (用於按英文 Alphabetical A-Z 排序)
 val stationNameEnMap = mapOf(
     "香港天文台" to "Hong Kong Observatory",
     "京士柏" to "King's Park",
@@ -113,5 +77,10 @@ val stationNameEnMap = mapOf(
     "赤柱" to "Stanley",
     "觀塘" to "Kwun Tong",
     "深水埗" to "Sham Shui Po",
-    "大美督" to "Tai Mei Tuk"
+    "大美督" to "Tai Mei Tuk",
+    "坪洲" to "Peng Chau",
+    "北潭湧" to "Pak Tam Chung",
+    "昂坪" to "Ngong Ping",
+    "橫瀾島" to "Waglan Island",
+    "濕地公園" to "Wetland Park"
 )
