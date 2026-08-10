@@ -17,7 +17,6 @@ class WeatherRepository @Inject constructor(
         var today: ForecastLocalWeatherResponse? = null
         var nineDay: NineDayForecastResponse? = null
 
-        // 分別抓取各個 API，確保單一 API 失敗時不會導致整頁載入失敗
         runCatching { realtime = apiService.getRealtimeWeather() }
             .onFailure { Log.e("WeatherRepo", "Realtime API Error", it) }
 
@@ -30,14 +29,16 @@ class WeatherRepository @Inject constructor(
         runCatching { nineDay = apiService.getNineDayForecast() }
             .onFailure { Log.e("WeatherRepo", "NineDay API Error", it) }
 
-        // 1. 警告資訊整理
+        // 1. 詳細警告資訊整理
         val warningList = mutableListOf<String>()
-        warningsRaw?.values?.forEach { warningList.add(it.name) }
-        if (warningList.isEmpty() && !realtime?.warningMessage.isNullOrEmpty()) {
+        // 優先顯示詳細 warningMessage
+        if (!realtime?.warningMessage.isNullOrEmpty()) {
             realtime?.warningMessage?.let { warningList.addAll(it) }
+        } else {
+            warningsRaw?.values?.forEach { warningList.add(it.name) }
         }
 
-        // 2. 分區地點與氣溫整理 (按英文名 A-Z 排序)
+        // 2. 分區氣溫 (按英文名 A-Z 排序)
         val locationList = mutableListOf<LocationStation>()
         realtime?.temperature?.data?.forEach { rec ->
             val enName = stationNameEnMap[rec.place] ?: rec.place
@@ -54,6 +55,17 @@ class WeatherRepository @Inject constructor(
         val todayDesc = today?.forecastDesc ?: today?.generalSituation ?: "天文台現正更新天氣預報資訊。"
         val nineDays = nineDay?.weatherForecast ?: emptyList()
 
+        // 3. 格式化最後更新時間
+        val rawTime = realtime?.updateTime ?: ""
+        val formattedTime = if (rawTime.length >= 16) {
+            try {
+                // e.g. 2026-08-10T23:50:00+08:00 -> 23:50
+                rawTime.substring(11, 16)
+            } catch (e: Exception) {
+                ""
+            }
+        } else ""
+
         FullWeatherUiState(
             isLoading = false,
             warnings = warningList,
@@ -63,6 +75,7 @@ class WeatherRepository @Inject constructor(
             currentUv = uvVal,
             todayForecastDesc = todayDesc,
             nineDayForecasts = nineDays,
+            updateTimeText = if (formattedTime.isNotEmpty()) "最後更新時間：$formattedTime" else "",
             errorMessage = if (realtime == null && today == null) "無法連接香港天文台，請檢查網路連線。" else null
         )
     }
