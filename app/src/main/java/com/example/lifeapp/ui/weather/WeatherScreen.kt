@@ -46,7 +46,21 @@ fun WeatherScreen(viewModel: WeatherViewModel = hiltViewModel()) {
                 .padding(16.dp)
                 .verticalScroll(rememberScrollState())
         ) {
-            // 1. 警告
+            // 顯示最後更新時間提示標籤
+            if (uiState.updateTimeText.isNotEmpty()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    Text(
+                        text = "🕒 ${uiState.updateTimeText}",
+                        fontSize = 12.sp,
+                        color = TextGray
+                    )
+                }
+            }
+
+            // 1. 生效中的天氣警告 (含詳細內容)
             Text("1. 生效中的天氣警告", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = PrimaryDarkBlue)
             Spacer(modifier = Modifier.height(8.dp))
             Card(
@@ -58,10 +72,20 @@ fun WeatherScreen(viewModel: WeatherViewModel = hiltViewModel()) {
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     if (uiState.warnings.isNotEmpty()) {
-                        uiState.warnings.forEach { warning ->
-                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 4.dp)) {
+                        uiState.warnings.forEachIndexed { index, warning ->
+                            if (index > 0) HorizontalDivider(
+                                modifier = Modifier.padding(vertical = 8.dp),
+                                color = Color.Black.copy(alpha = 0.1f)
+                            )
+                            Row(verticalAlignment = Alignment.Top) {
                                 Text("⚠️ ", fontSize = 16.sp)
-                                Text(text = warning, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = WarningRed)
+                                Text(
+                                    text = warning,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = WarningRed,
+                                    lineHeight = 20.sp
+                                )
                             }
                         }
                     } else {
@@ -203,15 +227,4 @@ fun WeatherScreen(viewModel: WeatherViewModel = hiltViewModel()) {
             Spacer(modifier = Modifier.height(16.dp))
         }
     }
-}
-
-fun formatDate(rawDate: String): String {
-    if (rawDate.length == 8) {
-        val month = rawDate.substring(4, 6).toIntOrNull()
-        val day = rawDate.substring(6, 8).toIntOrNull()
-        if (month != null && day != null) {
-            return "${month}月${day}日"
-        }
-    }
-    return rawDate
 }
