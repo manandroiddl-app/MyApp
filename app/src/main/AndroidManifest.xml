@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- 聯網權限 (讀取天氣與交通 API) -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <application
+        android:name=".LifeApplication"
         android:allowBackup="true"
         android:icon="@android:drawable/ic_menu_compass"
         android:label="生活大目錄"
