@@ -48,6 +48,8 @@ class TrafficRepository @Inject constructor(
         val messageRegex = Regex("<message>(.*?)</message>", RegexOption.DOT_MATCHES_ALL)
         val matches = messageRegex.findAll(xml)
 
+        val options = setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
+
         for (match in matches) {
             val block = match.groupValues[1]
 
@@ -56,15 +58,15 @@ class TrafficRepository @Inject constructor(
             val msgId = msgIdMatch?.groupValues?.get(1)?.trim() ?: ""
 
             // 提取 中文內容 (包含 CDATA 防禦)
-            val chinMatch = Regex("<ChinText>(.*?)</ChinText>", RegexOption.IGNORE_CASE or RegexOption.DOT_MATCHES_ALL).find(block)
+            val chinMatch = Regex("<ChinText>(.*?)</ChinText>", options).find(block)
             var chinText = chinMatch?.groupValues?.get(1)?.trim() ?: ""
 
             // 提取 英文內容 (備用)
-            val engMatch = Regex("<EngText>(.*?)</EngText>", RegexOption.IGNORE_CASE or RegexOption.DOT_MATCHES_ALL).find(block)
+            val engMatch = Regex("<EngText>(.*?)</EngText>", options).find(block)
             var engText = engMatch?.groupValues?.get(1)?.trim() ?: ""
 
             // 提取 時間
-            val dateMatch = Regex("<ReferenceDate>(.*?)</ReferenceDate>", RegexOption.IGNORE_CASE or RegexOption.DOT_MATCHES_ALL).find(block)
+            val dateMatch = Regex("<ReferenceDate>(.*?)</ReferenceDate>", options).find(block)
             val rawDate = dateMatch?.groupValues?.get(1)?.trim() ?: ""
 
             // 清理 CDATA 與 HTML 標籤
