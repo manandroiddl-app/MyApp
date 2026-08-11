@@ -19,33 +19,10 @@ class TrafficRepository @Inject constructor(
         val nowStr = outputDateFormat.format(Date())
 
         return runCatching {
-            val response = apiService.getSpecialTrafficNews()
-            val list = response.messageList ?: emptyList()
+            val responseBody = apiService.getSpecialTrafficNewsRaw()
+            val xmlText = responseBody.string()
 
-            val items = list.mapNotNull { msg ->
-                // 依序嘗試多個欄位來源，確保不漏抓內文
-                val rawChin = (msg.chinText ?: msg.chinTextAlt ?: "").trim()
-                val rawEng = (msg.engText ?: msg.engTextAlt ?: "").trim()
-                
-                val rawContent = if (rawChin.isNotBlank()) rawChin else rawEng
-                if (rawContent.isBlank()) return@mapNotNull null
-
-                // 清洗 HTML 標籤與多餘空白
-                val cleanContent = rawContent
-                    .replace(Regex("<[^>]*>"), "")
-                    .replace("&nbsp;", " ")
-                    .trim()
-
-                val id = msg.msgID ?: ""
-                val rawDate = (msg.referenceDate ?: msg.referenceDateAlt ?: "").trim()
-                val formattedTime = parseTime(rawDate)
-
-                TrafficItem(
-                    id = id,
-                    title = cleanContent,
-                    timeText = formattedTime
-                )
-            }
+            val items = parseXmlWithRegex(xmlText)
 
             TrafficUiState(
                 isLoading = false,
@@ -62,6 +39,63 @@ class TrafficRepository @Inject constructor(
                 errorMessage = "無法連線至運輸署交通消息伺服器。"
             )
         }
+    }
+
+    private fun parseXmlWithRegex(xml: String): List<TrafficItem> {
+        val itemList = mutableListOf<TrafficItem>()
+
+        // 匹配每一個 <message>...</message> 區塊
+        val messageRegex = Regex("<message>(.*?)</message>", RegexOption.DOT_MATCHES_ALL)
+        val matches = messageRegex.findAll(xml)
+
+        for (match in matches) {
+            val block = match.groupValues[1]
+
+            // 提取 msgID
+            val msgIdMatch = Regex("<msgID>(.*?)</msgID>", RegexOption.DOT_MATCHES_ALL).find(block)
+            val msgId = msgIdMatch?.groupValues?.get(1)?.trim() ?: ""
+
+            // 提取 中文內容 (包含 CDATA 防禦)
+            val chinMatch = Regex("<ChinText>(.*?)</ChinText>", RegexOption.IGNORE_CASE or RegexOption.DOT_MATCHES_ALL).find(block)
+            var chinText = chinMatch?.groupValues?.get(1)?.trim() ?: ""
+
+            // 提取 英文內容 (備用)
+            val engMatch = Regex("<EngText>(.*?)</EngText>", RegexOption.IGNORE_CASE or RegexOption.DOT_MATCHES_ALL).find(block)
+            var engText = engMatch?.groupValues?.get(1)?.trim() ?: ""
+
+            // 提取 時間
+            val dateMatch = Regex("<ReferenceDate>(.*?)</ReferenceDate>", RegexOption.IGNORE_CASE or RegexOption.DOT_MATCHES_ALL).find(block)
+            val rawDate = dateMatch?.groupValues?.get(1)?.trim() ?: ""
+
+            // 清理 CDATA 與 HTML 標籤
+            chinText = cleanXmlText(chinText)
+            engText = cleanXmlText(engText)
+
+            val content = if (chinText.isNotBlank()) chinText else engText
+            if (content.isNotBlank()) {
+                itemList.add(
+                    TrafficItem(
+                        id = msgId,
+                        title = content,
+                        timeText = parseTime(rawDate)
+                    )
+                )
+            }
+        }
+
+        return itemList
+    }
+
+    private fun cleanXmlText(text: String): String {
+        return text
+            .replace("<![CDATA[", "")
+            .replace("]]>", "")
+            .replace(Regex("<[^>]*>"), "")
+            .replace("&nbsp;", " ")
+            .replace("&amp;", "&")
+            .replace("&lt;", "<")
+            .replace("&gt;", ">")
+            .trim()
     }
 
     private fun parseTime(rawTime: String): String {
