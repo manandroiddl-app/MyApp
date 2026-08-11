@@ -4,7 +4,6 @@ import android.util.Log
 import com.example.lifeapp.data.api.HkoApiService
 import com.example.lifeapp.data.model.*
 import com.google.gson.JsonElement
-import com.google.gson.JsonObject
 import kotlinx.coroutines.async
 import kotlinx.coroutines.supervisorScope
 import javax.inject.Inject
@@ -15,22 +14,21 @@ class WeatherRepository @Inject constructor(
     private val apiService: HkoApiService
 ) {
     suspend fun fetchFullWeatherData(): FullWeatherUiState = supervisorScope {
-        // 使用 supervisorScope + async 確保各個請求獨立，互不干擾
         val realtimeDeferred = async { runCatching { apiService.getRealtimeWeatherRaw() }.getOrNull() }
         val warnsumDeferred = async { runCatching { apiService.getWarningSummaryRaw() }.getOrNull() }
         val warningInfoDeferred = async { runCatching { apiService.getWarningInfoRaw() }.getOrNull() }
         val swtDeferred = async { runCatching { apiService.getSpecialWeatherTipsRaw() }.getOrNull() }
-        val todayDeferred = async { runCatching { apiService.getTodayForecast() }.getOrNull() }
-        val nineDayDeferred = async { runCatching { apiService.getNineDayForecast() }.getOrNull() }
+        val todayDeferred = async { runCatching { apiService.getTodayForecastRaw() }.getOrNull() }
+        val nineDayDeferred = async { runCatching { apiService.getNineDayForecastRaw() }.getOrNull() }
 
         val realtimeRaw = realtimeDeferred.await()
         val warnsumRaw = warnsumDeferred.await()
         val warningInfoRaw = warningInfoDeferred.await()
         val swtRaw = swtDeferred.await()
-        val today = todayDeferred.await()
-        val nineDay = nineDayDeferred.await()
+        val todayRaw = todayDeferred.await()
+        val nineDayRaw = nineDayDeferred.await()
 
-        // === 1. 安全解析生效中警告 (warnsum) ===
+        // === 1. 解析生效中警告 (warnsum) ===
         val warningList = mutableListOf<String>()
         try {
             if (warnsumRaw != null && warnsumRaw.isJsonObject) {
@@ -45,7 +43,7 @@ class WeatherRepository @Inject constructor(
             Log.e("WeatherRepo", "Parse warnsum failed", e)
         }
 
-        // === 1. 安全解析警告詳細內文 (warninginfo) ===
+        // === 1. 解析警告詳細內文 (warninginfo) ===
         val warningDetailMap = mutableMapOf<String, String>()
         try {
             if (warningInfoRaw != null && warningInfoRaw.isJsonObject) {
@@ -70,7 +68,7 @@ class WeatherRepository @Inject constructor(
             Log.e("WeatherRepo", "Parse warninginfo failed", e)
         }
 
-        // === 1. 安全解析特別天氣提示 (swt) ===
+        // === 1. 解析特別天氣提示 (swt) ===
         val swtTips = mutableListOf<String>()
         try {
             if (swtRaw != null && swtRaw.isJsonObject) {
@@ -89,80 +87,135 @@ class WeatherRepository @Inject constructor(
             Log.e("WeatherRepo", "Parse swt failed", e)
         }
 
-        // === 2. 安全解析分區天氣 (rhrread) ===
+        // === 2. 解析分區天氣 (rhrread) ===
         val locationList = mutableListOf<LocationStation>()
         var humidityVal = "--%"
         var uvVal = "無數據"
         var updateTimeText = "剛剛更新"
 
-        realtimeRaw?.let { root ->
-            // 分區氣溫
-            if (root.has("temperature") && !root.get("temperature").isJsonNull) {
-                val tempObj = root.getAsJsonObject("temperature")
-                if (tempObj.has("data") && !tempObj.get("data").isJsonNull) {
-                    val tempArray = tempObj.getAsJsonArray("data")
-                    for (i in 0 until tempArray.size()) {
-                        val obj = tempArray.get(i).asJsonObject
-                        val place = obj.get("place").asString
-                        val value = obj.get("value").asInt
-                        val enName = stationNameEnMap[place] ?: place
-                        locationList.add(LocationStation(nameTc = place, nameEn = enName, temp = value))
-                    }
-                    locationList.sortBy { it.nameEn }
-                }
-            }
+        try {
+            if (realtimeRaw != null && realtimeRaw.isJsonObject) {
+                val root = realtimeRaw.asJsonObject
 
-            // 相對濕度
-            if (root.has("humidity") && !root.get("humidity").isJsonNull) {
-                val humiObj = root.getAsJsonObject("humidity")
-                if (humiObj.has("data") && !humiObj.get("data").isJsonNull) {
-                    val humiArray = humiObj.getAsJsonArray("data")
-                    if (humiArray.size() > 0) {
-                        val humiVal = humiArray.get(0).asJsonObject.get("value").asInt
-                        humidityVal = "$humiVal%"
+                // 分區氣溫
+                if (root.has("temperature") && !root.get("temperature").isJsonNull) {
+                    val tempObj = root.getAsJsonObject("temperature")
+                    if (tempObj.has("data") && !tempObj.get("data").isJsonNull) {
+                        val tempArray = tempObj.getAsJsonArray("data")
+                        for (i in 0 until tempArray.size()) {
+                            val obj = tempArray.get(i).asJsonObject
+                            val place = obj.get("place").asString
+                            val value = obj.get("value").asInt
+                            val enName = stationNameEnMap[place] ?: place
+                            locationList.add(LocationStation(nameTc = place, nameEn = enName, temp = value))
+                        }
+                        locationList.sortBy { it.nameEn }
                     }
                 }
-            }
 
-            // 紫外線指數
-            if (root.has("uvindex") && !root.get("uvindex").isJsonNull) {
-                val uvObj = root.getAsJsonObject("uvindex")
-                if (uvObj.has("data") && !uvObj.get("data").isJsonNull) {
-                    val uvArray = uvObj.getAsJsonArray("data")
-                    if (uvArray.size() > 0) {
-                        val firstUv = uvArray.get(0).asJsonObject
-                        val valNum = firstUv.get("value").asFloat
-                        val desc = if (firstUv.has("desc")) firstUv.get("desc").asString else ""
-                        uvVal = "$valNum ($desc)"
+                // 相對濕度
+                if (root.has("humidity") && !root.get("humidity").isJsonNull) {
+                    val humiObj = root.getAsJsonObject("humidity")
+                    if (humiObj.has("data") && !humiObj.get("data").isJsonNull) {
+                        val humiArray = humiObj.getAsJsonArray("data")
+                        if (humiArray.size() > 0) {
+                            val humiVal = humiArray.get(0).asJsonObject.get("value").asInt
+                            humidityVal = "$humiVal%"
+                        }
+                    }
+                }
+
+                // 紫外線指數
+                if (root.has("uvindex") && !root.get("uvindex").isJsonNull) {
+                    val uvObj = root.getAsJsonObject("uvindex")
+                    if (uvObj.has("data") && !uvObj.get("data").isJsonNull) {
+                        val uvArray = uvObj.getAsJsonArray("data")
+                        if (uvArray.size() > 0) {
+                            val firstUv = uvArray.get(0).asJsonObject
+                            val valNum = firstUv.get("value").asFloat
+                            val desc = if (firstUv.has("desc")) firstUv.get("desc").asString else ""
+                            uvVal = "$valNum ($desc)"
+                        }
+                    }
+                }
+
+                // 更新時間
+                val rawTime = if (root.has("recordTime")) {
+                    root.get("recordTime").asString
+                } else if (root.has("temperature") && root.getAsJsonObject("temperature").has("recordTime")) {
+                    root.getAsJsonObject("temperature").get("recordTime").asString
+                } else ""
+
+                if (rawTime.length >= 16) {
+                    try {
+                        updateTimeText = "最後更新時間：${rawTime.substring(11, 16)}"
+                    } catch (e: Exception) {
+                        updateTimeText = "剛剛更新"
                     }
                 }
             }
+        } catch (e: Exception) {
+            Log.e("WeatherRepo", "Parse rhrread failed", e)
+        }
 
-            // 更新時間
-            val rawTime = if (root.has("recordTime")) {
-                root.get("recordTime").asString
-            } else if (root.has("temperature") && root.getAsJsonObject("temperature").has("recordTime")) {
-                root.getAsJsonObject("temperature").get("recordTime").asString
-            } else ""
-
-            if (rawTime.length >= 16) {
-                try {
-                    updateTimeText = "最後更新時間：${rawTime.substring(11, 16)}"
-                } catch (e: Exception) {
-                    updateTimeText = "剛剛更新"
+        // === 3. 解析今日天氣預報 (flw) ===
+        var todayDesc = "天文台現正更新天氣預報資訊。"
+        try {
+            if (todayRaw != null && todayRaw.isJsonObject) {
+                val todayObj = todayRaw.asJsonObject
+                if (todayObj.has("forecastDesc") && !todayObj.get("forecastDesc").isJsonNull) {
+                    todayDesc = todayObj.get("forecastDesc").asString
+                } else if (todayObj.has("generalSituation") && !todayObj.get("generalSituation").isJsonNull) {
+                    todayDesc = todayObj.get("generalSituation").asString
                 }
             }
+        } catch (e: Exception) {
+            Log.e("WeatherRepo", "Parse flw failed", e)
+        }
+
+        // === 4. 解析九日天氣預報 (fnd) ===
+        val nineDays = mutableListOf<DayForecast>()
+        try {
+            if (nineDayRaw != null && nineDayRaw.isJsonObject) {
+                val fndObj = nineDayRaw.asJsonObject
+                if (fndObj.has("weatherForecast") && !fndObj.get("weatherForecast").isJsonNull) {
+                    val forecastArray = fndObj.getAsJsonArray("weatherForecast")
+                    for (i in 0 until forecastArray.size()) {
+                        val item = forecastArray.get(i).asJsonObject
+                        val date = item.get("forecastDate")?.asString ?: ""
+                        val week = item.get("week")?.asString ?: ""
+                        val wind = item.get("forecastWind")?.asString ?: ""
+                        val weather = item.get("forecastWeather")?.asString ?: ""
+
+                        val maxT = if (item.has("forecastMaxtemp")) item.getAsJsonObject("forecastMaxtemp").get("value").asInt else 0
+                        val minT = if (item.has("forecastMintemp")) item.getAsJsonObject("forecastMintemp").get("value").asInt else 0
+                        val maxRh = if (item.has("forecastMaxrh")) item.getAsJsonObject("forecastMaxrh").get("value").asInt else 0
+                        val minRh = if (item.has("forecastMinrh")) item.getAsJsonObject("forecastMinrh").get("value").asInt else 0
+
+                        nineDays.add(
+                            DayForecast(
+                                forecastDate = date,
+                                week = week,
+                                forecastWind = wind,
+                                forecastWeather = weather,
+                                forecastMaxtemp = TempVal(maxT, "C"),
+                                forecastMintemp = TempVal(minT, "C"),
+                                forecastMaxrh = TempVal(maxRh, "%"),
+                                forecastMinrh = TempVal(minRh, "%")
+                            )
+                        )
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("WeatherRepo", "Parse fnd failed", e)
         }
 
         val defaultLoc = locationList.firstOrNull { it.nameTc == "香港天文台" }
             ?: locationList.firstOrNull()
             ?: LocationStation("香港天文台", "Hong Kong Observatory", null)
 
-        // 3. 今日預報 (flw)
-        val todayDesc = today?.forecastDesc ?: today?.generalSituation ?: "天文台現正更新天氣預報資訊。"
-        
-        // 4. 九日預報 (fnd)
-        val nineDays = nineDay?.weatherForecast ?: emptyList()
+        val hasAnyData = locationList.isNotEmpty() || nineDays.isNotEmpty() || todayDesc != "天文台現正更新天氣預報資訊。"
 
         FullWeatherUiState(
             isLoading = false,
@@ -176,8 +229,7 @@ class WeatherRepository @Inject constructor(
             todayForecastDesc = todayDesc,
             nineDayForecasts = nineDays,
             updateTimeText = updateTimeText,
-            // 只有當即時天氣與今日預報「同時」為 null 時才顯示錯誤，防止單一 API 失敗卡住畫面
-            errorMessage = if (realtimeRaw == null && today == null) "無法連接香港天文台，請檢查網路連線。" else null
+            errorMessage = if (!hasAnyData) "無法連接香港天文台，請檢查網路連線。" else null
         )
     }
 }
