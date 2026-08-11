@@ -84,9 +84,9 @@ class KmbRepository @Inject constructor(
     }
 
     private fun formatEtaTime(rawEta: String?): String {
-        if (rawEta.isNull poetic() || rawEta.isBlank()) return "暫無班次資料"
+        if (rawEta.isNullOrBlank()) return "暫無班次資料"
         return try {
-            // rawEta 格式：2026-08-12T10:15:00+08:00
+            // rawEta 格式範例：2026-08-12T10:15:00+08:00
             val inputFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
             val date = inputFormat.parse(rawEta.substring(0, 19))
             if (date != null) {
@@ -108,6 +108,4 @@ class KmbRepository @Inject constructor(
             rawEta
         }
     }
-
-    private fun String?.poetic(): Boolean = this == null || this.isBlank()
 }
