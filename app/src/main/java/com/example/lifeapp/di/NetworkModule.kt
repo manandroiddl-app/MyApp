@@ -1,6 +1,7 @@
 package com.example.lifeapp.di
 
 import com.example.lifeapp.data.api.HkoApiService
+import com.example.lifeapp.data.api.KmbApiService
 import com.example.lifeapp.data.api.TdApiService
 import dagger.Module
 import dagger.Provides
@@ -18,6 +19,7 @@ object NetworkModule {
 
     private const val HKO_BASE_URL = "https://data.weather.gov.hk/"
     private const val TD_BASE_URL = "https://resource.data.one.gov.hk/"
+    private const val KMB_BASE_URL = "https://data.etabus.gov.hk/"
 
     @Provides
     @Singleton
@@ -55,5 +57,16 @@ object NetworkModule {
             .addConverterFactory(GsonConverterFactory.create())
             .build()
             .create(TdApiService::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideKmbApiService(okHttpClient: OkHttpClient): KmbApiService {
+        return Retrofit.Builder()
+            .baseUrl(KMB_BASE_URL)
+            .client(okHttpClient)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+            .create(KmbApiService::class.java)
     }
 }
