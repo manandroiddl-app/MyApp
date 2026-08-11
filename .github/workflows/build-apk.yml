@@ -1,9 +1,12 @@
 name: Build Signed Android APK
 
 on:
-  push:
-    branches: [ "main", "master" ]
+  # 允許在 GitHub 網頁介面上手動點擊按鈕觸發
   workflow_dispatch:
+
+  # （可選）如果你仍想保留只有在 PR 合併時才 Build，可以保留這幾行；否則只需保留 workflow_dispatch
+  # pull_request:
+  #   branches: [ "main" ]
 
 jobs:
   build:
