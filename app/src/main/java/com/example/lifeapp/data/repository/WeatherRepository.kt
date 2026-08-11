@@ -3,6 +3,7 @@ package com.example.lifeapp.data.repository
 import android.util.Log
 import com.example.lifeapp.data.api.HkoApiService
 import com.example.lifeapp.data.model.*
+import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import kotlinx.coroutines.coroutineScope
 import javax.inject.Inject
@@ -14,48 +15,51 @@ class WeatherRepository @Inject constructor(
 ) {
     suspend fun fetchFullWeatherData(): FullWeatherUiState = coroutineScope {
         var realtimeRaw: JsonObject? = null
-        var warnsumRaw: JsonObject? = null
-        var warningInfoRaw: JsonObject? = null
-        var swtRaw: JsonObject? = null
+        var warnsumRaw: JsonElement? = null
+        var warningInfoRaw: JsonElement? = null
+        var swtRaw: JsonElement? = null
         var today: ForecastLocalWeatherResponse? = null
         var nineDay: NineDayForecastResponse? = null
 
-        // 獨立抓取，確保單一 API 異常不影響全局
+        // 獨立抓取，任何單一 API 失敗都不影響其他 API
         runCatching { realtimeRaw = apiService.getRealtimeWeatherRaw() }
-            .onFailure { Log.e("WeatherRepo", "rhrread API Error", it) }
+            .onFailure { Log.e("WeatherRepo", "rhrread Error", it) }
 
         runCatching { warnsumRaw = apiService.getWarningSummaryRaw() }
-            .onFailure { Log.e("WeatherRepo", "warnsum API Error", it) }
+            .onFailure { Log.e("WeatherRepo", "warnsum Error", it) }
 
         runCatching { warningInfoRaw = apiService.getWarningInfoRaw() }
-            .onFailure { Log.e("WeatherRepo", "warninginfo API Error", it) }
+            .onFailure { Log.e("WeatherRepo", "warninginfo Error", it) }
 
         runCatching { swtRaw = apiService.getSpecialWeatherTipsRaw() }
-            .onFailure { Log.e("WeatherRepo", "swt API Error", it) }
+            .onFailure { Log.e("WeatherRepo", "swt Error", it) }
 
         runCatching { today = apiService.getTodayForecast() }
-            .onFailure { Log.e("WeatherRepo", "flw API Error", it) }
+            .onFailure { Log.e("WeatherRepo", "flw Error", it) }
 
         runCatching { nineDay = apiService.getNineDayForecast() }
-            .onFailure { Log.e("WeatherRepo", "fnd API Error", it) }
+            .onFailure { Log.e("WeatherRepo", "fnd Error", it) }
 
-        // === 1. 解析生效中警告 (warnsum) ===
+        // === 1. 安全解析生效中警告 (warnsum) ===
         val warningList = mutableListOf<String>()
         try {
-            warnsumRaw?.entrySet()?.forEach { entry ->
-                val obj = entry.value.asJsonObject
-                if (obj.has("name")) {
-                    warningList.add(obj.get("name").asString)
+            if (warnsumRaw != null && warnsumRaw!!.isJsonObject) {
+                warnsumRaw!!.asJsonObject.entrySet().forEach { entry ->
+                    val obj = entry.value.asJsonObject
+                    if (obj.has("name")) {
+                        warningList.add(obj.get("name").asString)
+                    }
                 }
             }
         } catch (e: Exception) {
             Log.e("WeatherRepo", "Parse warnsum failed", e)
         }
 
-        // === 1. 解析警告詳細內文 (warninginfo) ===
+        // === 1. 安全解析警告詳細內文 (warninginfo) ===
         val warningDetailMap = mutableMapOf<String, String>()
         try {
-            warningInfoRaw?.let { infoObj ->
+            if (warningInfoRaw != null && warningInfoRaw!!.isJsonObject) {
+                val infoObj = warningInfoRaw!!.asJsonObject
                 if (infoObj.has("details") && !infoObj.get("details").isJsonNull) {
                     val detailsArray = infoObj.getAsJsonArray("details")
                     for (i in 0 until detailsArray.size()) {
@@ -76,10 +80,11 @@ class WeatherRepository @Inject constructor(
             Log.e("WeatherRepo", "Parse warninginfo failed", e)
         }
 
-        // === 1. 解析特別天氣提示 (swt) ===
+        // === 1. 安全解析特別天氣提示 (swt) ===
         val swtTips = mutableListOf<String>()
         try {
-            swtRaw?.let { swtObj ->
+            if (swtRaw != null && swtRaw!!.isJsonObject) {
+                val swtObj = swtRaw!!.asJsonObject
                 if (swtObj.has("swt") && !swtObj.get("swt").isJsonNull) {
                     val swtArray = swtObj.getAsJsonArray("swt")
                     for (i in 0 until swtArray.size()) {
@@ -94,7 +99,7 @@ class WeatherRepository @Inject constructor(
             Log.e("WeatherRepo", "Parse swt failed", e)
         }
 
-        // === 2. 解析分區天氣 (rhrread) ===
+        // === 2. 安全解析分區天氣 (rhrread) ===
         val locationList = mutableListOf<LocationStation>()
         var humidityVal = "--%"
         var uvVal = "無數據"
