@@ -23,9 +23,9 @@ android {
     }
 
     signingConfigs {
-        // 設定固定的簽名配置 (使用預設的 debug.keystore 證書)
+        // 使用專案內生成的固定 debug.keystore 簽名
         create("releaseSigning") {
-            storeFile = file("${System.getProperty("user.home")}/.android/debug.keystore")
+            storeFile = file("debug.keystore")
             storePassword = "android"
             keyAlias = "androiddebugkey"
             keyPassword = "android"
