@@ -2,6 +2,7 @@ package com.example.lifeapp.data.api
 
 import com.example.lifeapp.data.model.ForecastLocalWeatherResponse
 import com.example.lifeapp.data.model.NineDayForecastResponse
+import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import retrofit2.http.GET
 import retrofit2.http.Query
@@ -14,26 +15,26 @@ interface HkoApiService {
         @Query("lang") lang: String = "tc"
     ): JsonObject
 
-    // 1. 生效中警告摘要 (warnsum)
+    // 1. 生效中警告摘要 (warnsum) - 改用 JsonElement 兼容 {} 與 []
     @GET("weatherAPI/opendata/weather.php")
     suspend fun getWarningSummaryRaw(
         @Query("dataType") dataType: String = "warnsum",
         @Query("lang") lang: String = "tc"
-    ): JsonObject
+    ): JsonElement
 
-    // 1. 警告詳細資料 (warninginfo)
+    // 1. 警告詳細資料 (warninginfo) - 改用 JsonElement 兼容 {} 與 []
     @GET("weatherAPI/opendata/weather.php")
     suspend fun getWarningInfoRaw(
         @Query("dataType") dataType: String = "warninginfo",
         @Query("lang") lang: String = "tc"
-    ): JsonObject
+    ): JsonElement
 
-    // 1. 特別天氣提示 (swt)
+    // 1. 特別天氣提示 (swt) - 改用 JsonElement 兼容 {} 與 []
     @GET("weatherAPI/opendata/weather.php")
     suspend fun getSpecialWeatherTipsRaw(
         @Query("dataType") dataType: String = "swt",
         @Query("lang") lang: String = "tc"
-    ): JsonObject
+    ): JsonElement
 
     // 3. 今日天氣預報 (flw)
     @GET("weatherAPI/opendata/weather.php")
