@@ -8,11 +8,6 @@ data class LocationStation(
 )
 
 // 九日預報 Data Models
-data class NineDayForecastResponse(
-    val generalSituation: String?,
-    val weatherForecast: List<DayForecast>?
-)
-
 data class DayForecast(
     val forecastDate: String,
     val week: String,
@@ -29,20 +24,12 @@ data class TempVal(
     val unit: String
 )
 
-// 本日預報
-data class ForecastLocalWeatherResponse(
-    val generalSituation: String?,
-    val forecastDesc: String?,
-    val outlook: String?,
-    val updateTime: String?
-)
-
-// UI 綜合狀態 (已補齊所有所需欄位)
+// UI 綜合狀態
 data class FullWeatherUiState(
     val isLoading: Boolean = true,
     val warnings: List<String> = emptyList(),
-    val warningDetailsMap: Map<String, String> = emptyMap(),  // <-- 新增：警告詳細內容 Map
-    val specialWeatherTips: List<String> = emptyList(),      // <-- 新增：特別天氣提示 List
+    val warningDetailsMap: Map<String, String> = emptyMap(),
+    val specialWeatherTips: List<String> = emptyList(),
     val locations: List<LocationStation> = emptyList(),
     val selectedLocation: LocationStation? = null,
     val currentHumidity: String = "--%",
@@ -53,7 +40,7 @@ data class FullWeatherUiState(
     val errorMessage: String? = null
 )
 
-// 香港天文台 25+ 個測量站中英對照表 (用於按英文 Alphabetical A-Z 排序)
+// 香港天文台 25+ 個測量站中英對照表 (按英文 Alphabetical A-Z 排序)
 val stationNameEnMap = mapOf(
     "香港天文台" to "Hong Kong Observatory",
     "京士柏" to "King's Park",
