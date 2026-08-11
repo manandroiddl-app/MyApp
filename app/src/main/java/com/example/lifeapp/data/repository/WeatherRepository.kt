@@ -15,13 +15,14 @@ class WeatherRepository @Inject constructor(
 ) {
     suspend fun fetchFullWeatherData(): FullWeatherUiState = coroutineScope {
         var realtimeRaw: JsonObject? = null
+        // 修正：宣告型態為 JsonElement?，對齊 HkoApiService
         var warnsumRaw: JsonElement? = null
         var warningInfoRaw: JsonElement? = null
         var swtRaw: JsonElement? = null
         var today: ForecastLocalWeatherResponse? = null
         var nineDay: NineDayForecastResponse? = null
 
-        // 獨立抓取，任何單一 API 失敗都不影響其他 API
+        // 獨立抓取，單一 API 失敗不影響其他區塊
         runCatching { realtimeRaw = apiService.getRealtimeWeatherRaw() }
             .onFailure { Log.e("WeatherRepo", "rhrread Error", it) }
 
