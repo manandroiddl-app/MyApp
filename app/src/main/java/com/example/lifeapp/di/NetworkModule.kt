@@ -9,7 +9,6 @@ import dagger.hilt.components.SingletonComponent
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
-import retrofit2.converter.simplexml.SimpleXmlConverterFactory
 import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
 
@@ -53,7 +52,7 @@ object NetworkModule {
         return Retrofit.Builder()
             .baseUrl(TD_BASE_URL)
             .client(okHttpClient)
-            .addConverterFactory(SimpleXmlConverterFactory.createNonStrict())
+            .addConverterFactory(GsonConverterFactory.create())
             .build()
             .create(TdApiService::class.java)
     }
