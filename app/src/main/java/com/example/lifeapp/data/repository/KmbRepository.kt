@@ -45,13 +45,10 @@ class KmbRepository @Inject constructor(
 
     suspend fun fetchRouteStopsWithDetail(route: String, bound: String, serviceType: String): List<Pair<KmbRouteStop, KmbStopDetail>> = coroutineScope {
         runCatching {
-            // 🌟 修正：轉換 bound 參數 ("I" -> "inbound", "O" -> "outbound")
             val apiBound = formatBoundParam(bound)
-            
             val stopsRes = kmbApiService.getRouteStops(route, apiBound, serviceType)
             val stops = stopsRes.data ?: return@coroutineScope emptyList()
 
-            // 批量非同步拉取各站詳細中文名稱，單站失敗時自動容錯
             val deferreds = stops.map { stop ->
                 async {
                     val detail = runCatching {
@@ -65,6 +62,21 @@ class KmbRepository @Inject constructor(
             deferreds.awaitAll()
         }.getOrElse { e ->
             Log.e("KmbRepo", "Fetch route stops error", e)
+            emptyList()
+        }
+    }
+
+    // 🌟 2c) 批量拉取整條路線各車站的即時 ETA
+    suspend fun fetchEtaForStop(stopId: String, route: String, serviceType: String): List<String> {
+        return runCatching {
+            val res = kmbApiService.getStopEta(stopId, route, serviceType)
+            val etaList = res.data ?: emptyList()
+            etaList.take(2).map { eta ->
+                val text = formatEtaTime(eta.eta)
+                val rmk = eta.rmkTc?.trim() ?: ""
+                if (rmk.isNotEmpty() && rmk != "班次正常") "$text ($rmk)" else text
+            }
+        }.getOrElse {
             emptyList()
         }
     }
@@ -89,7 +101,6 @@ class KmbRepository @Inject constructor(
         }
     }
 
-    // 將 API 要求的簡寫 "I"/"O" 轉為 "inbound"/"outbound"
     private fun formatBoundParam(bound: String): String {
         return when (bound.uppercase(Locale.getDefault())) {
             "I" -> "inbound"
