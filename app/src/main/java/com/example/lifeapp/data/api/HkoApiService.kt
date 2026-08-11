@@ -7,7 +7,7 @@ import retrofit2.http.GET
 import retrofit2.http.Query
 
 interface HkoApiService {
-    // 分區天氣 (rhrread)
+    // 2. 分區天氣 (rhrread)
     @GET("weatherAPI/opendata/weather.php")
     suspend fun getRealtimeWeatherRaw(
         @Query("dataType") dataType: String = "rhrread",
