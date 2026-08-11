@@ -94,7 +94,10 @@ class WeatherRepository @Inject constructor(
         val locationList = mutableListOf<LocationStation>()
         var humidityVal = "--%"
         var uvVal = "無數據"
-        var updateTimeText = "剛剛更新"
+        
+        // 預設更新時間格式
+        val outputFormat = SimpleDateFormat("yyyy年MM月dd日 HH:mm:ss", Locale.getDefault())
+        var updateTimeText = "最後更新時間：${outputFormat.format(Date())}"
 
         try {
             if (realtimeRaw != null && realtimeRaw.isJsonObject) {
@@ -142,7 +145,7 @@ class WeatherRepository @Inject constructor(
                     }
                 }
 
-                // 更新時間格式化為：yyyy年MM月dd日 HH:mm:ss
+                // 更新時間：解析 rawTime 轉為 yyyy年MM月dd日 HH:mm:ss 格式
                 val rawTime = if (root.has("recordTime")) {
                     root.get("recordTime").asString
                 } else if (root.has("temperature") && root.getAsJsonObject("temperature").has("recordTime")) {
@@ -151,19 +154,13 @@ class WeatherRepository @Inject constructor(
 
                 if (rawTime.isNotEmpty()) {
                     try {
-                        // 天文台格式通常為 ISO 格式 2026-08-11T20:30:00+08:00
                         val inputFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
                         val date = inputFormat.parse(rawTime)
                         if (date != null) {
-                            val outputFormat = SimpleDateFormat("yyyy年MM月dd日 HH:mm:ss", Locale.getDefault())
                             updateTimeText = "最後更新時間：${outputFormat.format(date)}"
-                        } else {
-                            val nowFormat = SimpleDateFormat("yyyy年MM月dd日 HH:mm:ss", Locale.getDefault())
-                            updateTimeText = "最後更新時間：${nowFormat.format(Date())}"
                         }
                     } catch (e: Exception) {
-                        val nowFormat = SimpleDateFormat("yyyy年MM月dd日 HH:mm:ss", Locale.getDefault())
-                        updateTimeText = "最後更新時間：${nowFormat.format(Date())}"
+                        updateTimeText = "最後更新時間：${outputFormat.format(Date())}"
                     }
                 }
             }
