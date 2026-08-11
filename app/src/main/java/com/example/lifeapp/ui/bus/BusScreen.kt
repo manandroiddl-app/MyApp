@@ -1,9 +1,9 @@
 package com.example.lifeapp.ui.bus
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -20,18 +20,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.lifeapp.data.model.BusBookmarkEntity
-import com.example.lifeapp.data.model.BusSearchType
 import com.example.lifeapp.data.model.KmbRoute
 import com.example.lifeapp.data.model.KmbStopDetail
 import com.example.lifeapp.ui.theme.*
 
 @Composable
 fun BusScreen(viewModel: BusViewModel = hiltViewModel()) {
-    var selectedTab by remember { mutableIntStateOf(0) } // 0: 已收藏, 1: 搜尋交通工具
+    var selectedTab by remember { mutableIntStateOf(0) }
 
     Scaffold(
         bottomBar = {
-            // 🌟 1) 將「收藏」與「搜尋」兩個 Tag 移至底部
             NavigationBar(
                 containerColor = Color.White,
                 tonalElevation = 8.dp
@@ -65,7 +63,7 @@ fun BusScreen(viewModel: BusViewModel = hiltViewModel()) {
     }
 }
 
-// === Sub-Tab 1: 已收藏頁面 (1分鐘自動更新) ===
+// === Sub-Tab 1: 已收藏頁面 ===
 @Composable
 fun BookmarkTabContent(viewModel: BusViewModel) {
     val state by viewModel.bookmarkUiState.collectAsState()
@@ -163,11 +161,12 @@ fun BookmarkEtaCard(bookmark: BusBookmarkEntity, etas: List<com.example.lifeapp.
 @Composable
 fun SearchTabContent(viewModel: BusViewModel) {
     val state by viewModel.searchUiState.collectAsState()
-    var searchModeTab by remember { mutableIntStateOf(0) } // 0: 路線搜尋, 1: 地點搜尋
+    val nextChars by viewModel.nextAvailableChars.collectAsState()
+    val routeStopsEtaMap by viewModel.routeStopsEtaMap.collectAsState()
+    var searchModeTab by remember { mutableIntStateOf(0) }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         if (state.selectedRoute == null) {
-            // 🌟 2a) 兩種搜尋方式切換頁籤 (路線搜尋 vs 地點搜尋)
             TabRow(selectedTabIndex = searchModeTab, containerColor = Color.Transparent, modifier = Modifier.padding(bottom = 12.dp)) {
                 Tab(
                     selected = searchModeTab == 0,
@@ -182,16 +181,39 @@ fun SearchTabContent(viewModel: BusViewModel) {
             }
 
             if (searchModeTab == 0) {
-                // i) 路線搜尋
                 OutlinedTextField(
                     value = state.searchQuery,
                     onValueChange = { viewModel.onSearchQueryChange(it) },
                     modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("輸入路線編號 (例如: 1A, 290, 960)") },
+                    placeholder = { Text("輸入路線 (例如: 1A, 290, 960)") },
                     leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search") },
                     shape = RoundedCornerShape(12.dp),
                     singleLine = true
                 )
+
+                // 🌟 1) 動態顯示可選擇的數字/英文字母按鈕列 (Chip Keyboard)
+                if (nextChars.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        items(nextChars) { charStr ->
+                            SuggestionChip(
+                                onClick = { viewModel.appendSearchChar(charStr) },
+                                label = { Text(charStr, fontWeight = FontWeight.Bold, fontSize = 14.sp) },
+                                colors = SuggestionChipDefaults.suggestionChipColors(
+                                    containerColor = PrimaryLightBlue,
+                                    labelColor = PrimaryBlue
+                                ),
+                                border = SuggestionChipDefaults.suggestionChipBorder(
+                                    enabled = true,
+                                    borderColor = PrimaryBlue.copy(alpha = 0.3f)
+                                )
+                            )
+                        }
+                    }
+                }
 
                 Spacer(modifier = Modifier.height(12.dp))
 
@@ -213,7 +235,6 @@ fun SearchTabContent(viewModel: BusViewModel) {
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
-                                        // 🌟 2b) 每條路線最前面加公司名稱 (例如：九巴)
                                         Surface(
                                             color = PrimaryLightBlue,
                                             shape = RoundedCornerShape(6.dp)
@@ -236,7 +257,6 @@ fun SearchTabContent(viewModel: BusViewModel) {
                     }
                 }
             } else {
-                // ii) 地點搜尋 (待開發提示)
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Card(
                         colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -251,7 +271,7 @@ fun SearchTabContent(viewModel: BusViewModel) {
                 }
             }
         } else {
-            // 🌟 2c) 已選擇路線：顯示車站詳細清單以供 Bookmark
+            // 已選擇路線：顯示車站詳細清單 (包含即時 ETA)
             val route = state.selectedRoute!!
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -301,26 +321,54 @@ fun SearchTabContent(viewModel: BusViewModel) {
                     items(state.stopList) { (stop, detail) ->
                         val bookmarkId = "${route.route}_${detail.stopId}_${route.bound}"
                         val isBookmarked = bookmarkedIds.contains(bookmarkId)
+                        val stopEtas = routeStopsEtaMap[detail.stopId] ?: emptyList()
 
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(10.dp),
                             colors = CardDefaults.cardColors(containerColor = Color.White)
                         ) {
-                            Row(
-                                modifier = Modifier.padding(14.dp).fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text("${stop.seq}. ${detail.nameTc}", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                            Column(modifier = Modifier.padding(14.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("${stop.seq}. ${detail.nameTc}", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextDark, modifier = Modifier.weight(1f))
+                                    IconButton(onClick = { viewModel.toggleBookmark(route, detail) }) {
+                                        Icon(
+                                            imageVector = if (isBookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
+                                            contentDescription = "Bookmark",
+                                            tint = if (isBookmarked) WarningRed else PrimaryBlue
+                                        )
+                                    }
                                 }
-                                IconButton(onClick = { viewModel.toggleBookmark(route, detail) }) {
-                                    Icon(
-                                        imageVector = if (isBookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
-                                        contentDescription = "Bookmark",
-                                        tint = if (isBookmarked) WarningRed else PrimaryBlue
-                                    )
+
+                                // 🌟 2c) 車站即時到站時間 (ETA) 顯示
+                                if (stopEtas.isNotEmpty()) {
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text("⏱️ 到站時間：", fontSize = 12.sp, color = TextGray)
+                                        stopEtas.forEach { etaText ->
+                                            Surface(
+                                                color = PrimaryLightBlue.copy(alpha = 0.5f),
+                                                shape = RoundedCornerShape(4.dp)
+                                            ) {
+                                                Text(
+                                                    text = etaText,
+                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = PrimaryBlue
+                                                )
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    Text("⏱️ 正在獲取到站時間...", fontSize = 12.sp, color = TextGray)
                                 }
                             }
                         }
