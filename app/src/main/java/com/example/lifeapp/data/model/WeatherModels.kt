@@ -37,10 +37,12 @@ data class ForecastLocalWeatherResponse(
     val updateTime: String?
 )
 
-// UI 綜合狀態
+// UI 綜合狀態 (已補齊所有所需欄位)
 data class FullWeatherUiState(
     val isLoading: Boolean = true,
     val warnings: List<String> = emptyList(),
+    val warningDetailsMap: Map<String, String> = emptyMap(),  // <-- 新增：警告詳細內容 Map
+    val specialWeatherTips: List<String> = emptyList(),      // <-- 新增：特別天氣提示 List
     val locations: List<LocationStation> = emptyList(),
     val selectedLocation: LocationStation? = null,
     val currentHumidity: String = "--%",
