@@ -22,6 +22,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.lifeapp.ui.bus.BusScreen
+import com.example.lifeapp.ui.bus.BusViewModel
 import com.example.lifeapp.ui.theme.*
 import com.example.lifeapp.ui.traffic.TrafficScreen
 import com.example.lifeapp.ui.traffic.TrafficViewModel
@@ -32,7 +34,8 @@ import dagger.hilt.android.AndroidEntryPoint
 enum class Screen(val title: String) {
     HUB("大目錄"),
     WEATHER("香港天氣"),
-    TRAFFIC("交通消息")
+    TRAFFIC("交通消息"),
+    BUS_ETA("交通工具到站時間")
 }
 
 @AndroidEntryPoint
@@ -50,7 +53,8 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MainAppLayout(
     weatherViewModel: WeatherViewModel = hiltViewModel(),
-    trafficViewModel: TrafficViewModel = hiltViewModel()
+    trafficViewModel: TrafficViewModel = hiltViewModel(),
+    busViewModel: BusViewModel = hiltViewModel()
 ) {
     var currentScreen by remember { mutableStateOf(Screen.HUB) }
 
@@ -63,7 +67,8 @@ fun MainAppLayout(
                     when (currentScreen) {
                         Screen.WEATHER -> weatherViewModel.refresh()
                         Screen.TRAFFIC -> trafficViewModel.refresh()
-                        Screen.HUB -> { /* 目錄頁無需刷新 */ }
+                        Screen.BUS_ETA -> busViewModel.refreshBookmarkEtas()
+                        Screen.HUB -> {}
                     }
                 }
             )
@@ -80,6 +85,7 @@ fun MainAppLayout(
                     Screen.HUB -> HubScreen(onNavigate = { target -> currentScreen = target })
                     Screen.WEATHER -> WeatherScreen(viewModel = weatherViewModel)
                     Screen.TRAFFIC -> TrafficScreen(viewModel = trafficViewModel)
+                    Screen.BUS_ETA -> BusScreen(viewModel = busViewModel)
                 }
             }
         }
@@ -97,6 +103,8 @@ fun HubScreen(onNavigate: (Screen) -> Unit) {
         MenuCard(title = "香港天氣", subtitle = "警告、分區氣溫、今日及九日預報", iconText = "☀️", onClick = { onNavigate(Screen.WEATHER) })
         Spacer(modifier = Modifier.height(12.dp))
         MenuCard(title = "交通消息", subtitle = "特別交通預告及即時路況", iconText = "🚗", onClick = { onNavigate(Screen.TRAFFIC) })
+        Spacer(modifier = Modifier.height(12.dp))
+        MenuCard(title = "交通工具到站時間", subtitle = "九巴 ETA 搜尋與 1 分鐘定時自動更新", iconText = "🚌", onClick = { onNavigate(Screen.BUS_ETA) })
     }
 }
 
