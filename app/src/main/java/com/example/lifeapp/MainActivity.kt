@@ -23,6 +23,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.lifeapp.ui.theme.*
+import com.example.lifeapp.ui.traffic.TrafficScreen
+import com.example.lifeapp.ui.traffic.TrafficViewModel
 import com.example.lifeapp.ui.weather.WeatherScreen
 import com.example.lifeapp.ui.weather.WeatherViewModel
 import dagger.hilt.android.AndroidEntryPoint
@@ -46,7 +48,10 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun MainAppLayout(weatherViewModel: WeatherViewModel = hiltViewModel()) {
+fun MainAppLayout(
+    weatherViewModel: WeatherViewModel = hiltViewModel(),
+    trafficViewModel: TrafficViewModel = hiltViewModel()
+) {
     var currentScreen by remember { mutableStateOf(Screen.HUB) }
 
     Scaffold(
@@ -54,7 +59,13 @@ fun MainAppLayout(weatherViewModel: WeatherViewModel = hiltViewModel()) {
             BottomNavControl(
                 currentScreen = currentScreen,
                 onBackToHub = { currentScreen = Screen.HUB },
-                onRefresh = { weatherViewModel.refresh() } // <-- 已修正：改用 refresh()
+                onRefresh = {
+                    when (currentScreen) {
+                        Screen.WEATHER -> weatherViewModel.refresh()
+                        Screen.TRAFFIC -> trafficViewModel.refresh()
+                        Screen.HUB -> { /* 目錄頁無需刷新 */ }
+                    }
+                }
             )
         },
         containerColor = BackgroundLight
@@ -68,7 +79,7 @@ fun MainAppLayout(weatherViewModel: WeatherViewModel = hiltViewModel()) {
                 when (screen) {
                     Screen.HUB -> HubScreen(onNavigate = { target -> currentScreen = target })
                     Screen.WEATHER -> WeatherScreen(viewModel = weatherViewModel)
-                    Screen.TRAFFIC -> TrafficScreen()
+                    Screen.TRAFFIC -> TrafficScreen(viewModel = trafficViewModel)
                 }
             }
         }
@@ -108,32 +119,6 @@ fun MenuCard(title: String, subtitle: String, iconText: String, onClick: () -> U
                 Text(title, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TextDark)
                 Text(subtitle, fontSize = 13.sp, color = TextGray)
             }
-        }
-    }
-}
-
-@Composable
-fun TrafficScreen() {
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())) {
-        Text("即時交通特別通告", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = PrimaryDarkBlue)
-        Spacer(modifier = Modifier.height(8.dp))
-        TrafficItemCard("10 分鐘前 • 運輸署", "🔴 觀塘道工程：往旺角方向近創紀之城第 5 期慢線暫時封閉，交通繁忙。")
-        TrafficItemCard("35 分鐘前 • 港鐵消息", "🟢 港鐵服務：全線列車服務目前維持正常班次。")
-        TrafficItemCard("1 小時前 • 特別交通", "🟡 屯門公路：往九龍方向近深井車流較多，請駕駛人士小心駕駛。")
-    }
-}
-
-@Composable
-fun TrafficItemCard(timeText: String, contentText: String) {
-    Card(
-        modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-    ) {
-        Column(modifier = Modifier.padding(14.dp)) {
-            Text(timeText, fontSize = 12.sp, color = TextGray)
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(contentText, fontSize = 14.sp, color = TextDark, lineHeight = 20.sp)
         }
     }
 }
