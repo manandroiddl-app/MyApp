@@ -1,45 +1,53 @@
 name: Build Signed Android APK
 
 on:
-  # 允許在 GitHub 網頁介面上手動點擊按鈕觸發
   workflow_dispatch:
-
-  # （可選）如果你仍想保留只有在 PR 合併時才 Build，可以保留這幾行；否則只需保留 workflow_dispatch
-  # pull_request:
-  #   branches: [ "main" ]
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
+    permissions:
+      contents: write # 賦予 GitHub Actions 寫入/Commit 檔案回 repository 的權限
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      # 升級為官方建議的 @v5 版本
       - name: Set up JDK 17
         uses: actions/setup-java@v5
         with:
           java-version: '17'
           distribution: 'temurin'
 
-      # 手動處理 Gradle 環境，避開第三方 Action 的 Node 警告
       - name: Setup Gradle
         run: |
           wget -q https://services.gradle.org/distributions/gradle-8.5-bin.zip
           unzip -q gradle-8.5-bin.zip
           echo "$GITHUB_WORKSPACE/gradle-8.5/bin" >> $GITHUB_PATH
 
-      # 🌟 已校正：自動生成 app/debug.keystore (參數與 build.gradle.kts 完美對齊，確保每次簽名相同且能覆蓋更新)
-      - name: Generate Keystore if not exists
+      # 🌟 自動產生固定的 Keystore 並 Commit 存回 Repository (只需執行一次，以後永遠沿用)
+      - name: Ensure Fixed Keystore Exists and Saved to Repo
         run: |
           mkdir -p app
           if [ ! -f app/debug.keystore ]; then
+            echo "Generating brand new fixed debug.keystore..."
             keytool -genkey -v -keystore app/debug.keystore \
               -keyalg RSA -keysize 2048 -validity 10000 \
               -alias androiddebugkey \
               -dname "CN=LifeApp, OU=Dev, O=Self, L=HK, S=HK, C=HK" \
               -storepass android -keypass android
+
+            echo "Saving debug.keystore to git repository..."
+            git config --global user.name "github-actions[bot]"
+            git config --global user.email "github-actions[bot]@users.noreply.github.com"
+            git add -f app/debug.keystore
+            git commit -m "ci: auto-generate and save permanent fixed debug.keystore [skip ci]"
+            git push
+          else
+            echo "✅ Using existing permanent debug.keystore from repository!"
           fi
 
       - name: Build Release APK
