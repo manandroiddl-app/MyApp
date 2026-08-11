@@ -54,7 +54,7 @@ fun MainAppLayout(weatherViewModel: WeatherViewModel = hiltViewModel()) {
             BottomNavControl(
                 currentScreen = currentScreen,
                 onBackToHub = { currentScreen = Screen.HUB },
-                onRefresh = { weatherViewModel.fetchAllWeatherData() }
+                onRefresh = { weatherViewModel.refresh() } // <-- 已修正：改用 refresh()
             )
         },
         containerColor = BackgroundLight
