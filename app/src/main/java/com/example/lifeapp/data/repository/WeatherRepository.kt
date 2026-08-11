@@ -6,6 +6,9 @@ import com.example.lifeapp.data.model.*
 import com.google.gson.JsonElement
 import kotlinx.coroutines.async
 import kotlinx.coroutines.supervisorScope
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -139,18 +142,28 @@ class WeatherRepository @Inject constructor(
                     }
                 }
 
-                // 更新時間
+                // 更新時間格式化為：yyyy年MM月dd日 HH:mm:ss
                 val rawTime = if (root.has("recordTime")) {
                     root.get("recordTime").asString
                 } else if (root.has("temperature") && root.getAsJsonObject("temperature").has("recordTime")) {
                     root.getAsJsonObject("temperature").get("recordTime").asString
                 } else ""
 
-                if (rawTime.length >= 16) {
+                if (rawTime.isNotEmpty()) {
                     try {
-                        updateTimeText = "最後更新時間：${rawTime.substring(11, 16)}"
+                        // 天文台格式通常為 ISO 格式 2026-08-11T20:30:00+08:00
+                        val inputFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
+                        val date = inputFormat.parse(rawTime)
+                        if (date != null) {
+                            val outputFormat = SimpleDateFormat("yyyy年MM月dd日 HH:mm:ss", Locale.getDefault())
+                            updateTimeText = "最後更新時間：${outputFormat.format(date)}"
+                        } else {
+                            val nowFormat = SimpleDateFormat("yyyy年MM月dd日 HH:mm:ss", Locale.getDefault())
+                            updateTimeText = "最後更新時間：${nowFormat.format(Date())}"
+                        }
                     } catch (e: Exception) {
-                        updateTimeText = "剛剛更新"
+                        val nowFormat = SimpleDateFormat("yyyy年MM月dd日 HH:mm:ss", Locale.getDefault())
+                        updateTimeText = "最後更新時間：${nowFormat.format(Date())}"
                     }
                 }
             }
