@@ -45,7 +45,10 @@ class KmbRepository @Inject constructor(
 
     suspend fun fetchRouteStopsWithDetail(route: String, bound: String, serviceType: String): List<Pair<KmbRouteStop, KmbStopDetail>> = coroutineScope {
         runCatching {
-            val stopsRes = kmbApiService.getRouteStops(route, bound, serviceType)
+            // 🌟 修正：轉換 bound 參數 ("I" -> "inbound", "O" -> "outbound")
+            val apiBound = formatBoundParam(bound)
+            
+            val stopsRes = kmbApiService.getRouteStops(route, apiBound, serviceType)
             val stops = stopsRes.data ?: return@coroutineScope emptyList()
 
             // 批量非同步拉取各站詳細中文名稱，單站失敗時自動容錯
@@ -83,6 +86,15 @@ class KmbRepository @Inject constructor(
             }
         }.getOrElse {
             emptyList()
+        }
+    }
+
+    // 將 API 要求的簡寫 "I"/"O" 轉為 "inbound"/"outbound"
+    private fun formatBoundParam(bound: String): String {
+        return when (bound.uppercase(Locale.getDefault())) {
+            "I" -> "inbound"
+            "O" -> "outbound"
+            else -> bound.lowercase(Locale.getDefault())
         }
     }
 
