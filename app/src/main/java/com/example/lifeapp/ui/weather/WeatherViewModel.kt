@@ -8,6 +8,8 @@ import com.example.lifeapp.data.repository.WeatherRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -17,28 +19,26 @@ class WeatherViewModel @Inject constructor(
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(FullWeatherUiState())
-    val uiState: StateFlow<FullWeatherUiState> = _uiState
+    val uiState: StateFlow<FullWeatherUiState> = _uiState.asStateFlow()
 
     init {
-        fetchAllWeatherData()
+        loadWeatherData()
     }
 
-    fun fetchAllWeatherData() {
+    // 提供給 UI 的重新整理函式
+    fun refresh() {
+        loadWeatherData()
+    }
+
+    fun loadWeatherData() {
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null)
-            try {
-                val newState = repository.fetchFullWeatherData()
-                _uiState.value = newState
-            } catch (e: Exception) {
-                _uiState.value = FullWeatherUiState(
-                    isLoading = false,
-                    errorMessage = "數據載入失敗，請檢查網絡連線。"
-                )
-            }
+            _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+            val newState = repository.fetchFullWeatherData()
+            _uiState.value = newState
         }
     }
 
     fun selectLocation(location: LocationStation) {
-        _uiState.value = _uiState.value.copy(selectedLocation = location)
+        _uiState.update { it.copy(selectedLocation = location) }
     }
 }
