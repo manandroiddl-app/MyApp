@@ -20,7 +20,7 @@ class WeatherRepository @Inject constructor(
         var today: ForecastLocalWeatherResponse? = null
         var nineDay: NineDayForecastResponse? = null
 
-        // 平行請求 API
+        // 獨立抓取，確保單一 API 異常不影響全局
         runCatching { realtimeRaw = apiService.getRealtimeWeatherRaw() }
             .onFailure { Log.e("WeatherRepo", "rhrread API Error", it) }
 
@@ -41,45 +41,57 @@ class WeatherRepository @Inject constructor(
 
         // === 1. 解析生效中警告 (warnsum) ===
         val warningList = mutableListOf<String>()
-        warnsumRaw?.entrySet()?.forEach { entry ->
-            val obj = entry.value.asJsonObject
-            if (obj.has("name")) {
-                warningList.add(obj.get("name").asString)
+        try {
+            warnsumRaw?.entrySet()?.forEach { entry ->
+                val obj = entry.value.asJsonObject
+                if (obj.has("name")) {
+                    warningList.add(obj.get("name").asString)
+                }
             }
+        } catch (e: Exception) {
+            Log.e("WeatherRepo", "Parse warnsum failed", e)
         }
 
         // === 1. 解析警告詳細內文 (warninginfo) ===
         val warningDetailMap = mutableMapOf<String, String>()
-        warningInfoRaw?.run {
-            if (has("details")) {
-                val detailsArray = getAsJsonArray("details")
-                for (i in 0 until detailsArray.size()) {
-                    val item = detailsArray.get(i).asJsonObject
-                    val name = if (item.has("warningStatementCode")) item.get("warningStatementCode").asString else "警告詳細資料"
-                    val contents = mutableListOf<String>()
-                    if (item.has("contents")) {
-                        val contentsArray = item.getAsJsonArray("contents")
-                        for (j in 0 until contentsArray.size()) {
-                            contents.add(contentsArray.get(j).asString)
+        try {
+            warningInfoRaw?.let { infoObj ->
+                if (infoObj.has("details") && !infoObj.get("details").isJsonNull) {
+                    val detailsArray = infoObj.getAsJsonArray("details")
+                    for (i in 0 until detailsArray.size()) {
+                        val item = detailsArray.get(i).asJsonObject
+                        val name = if (item.has("warningStatementCode")) item.get("warningStatementCode").asString else "詳細說明"
+                        val contents = mutableListOf<String>()
+                        if (item.has("contents") && !item.get("contents").isJsonNull) {
+                            val contentsArray = item.getAsJsonArray("contents")
+                            for (j in 0 until contentsArray.size()) {
+                                contents.add(contentsArray.get(j).asString)
+                            }
                         }
+                        warningDetailMap[name] = contents.joinToString("\n\n")
                     }
-                    warningDetailMap[name] = contents.joinToString("\n\n")
                 }
             }
+        } catch (e: Exception) {
+            Log.e("WeatherRepo", "Parse warninginfo failed", e)
         }
 
         // === 1. 解析特別天氣提示 (swt) ===
         val swtTips = mutableListOf<String>()
-        swtRaw?.run {
-            if (has("swt")) {
-                val swtArray = getAsJsonArray("swt")
-                for (i in 0 until swtArray.size()) {
-                    val item = swtArray.get(i).asJsonObject
-                    if (item.has("desc")) {
-                        swtTips.add(item.get("desc").asString)
+        try {
+            swtRaw?.let { swtObj ->
+                if (swtObj.has("swt") && !swtObj.get("swt").isJsonNull) {
+                    val swtArray = swtObj.getAsJsonArray("swt")
+                    for (i in 0 until swtArray.size()) {
+                        val item = swtArray.get(i).asJsonObject
+                        if (item.has("desc")) {
+                            swtTips.add(item.get("desc").asString)
+                        }
                     }
                 }
             }
+        } catch (e: Exception) {
+            Log.e("WeatherRepo", "Parse swt failed", e)
         }
 
         // === 2. 解析分區天氣 (rhrread) ===
@@ -105,7 +117,7 @@ class WeatherRepository @Inject constructor(
                 }
             }
 
-            // 濕度
+            // 相對濕度
             if (root.has("humidity") && !root.get("humidity").isJsonNull) {
                 val humiObj = root.getAsJsonObject("humidity")
                 if (humiObj.has("data") && !humiObj.get("data").isJsonNull) {
@@ -117,7 +129,7 @@ class WeatherRepository @Inject constructor(
                 }
             }
 
-            // UV 指數
+            // 紫外線指數
             if (root.has("uvindex") && !root.get("uvindex").isJsonNull) {
                 val uvObj = root.getAsJsonObject("uvindex")
                 if (uvObj.has("data") && !uvObj.get("data").isJsonNull) {
