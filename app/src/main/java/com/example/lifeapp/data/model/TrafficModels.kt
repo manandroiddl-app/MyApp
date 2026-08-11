@@ -11,16 +11,16 @@ data class SpecialTrafficNewsResponse @JvmOverloads constructor(
     var messageList: List<TrafficMessage>? = mutableListOf()
 )
 
-// XML 子節點 <message>
+// XML 子節點 <message> (加入 data = true 以解開 CDATA 包裹的內文)
 @Root(name = "message", strict = false)
 data class TrafficMessage @JvmOverloads constructor(
     @field:Element(name = "msgID", required = false)
     var msgID: String? = "",
 
-    @field:Element(name = "chinText", required = false)
+    @field:Element(name = "chinText", required = false, data = true)
     var chinText: String? = "",
 
-    @field:Element(name = "engText", required = false)
+    @field:Element(name = "engText", required = false, data = true)
     var engText: String? = "",
 
     @field:Element(name = "ReferenceDate", required = false)
