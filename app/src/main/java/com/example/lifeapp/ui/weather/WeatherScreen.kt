@@ -23,7 +23,7 @@ import com.example.lifeapp.ui.theme.*
 fun WeatherScreen(viewModel: WeatherViewModel = hiltViewModel()) {
     val uiState by viewModel.uiState.collectAsState()
 
-    // 用於警告詳細資料彈窗的狀態
+    // 彈窗狀態
     var selectedWarningForDetail by remember { mutableStateOf<Pair<String, String>?>(null) }
 
     if (uiState.isLoading) {
@@ -51,7 +51,7 @@ fun WeatherScreen(viewModel: WeatherViewModel = hiltViewModel()) {
                 .padding(16.dp)
                 .verticalScroll(rememberScrollState())
         ) {
-            // 頂部顯示最後更新時間
+            // 頂部顯示最後更新時間 (年月日時分秒)
             if (uiState.updateTimeText.isNotEmpty()) {
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
@@ -76,8 +76,11 @@ fun WeatherScreen(viewModel: WeatherViewModel = hiltViewModel()) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     if (uiState.warnings.isNotEmpty()) {
                         Text("💡 點擊警告可查看詳細資料：", fontSize = 12.sp, color = TextGray, modifier = Modifier.padding(bottom = 8.dp))
-                        uiState.warnings.forEachIndexed { index, warningTitle ->
-                            if (index > 0) HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = Color.Black.copy(alpha = 0.1f))
+                        
+                        for ((index, warningTitle) in uiState.warnings.withIndex()) {
+                            if (index > 0) {
+                                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = Color.Black.copy(alpha = 0.1f))
+                            }
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -117,7 +120,7 @@ fun WeatherScreen(viewModel: WeatherViewModel = hiltViewModel()) {
                     Text("📢 特別天氣提示 (SWT)", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color(0xFF2E7D32))
                     Spacer(modifier = Modifier.height(4.dp))
                     if (uiState.specialWeatherTips.isNotEmpty()) {
-                        uiState.specialWeatherTips.forEach { tip ->
+                        for (tip in uiState.specialWeatherTips) {
                             Text("• $tip", fontSize = 13.sp, color = TextDark, lineHeight = 18.sp)
                         }
                     } else {
@@ -164,7 +167,7 @@ fun WeatherScreen(viewModel: WeatherViewModel = hiltViewModel()) {
                             onDismissRequest = { expandedDropdown = false },
                             modifier = Modifier.heightIn(max = 300.dp)
                         ) {
-                            uiState.locations.forEach { loc ->
+                            for (loc in uiState.locations) {
                                 DropdownMenuItem(
                                     text = { Text("${loc.nameTc} (${loc.nameEn})") },
                                     onClick = {
@@ -215,7 +218,7 @@ fun WeatherScreen(viewModel: WeatherViewModel = hiltViewModel()) {
             Text("4. 九日天氣預報", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = PrimaryDarkBlue)
             Spacer(modifier = Modifier.height(8.dp))
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                uiState.nineDayForecasts.forEach { day ->
+                for (day in uiState.nineDayForecasts) {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
@@ -254,10 +257,20 @@ fun WeatherScreen(viewModel: WeatherViewModel = hiltViewModel()) {
             }
 
             Spacer(modifier = Modifier.height(16.dp))
+
+            // 頁底手動重新整理按鈕
+            Button(
+                onClick = { viewModel.refresh() },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text("🔄 重新整理天氣資訊", fontWeight = FontWeight.Bold)
+            }
         }
     }
 
-    // === 點擊警告彈出的詳細資料對話框 (AlertDialog) ===
+    // 警告詳細資料彈窗 (按鈕已改為「關閉」)
     selectedWarningForDetail?.let { (title, detailText) ->
         AlertDialog(
             onDismissRequest = { selectedWarningForDetail = null },
@@ -265,7 +278,7 @@ fun WeatherScreen(viewModel: WeatherViewModel = hiltViewModel()) {
             text = { Text(text = detailText, fontSize = 14.sp, lineHeight = 20.sp, color = TextDark) },
             confirmButton = {
                 TextButton(onClick = { selectedWarningForDetail = null }) {
-                    Text("明白", fontWeight = FontWeight.Bold, color = PrimaryBlue)
+                    Text("關閉", fontWeight = FontWeight.Bold, color = PrimaryBlue)
                 }
             }
         )
