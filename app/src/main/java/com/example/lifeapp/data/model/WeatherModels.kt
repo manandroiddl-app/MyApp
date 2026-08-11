@@ -40,7 +40,7 @@ data class FullWeatherUiState(
     val errorMessage: String? = null
 )
 
-// 香港天文台 25+ 個測量站中英對照表 (按英文 Alphabetical A-Z 排序)
+// 香港天文台測量站中英對照表 (已補齊：元朗公園、啟德跑道公園、荃灣可觀)
 val stationNameEnMap = mapOf(
     "香港天文台" to "Hong Kong Observatory",
     "京士柏" to "King's Park",
@@ -58,6 +58,9 @@ val stationNameEnMap = mapOf(
     "石崗" to "Shek Kong",
     "荃灣可風中學" to "Tsuen Wan Ho Fung",
     "荃灣城門谷" to "Tsuen Wan Shing Mun Valley",
+    "荃灣可觀" to "Tsuen Wan Ho Koon",
+    "元朗公園" to "Yuen Long Park",
+    "啟德跑道公園" to "Kai Tak Runway Park",
     "香港公園" to "Hong Kong Park",
     "筲箕灣" to "Shau Kei Wan",
     "九龍城" to "Kowloon City",
