@@ -264,16 +264,6 @@ fun WeatherScreen(viewModel: WeatherViewModel = hiltViewModel()) {
             }
 
             Spacer(modifier = Modifier.height(16.dp))
-
-            // 頁底手動重新整理按鈕
-            Button(
-                onClick = { viewModel.refresh() },
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Text("🔄 重新整理天氣資訊", fontWeight = FontWeight.Bold)
-            }
         }
     }
 
