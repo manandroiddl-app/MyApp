@@ -41,6 +41,13 @@ fun WeatherScreen(viewModel: WeatherViewModel = hiltViewModel()) {
                     Text("⚠️ 載入失敗", fontWeight = FontWeight.Bold, color = WarningRed)
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(uiState.errorMessage!!, color = TextDark)
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Button(
+                        onClick = { viewModel.refresh() },
+                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue)
+                    ) {
+                        Text("重試")
+                    }
                 }
             }
         }
@@ -270,7 +277,7 @@ fun WeatherScreen(viewModel: WeatherViewModel = hiltViewModel()) {
         }
     }
 
-    // 警告詳細資料彈窗 (按鈕已改為「關閉」)
+    // 警告詳細資料彈窗 (按鈕為「關閉」)
     selectedWarningForDetail?.let { (title, detailText) ->
         AlertDialog(
             onDismissRequest = { selectedWarningForDetail = null },
