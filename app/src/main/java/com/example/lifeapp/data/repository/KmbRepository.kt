@@ -48,17 +48,20 @@ class KmbRepository @Inject constructor(
             val stopsRes = kmbApiService.getRouteStops(route, bound, serviceType)
             val stops = stopsRes.data ?: return@coroutineScope emptyList()
 
-            // 平行拉取每個車站的詳細名稱
+            // 批量非同步拉取各站詳細中文名稱，單站失敗時自動容錯
             val deferreds = stops.map { stop ->
                 async {
-                    val detailRes = kmbApiService.getStopDetail(stop.stopId)
-                    val detail = detailRes.data ?: KmbStopDetail(stop.stopId, "未知車站", null, null)
+                    val detail = runCatching {
+                        val detailRes = kmbApiService.getStopDetail(stop.stopId)
+                        detailRes.data
+                    }.getOrNull() ?: KmbStopDetail(stop.stopId, "車站 ${stop.stopId}", null, null)
+
                     Pair(stop, detail)
                 }
             }
             deferreds.awaitAll()
-        }.getOrElse {
-            Log.e("KmbRepo", "Fetch route stops error", it)
+        }.getOrElse { e ->
+            Log.e("KmbRepo", "Fetch route stops error", e)
             emptyList()
         }
     }
@@ -86,7 +89,6 @@ class KmbRepository @Inject constructor(
     private fun formatEtaTime(rawEta: String?): String {
         if (rawEta.isNullOrBlank()) return "暫無班次資料"
         return try {
-            // rawEta 格式範例：2026-08-12T10:15:00+08:00
             val inputFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
             val date = inputFormat.parse(rawEta.substring(0, 19))
             if (date != null) {
