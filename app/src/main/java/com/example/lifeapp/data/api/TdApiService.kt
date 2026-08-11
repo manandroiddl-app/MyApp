@@ -1,9 +1,9 @@
 package com.example.lifeapp.data.api
 
-import com.example.lifeapp.data.model.SpecialTrafficNewsResponse
+import okhttp3.ResponseBody
 import retrofit2.http.GET
 
 interface TdApiService {
     @GET("td/tc/specialtrafficnews.xml")
-    suspend fun getSpecialTrafficNews(): SpecialTrafficNewsResponse
+    suspend fun getSpecialTrafficNewsRaw(): ResponseBody
 }
