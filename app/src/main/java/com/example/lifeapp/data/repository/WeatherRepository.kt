@@ -5,7 +5,8 @@ import com.example.lifeapp.data.api.HkoApiService
 import com.example.lifeapp.data.model.*
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject
-import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.async
+import kotlinx.coroutines.supervisorScope
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -13,39 +14,27 @@ import javax.inject.Singleton
 class WeatherRepository @Inject constructor(
     private val apiService: HkoApiService
 ) {
-    suspend fun fetchFullWeatherData(): FullWeatherUiState = coroutineScope {
-        var realtimeRaw: JsonObject? = null
-        // 修正：宣告型態為 JsonElement?，對齊 HkoApiService
-        var warnsumRaw: JsonElement? = null
-        var warningInfoRaw: JsonElement? = null
-        var swtRaw: JsonElement? = null
-        var today: ForecastLocalWeatherResponse? = null
-        var nineDay: NineDayForecastResponse? = null
+    suspend fun fetchFullWeatherData(): FullWeatherUiState = supervisorScope {
+        // 使用 supervisorScope + async 確保各個請求獨立，互不干擾
+        val realtimeDeferred = async { runCatching { apiService.getRealtimeWeatherRaw() }.getOrNull() }
+        val warnsumDeferred = async { runCatching { apiService.getWarningSummaryRaw() }.getOrNull() }
+        val warningInfoDeferred = async { runCatching { apiService.getWarningInfoRaw() }.getOrNull() }
+        val swtDeferred = async { runCatching { apiService.getSpecialWeatherTipsRaw() }.getOrNull() }
+        val todayDeferred = async { runCatching { apiService.getTodayForecast() }.getOrNull() }
+        val nineDayDeferred = async { runCatching { apiService.getNineDayForecast() }.getOrNull() }
 
-        // 獨立抓取，單一 API 失敗不影響其他區塊
-        runCatching { realtimeRaw = apiService.getRealtimeWeatherRaw() }
-            .onFailure { Log.e("WeatherRepo", "rhrread Error", it) }
-
-        runCatching { warnsumRaw = apiService.getWarningSummaryRaw() }
-            .onFailure { Log.e("WeatherRepo", "warnsum Error", it) }
-
-        runCatching { warningInfoRaw = apiService.getWarningInfoRaw() }
-            .onFailure { Log.e("WeatherRepo", "warninginfo Error", it) }
-
-        runCatching { swtRaw = apiService.getSpecialWeatherTipsRaw() }
-            .onFailure { Log.e("WeatherRepo", "swt Error", it) }
-
-        runCatching { today = apiService.getTodayForecast() }
-            .onFailure { Log.e("WeatherRepo", "flw Error", it) }
-
-        runCatching { nineDay = apiService.getNineDayForecast() }
-            .onFailure { Log.e("WeatherRepo", "fnd Error", it) }
+        val realtimeRaw = realtimeDeferred.await()
+        val warnsumRaw = warnsumDeferred.await()
+        val warningInfoRaw = warningInfoDeferred.await()
+        val swtRaw = swtDeferred.await()
+        val today = todayDeferred.await()
+        val nineDay = nineDayDeferred.await()
 
         // === 1. 安全解析生效中警告 (warnsum) ===
         val warningList = mutableListOf<String>()
         try {
-            if (warnsumRaw != null && warnsumRaw!!.isJsonObject) {
-                warnsumRaw!!.asJsonObject.entrySet().forEach { entry ->
+            if (warnsumRaw != null && warnsumRaw.isJsonObject) {
+                warnsumRaw.asJsonObject.entrySet().forEach { entry ->
                     val obj = entry.value.asJsonObject
                     if (obj.has("name")) {
                         warningList.add(obj.get("name").asString)
@@ -59,8 +48,8 @@ class WeatherRepository @Inject constructor(
         // === 1. 安全解析警告詳細內文 (warninginfo) ===
         val warningDetailMap = mutableMapOf<String, String>()
         try {
-            if (warningInfoRaw != null && warningInfoRaw!!.isJsonObject) {
-                val infoObj = warningInfoRaw!!.asJsonObject
+            if (warningInfoRaw != null && warningInfoRaw.isJsonObject) {
+                val infoObj = warningInfoRaw.asJsonObject
                 if (infoObj.has("details") && !infoObj.get("details").isJsonNull) {
                     val detailsArray = infoObj.getAsJsonArray("details")
                     for (i in 0 until detailsArray.size()) {
@@ -84,8 +73,8 @@ class WeatherRepository @Inject constructor(
         // === 1. 安全解析特別天氣提示 (swt) ===
         val swtTips = mutableListOf<String>()
         try {
-            if (swtRaw != null && swtRaw!!.isJsonObject) {
-                val swtObj = swtRaw!!.asJsonObject
+            if (swtRaw != null && swtRaw.isJsonObject) {
+                val swtObj = swtRaw.asJsonObject
                 if (swtObj.has("swt") && !swtObj.get("swt").isJsonNull) {
                     val swtArray = swtObj.getAsJsonArray("swt")
                     for (i in 0 until swtArray.size()) {
@@ -187,6 +176,7 @@ class WeatherRepository @Inject constructor(
             todayForecastDesc = todayDesc,
             nineDayForecasts = nineDays,
             updateTimeText = updateTimeText,
+            // 只有當即時天氣與今日預報「同時」為 null 時才顯示錯誤，防止單一 API 失敗卡住畫面
             errorMessage = if (realtimeRaw == null && today == null) "無法連接香港天文台，請檢查網路連線。" else null
         )
     }
