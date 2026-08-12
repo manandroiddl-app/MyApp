@@ -20,7 +20,7 @@
         "title": "交通消息",
         "subtitle": "特別交通預告及即時路況",
         "icon": "🚗",
-        "enabled": false,
+        "enabled": true,
         "badge": null
       },
       {
