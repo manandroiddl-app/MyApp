@@ -20,13 +20,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.lifeapp.data.repository.AppConfigRepository
 import com.example.lifeapp.ui.bus.BusScreen
 import com.example.lifeapp.ui.bus.BusViewModel
 import com.example.lifeapp.ui.theme.*
@@ -35,6 +35,8 @@ import com.example.lifeapp.ui.traffic.TrafficViewModel
 import com.example.lifeapp.ui.weather.WeatherScreen
 import com.example.lifeapp.ui.weather.WeatherViewModel
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 enum class Screen(val title: String) {
     HUB("大目錄"),
@@ -45,13 +47,16 @@ enum class Screen(val title: String) {
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+
+    @Inject
+    lateinit var appConfigRepository: AppConfigRepository
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
         enableEdgeToEdge()
 
         setContent {
-            // 🌟 修復 3: 強制 Status Bar 圖示為白色（時間、電量清晰可見）
             val view = LocalView.current
             if (!view.isInEditMode) {
                 SideEffect {
@@ -62,7 +67,7 @@ class MainActivity : ComponentActivity() {
             }
 
             LifeAppTheme {
-                MainAppLayout()
+                MainAppLayout(appConfigRepository = appConfigRepository)
             }
         }
     }
@@ -70,11 +75,18 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun MainAppLayout(
+    appConfigRepository: AppConfigRepository,
     weatherViewModel: WeatherViewModel = hiltViewModel(),
     trafficViewModel: TrafficViewModel = hiltViewModel(),
     busViewModel: BusViewModel = hiltViewModel()
 ) {
     var currentScreen by remember { mutableStateOf(Screen.HUB) }
+    val scope = rememberCoroutineScope()
+
+    // 啟動時讀取遠端 GitHub Config
+    LaunchedEffect(Unit) {
+        appConfigRepository.loadRemoteConfig()
+    }
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -83,6 +95,7 @@ fun MainAppLayout(
                 currentScreen = currentScreen,
                 onBackToHub = { currentScreen = Screen.HUB },
                 onRefresh = {
+                    scope.launch { appConfigRepository.loadRemoteConfig() }
                     when (currentScreen) {
                         Screen.WEATHER -> weatherViewModel.refresh()
                         Screen.TRAFFIC -> trafficViewModel.refresh()
@@ -101,7 +114,10 @@ fun MainAppLayout(
         ) {
             Crossfade(targetState = currentScreen, label = "ScreenTransition") { screen ->
                 when (screen) {
-                    Screen.HUB -> HubScreen(onNavigate = { target -> currentScreen = target })
+                    Screen.HUB -> HubScreen(
+                        onNavigate = { target -> currentScreen = target },
+                        appConfigRepository = appConfigRepository
+                    )
                     Screen.WEATHER -> WeatherScreen(viewModel = weatherViewModel)
                     Screen.TRAFFIC -> TrafficScreen(viewModel = trafficViewModel)
                     Screen.BUS_ETA -> BusScreen(viewModel = busViewModel)
@@ -112,41 +128,114 @@ fun MainAppLayout(
 }
 
 @Composable
-fun HubScreen(onNavigate: (Screen) -> Unit) {
+fun HubScreen(
+    onNavigate: (Screen) -> Unit,
+    appConfigRepository: AppConfigRepository
+) {
+    val config by appConfigRepository.appConfig.collectAsState()
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp)
             .verticalScroll(rememberScrollState())
     ) {
+        // 1. 動態全域緊急告示板
+        config.globalAnnouncement?.let { announcement ->
+            if (announcement.enabled) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (announcement.level == "warning") Color(0xFFFFEBEE) else Color(0xFFE3F2FD)
+                    )
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Text(
+                            text = "📢 ${announcement.title}",
+                            fontWeight = FontWeight.Bold,
+                            color = if (announcement.level == "warning") Color.Red else PrimaryDarkBlue,
+                            fontSize = 15.sp
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(text = announcement.message, fontSize = 13.sp, color = Color.DarkGray)
+                    }
+                }
+            }
+        }
+
         Text("生活大目錄", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = PrimaryDarkBlue)
         Text("請選擇你想要查看的即時資訊", fontSize = 14.sp, color = TextGray, modifier = Modifier.padding(bottom = 20.dp))
 
-        MenuCard(title = "香港天氣", subtitle = "警告、特別提示、分區氣溫/濕度/UV及預報", iconText = "☀️", onClick = { onNavigate(Screen.WEATHER) })
-        Spacer(modifier = Modifier.height(12.dp))
-        MenuCard(title = "交通消息", subtitle = "特別交通預告及即時路況", iconText = "🚗", onClick = { onNavigate(Screen.TRAFFIC) })
-        Spacer(modifier = Modifier.height(12.dp))
-        MenuCard(title = "交通工具到站時間", subtitle = "九巴 ETA 搜尋與 1 分鐘定時自動更新", iconText = "🚌", onClick = { onNavigate(Screen.BUS_ETA) })
+        // 2. 動態渲染 GitHub 設定的選單卡片
+        config.hubScreen.cards.filter { it.enabled }.forEach { card ->
+            MenuCard(
+                title = card.title,
+                subtitle = card.subtitle,
+                iconText = card.icon,
+                badge = card.badge,
+                onClick = {
+                    when (card.id) {
+                        "weather" -> onNavigate(Screen.WEATHER)
+                        "traffic" -> onNavigate(Screen.TRAFFIC)
+                        "bus" -> onNavigate(Screen.BUS_ETA)
+                    }
+                }
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+        }
     }
 }
 
 @Composable
-fun MenuCard(title: String, subtitle: String, iconText: String, onClick: () -> Unit) {
+fun MenuCard(
+    title: String,
+    subtitle: String,
+    iconText: String,
+    badge: String? = null,
+    onClick: () -> Unit
+) {
     Card(
-        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).clickable(onClick = onClick),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .clickable(onClick = onClick),
         colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Box(
-                modifier = Modifier.size(52.dp).background(PrimaryLightBlue, RoundedCornerShape(12.dp)),
+                modifier = Modifier
+                    .size(52.dp)
+                    .background(PrimaryLightBlue, RoundedCornerShape(12.dp)),
                 contentAlignment = Alignment.Center
             ) {
                 Text(text = iconText, fontSize = 26.sp)
             }
             Spacer(modifier = Modifier.width(16.dp))
-            Column {
-                Text(title, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TextDark)
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(title, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                    badge?.let { b ->
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Surface(
+                            color = PrimaryDarkBlue,
+                            shape = RoundedCornerShape(6.dp)
+                        ) {
+                            Text(
+                                text = b,
+                                color = Color.White,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                }
                 Text(subtitle, fontSize = 13.sp, color = TextGray)
             }
         }
