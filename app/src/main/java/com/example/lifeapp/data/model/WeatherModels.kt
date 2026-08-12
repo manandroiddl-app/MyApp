@@ -1,78 +1,34 @@
 package com.example.lifeapp.data.model
 
-// 地點模型
-data class LocationStation(
-    val nameTc: String,
-    val nameEn: String,
-    val temp: Int?
+import com.google.gson.annotations.SerializedName
+
+data class DistrictTemperature(
+    val place: String = "",
+    val value: Int = 0,
+    val unit: String = "C"
 )
 
-// 九日預報 Data Models
-data class DayForecast(
-    val forecastDate: String,
-    val week: String,
-    val forecastWind: String,
-    val forecastWeather: String,
-    val forecastMaxtemp: TempVal?,
-    val forecastMintemp: TempVal?,
-    val forecastMaxrh: TempVal?,
-    val forecastMinrh: TempVal?
+data class ForecastVal(
+    val value: Int = 0,
+    val unit: String = ""
 )
 
-data class TempVal(
-    val value: Int,
-    val unit: String
+data class ForecastItem(
+    val forecastDate: String = "",
+    val week: String = "",
+    val forecastWeather: String = "",
+    val forecastMaxtemp: ForecastVal = ForecastVal(),
+    val forecastMintemp: ForecastVal = ForecastVal(),
+    val forecastMinRh: ForecastVal = ForecastVal(),
+    val forecastMaxRh: ForecastVal = ForecastVal()
 )
 
-// UI 綜合狀態
-data class FullWeatherUiState(
-    val isLoading: Boolean = true,
-    val warnings: List<String> = emptyList(),
-    val warningDetailsMap: Map<String, String> = emptyMap(),
-    val specialWeatherTips: List<String> = emptyList(),
-    val locations: List<LocationStation> = emptyList(),
-    val selectedLocation: LocationStation? = null,
-    val currentHumidity: String = "--%",
-    val currentUv: String = "無數據",
-    val todayForecastDesc: String = "載入中...",
-    val nineDayForecasts: List<DayForecast> = emptyList(),
-    val updateTimeText: String = "",
+data class WeatherUiState(
+    val isLoading: Boolean = false,
+    val warningStatement: String = "",
+    val generalSituation: String = "",
+    val updateTime: String = "",
+    val districtTemperatures: List<DistrictTemperature> = emptyList(),
+    val nineDayForecast: List<ForecastItem> = emptyList(),
     val errorMessage: String? = null
-)
-
-// 香港天文台測量站中英對照表 (已補齊：元朗公園、啟德跑道公園、荃灣可觀)
-val stationNameEnMap = mapOf(
-    "香港天文台" to "Hong Kong Observatory",
-    "京士柏" to "King's Park",
-    "黃竹坑" to "Wong Chuk Hang",
-    "打鼓嶺" to "Ta Kwu Ling",
-    "流浮山" to "Lau Fau Shan",
-    "大埔" to "Tai Po",
-    "沙田" to "Sha Tin",
-    "屯門" to "Tuen Mun",
-    "將軍澳" to "Tseung Kwan O",
-    "西貢" to "Sai Kung",
-    "長洲" to "Cheung Chau",
-    "赤鱲角" to "Chek Lap Kok",
-    "青衣" to "Tsing Yi",
-    "石崗" to "Shek Kong",
-    "荃灣可風中學" to "Tsuen Wan Ho Fung",
-    "荃灣城門谷" to "Tsuen Wan Shing Mun Valley",
-    "荃灣可觀" to "Tsuen Wan Ho Koon",
-    "元朗公園" to "Yuen Long Park",
-    "啟德跑道公園" to "Kai Tak Runway Park",
-    "香港公園" to "Hong Kong Park",
-    "筲箕灣" to "Shau Kei Wan",
-    "九龍城" to "Kowloon City",
-    "跑馬地" to "Happy Valley",
-    "黃大仙" to "Wong Tai Sin",
-    "赤柱" to "Stanley",
-    "觀塘" to "Kwun Tong",
-    "深水埗" to "Sham Shui Po",
-    "大美督" to "Tai Mei Tuk",
-    "坪洲" to "Peng Chau",
-    "北潭湧" to "Pak Tam Chung",
-    "昂坪" to "Ngong Ping",
-    "橫瀾島" to "Waglan Island",
-    "濕地公園" to "Wetland Park"
 )
