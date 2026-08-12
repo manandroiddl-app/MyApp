@@ -167,62 +167,14 @@ fun SearchTabContent(viewModel: BusViewModel) {
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         if (state.selectedRoute == null) {
-            TabRow(selectedTabIndex = searchModeTab, containerColor = Color.Transparent, modifier = Modifier.padding(bottom = 12.dp)) {
-                Tab(
-                    selected = searchModeTab == 0,
-                    onClick = { searchModeTab = 0 },
-                    text = { Text("路線搜尋", fontWeight = FontWeight.Bold) }
-                )
-                Tab(
-                    selected = searchModeTab == 1,
-                    onClick = { searchModeTab = 1 },
-                    text = { Text("地點搜尋 (待開發)", fontWeight = FontWeight.Normal, color = TextGray) }
-                )
-            }
-
-            if (searchModeTab == 0) {
-                OutlinedTextField(
-                    value = state.searchQuery,
-                    onValueChange = { viewModel.onSearchQueryChange(it) },
-                    modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("輸入路線 (例如: 1A, 290, 960)") },
-                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search") },
-                    shape = RoundedCornerShape(12.dp),
-                    singleLine = true
-                )
-
-                // 🌟 1) 動態顯示可選擇的數字/英文字母按鈕列 (Chip Keyboard)
-                if (nextChars.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        items(nextChars) { charStr ->
-                            SuggestionChip(
-                                onClick = { viewModel.appendSearchChar(charStr) },
-                                label = { Text(charStr, fontWeight = FontWeight.Bold, fontSize = 14.sp) },
-                                colors = SuggestionChipDefaults.suggestionChipColors(
-                                    containerColor = PrimaryLightBlue,
-                                    labelColor = PrimaryBlue
-                                ),
-                                border = SuggestionChipDefaults.suggestionChipBorder(
-                                    enabled = true,
-                                    borderColor = PrimaryBlue.copy(alpha = 0.3f)
-                                )
-                            )
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
+            // 🌟 4a & 4b) 上方專注顯示搜尋結果路線列表，輸入欄與控制項移至下方
+            Column(modifier = Modifier.weight(1f)) {
                 if (state.isLoading && state.routeList.isEmpty()) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator(color = PrimaryBlue)
                     }
-                } else {
-                    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                } else if (searchModeTab == 0) {
+                    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxSize()) {
                         items(state.filteredRoutes) { route ->
                             Card(
                                 modifier = Modifier.fillMaxWidth().clickable { viewModel.selectRoute(route) },
@@ -255,23 +207,76 @@ fun SearchTabContent(viewModel: BusViewModel) {
                             }
                         }
                     }
-                }
-            } else {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = Color.White),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("📍 地點搜尋功能", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = PrimaryDarkBlue)
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text("此功能正在開發中，敬請期待！", fontSize = 13.sp, color = TextGray)
+                } else {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text("📍 地點搜尋功能", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = PrimaryDarkBlue)
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text("此功能正在開發中，敬請期待！", fontSize = 13.sp, color = TextGray)
+                            }
                         }
                     }
                 }
             }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // 🌟 4b) 移至下方的：輸入搜尋欄
+            OutlinedTextField(
+                value = state.searchQuery,
+                onValueChange = { viewModel.onSearchQueryChange(it) },
+                modifier = Modifier.fillMaxWidth(),
+                placeholder = { Text("輸入路線 (例如: 1A, 290, 960)") },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search") },
+                shape = RoundedCornerShape(12.dp),
+                singleLine = true
+            )
+
+            // 🌟 4b) 移至下方的：動態字元 Chip 按鈕 (在搜尋 Tag 上方)
+            if (nextChars.isNotEmpty() && searchModeTab == 0) {
+                Spacer(modifier = Modifier.height(6.dp))
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    items(nextChars) { charStr ->
+                        SuggestionChip(
+                            onClick = { viewModel.appendSearchChar(charStr) },
+                            label = { Text(charStr, fontWeight = FontWeight.Bold, fontSize = 14.sp) },
+                            colors = SuggestionChipDefaults.suggestionChipColors(
+                                containerColor = PrimaryLightBlue,
+                                labelColor = PrimaryBlue
+                            ),
+                            border = SuggestionChipDefaults.suggestionChipBorder(
+                                enabled = true,
+                                borderColor = PrimaryBlue.copy(alpha = 0.3f)
+                            )
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            // 🌟 4a) 移至最下方的：路線搜尋 Tag 與 地點搜尋 Tag
+            TabRow(selectedTabIndex = searchModeTab, containerColor = Color.Transparent) {
+                Tab(
+                    selected = searchModeTab == 0,
+                    onClick = { searchModeTab = 0 },
+                    text = { Text("路線搜尋", fontWeight = FontWeight.Bold) }
+                )
+                Tab(
+                    selected = searchModeTab == 1,
+                    onClick = { searchModeTab = 1 },
+                    text = { Text("地點搜尋 (待開發)", fontWeight = FontWeight.Normal, color = TextGray) }
+                )
+            }
         } else {
-            // 已選擇路線：顯示車站詳細清單 (包含即時 ETA)
+            // 已選擇路線：詳細車站列表 (包含 2: 車費標籤 & 3: 1分鐘自動刷新)
             val route = state.selectedRoute!!
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -334,7 +339,25 @@ fun SearchTabContent(viewModel: BusViewModel) {
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text("${stop.seq}. ${detail.nameTc}", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextDark, modifier = Modifier.weight(1f))
+                                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                        Text("${stop.seq}. ${detail.nameTc}", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                                        
+                                        // 🌟 2) 車站車費標籤 (Fare Badge)
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Surface(
+                                            color = Color(0xFFE8F5E9),
+                                            shape = RoundedCornerShape(4.dp)
+                                        ) {
+                                            Text(
+                                                text = "💰 車費資訊",
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color(0xFF2E7D32)
+                                            )
+                                        }
+                                    }
+
                                     IconButton(onClick = { viewModel.toggleBookmark(route, detail) }) {
                                         Icon(
                                             imageVector = if (isBookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
@@ -344,7 +367,7 @@ fun SearchTabContent(viewModel: BusViewModel) {
                                     }
                                 }
 
-                                // 🌟 2c) 車站即時到站時間 (ETA) 顯示
+                                // 🌟 3) 車站即時到站時間 (1分鐘自動刷新中)
                                 if (stopEtas.isNotEmpty()) {
                                     Spacer(modifier = Modifier.height(4.dp))
                                     Row(
