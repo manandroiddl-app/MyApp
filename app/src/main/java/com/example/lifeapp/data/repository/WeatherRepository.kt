@@ -14,33 +14,42 @@ import javax.inject.Singleton
 class WeatherRepository @Inject constructor(
     private val hkoApiService: HkoApiService
 ) {
-    // 地區英中名對照表 (確保中英文齊全且用英文排序)
+    // 完整地區英中對照表（確保包含所有天文台監測站）
     private val districtNameMap = mapOf(
-        "Hong Kong Observatory" to "香港天文台",
-        "King's Park" to "京士柏",
-        "Wong Chuk Hang" to "黃竹坑",
-        "Ta Kwu Ling" to "打鼓嶺",
-        "Lau Fau Shan" to "流浮山",
-        "Tai Po" to "大埔",
-        "Sha Tin" to "沙田",
-        "Tuen Mun" to "屯門",
-        "Tseung Kwan O" to "將軍澳",
-        "Sai Kung" to "西貢",
         "Chek Lap Kok" to "赤鱲角",
-        "Tsing Yi" to "青衣",
+        "Cheung Chau" to "長洲",
+        "Clear Water Bay" to "清水灣",
+        "Deep Water Bay" to "深水灣",
+        "Happy Valley" to "跑馬地",
+        "Hong Kong Observatory" to "香港天文台",
+        "Hong Kong Park" to "香港公園",
+        "Kai Tak Runway Park" to "啟德跑道公園",
+        "King's Park" to "京士柏",
+        "Kowloon City" to "九龍城",
+        "Kwun Tong" to "觀塘",
+        "Lamma Island" to "南丫島",
+        "Lau Fau Shan" to "流浮山",
+        "Ngong Ping" to "昂坪",
+        "Peng Chau" to "坪洲",
+        "Sai Kung" to "西貢",
+        "Sha Tin" to "沙田",
+        "Sham Shui Po" to "深水埗",
+        "Shau Kei Wan" to "筲箕灣",
         "Shek Kong" to "石崗",
+        "Stanley" to "赤柱",
+        "Ta Kwu Ling" to "打鼓嶺",
+        "Tai Mei Tuk" to "大美督",
+        "Tai Mo Shan" to "大帽山",
+        "Tai Po" to "大埔",
+        "Tate's Cairn" to "大老山",
+        "Tseung Kwan O" to "將軍澳",
+        "Tsing Yi" to "青衣",
         "Tsuen Wan Ho Koon" to "荃灣可觀",
         "Tsuen Wan Shing Mun Valley" to "荃灣城門谷",
-        "Hong Kong Park" to "香港公園",
-        "Shau Kei Wan" to "筲箕灣",
-        "Kowloon City" to "九龍城",
-        "Happy Valley" to "跑馬地",
+        "Tuen Mun" to "屯門",
+        "Wong Chuk Hang" to "黃竹坑",
         "Wong Tai Sin" to "黃大仙",
-        "Stanley" to "赤柱",
-        "Kwun Tong" to "觀塘",
-        "Deep Water Bay" to "深水灣",
-        "Peng Chau" to "坪洲",
-        "Lamma Island" to "南丫島"
+        "Yuen Long Park" to "元朗公園"
     )
 
     suspend fun fetchWeatherInfo(): WeatherUiState {
@@ -62,7 +71,7 @@ class WeatherRepository @Inject constructor(
                         val contents = if (obj.has("contents")) {
                             val arr = obj.getAsJsonArray("contents")
                             val sb = StringBuilder()
-                            arr.forEach { sb.append(it.asString).append("\n") }
+                            arr.forEach { sb.append(it.asString).append("\n\n") }
                             sb.toString().trim()
                         } else ""
                         if (code.isNotBlank()) warningDetailsMap[code] = contents
@@ -90,7 +99,6 @@ class WeatherRepository @Inject constructor(
             if (rawRealtime?.isJsonObject == true) {
                 val realObj = rawRealtime.asJsonObject
 
-                // 解析全港相對濕度 (humidity -> data)
                 if (realObj.has("humidity") && realObj.getAsJsonObject("humidity").has("data")) {
                     val humArr = realObj.getAsJsonObject("humidity").getAsJsonArray("data")
                     if (humArr.size() > 0 && humArr.get(0).isJsonObject) {
@@ -98,7 +106,6 @@ class WeatherRepository @Inject constructor(
                     }
                 }
 
-                // 解析 UV Index (uvindex -> data)
                 if (realObj.has("uvindex") && realObj.getAsJsonObject("uvindex").has("data")) {
                     val uvArr = realObj.getAsJsonObject("uvindex").getAsJsonArray("data")
                     if (uvArr.size() > 0 && uvArr.get(0).isJsonObject) {
@@ -111,7 +118,6 @@ class WeatherRepository @Inject constructor(
                     }
                 }
 
-                // 解析分區氣溫
                 if (realObj.has("temperature") && realObj.getAsJsonObject("temperature").has("data")) {
                     realObj.getAsJsonObject("temperature").getAsJsonArray("data").forEach { elem ->
                         if (elem.isJsonObject) {
@@ -123,7 +129,7 @@ class WeatherRepository @Inject constructor(
                                 else -> item.get("value").asString.toIntOrNull() ?: 0
                             }
 
-                            // 搵番英文名以作排序
+                            // 查找中文對應英文名（若完全找不到則顯示原名）
                             val placeEn = districtNameMap.entries.firstOrNull { it.value == placeTc }?.key ?: placeTc
 
                             if (placeTc.isNotBlank()) {
@@ -141,7 +147,7 @@ class WeatherRepository @Inject constructor(
                 }
             }
 
-            // 按照英文名稱 (Alphabetically) 排序
+            // 按英文名稱 (Alphabetically) 排序
             val sortedDistricts = districtList.sortedBy { it.placeEn }
 
             // 3. 解析今日天氣預報
@@ -183,7 +189,6 @@ class WeatherRepository @Inject constructor(
                 }
             }
 
-            // 要求 1：格式化為 yyyyMMdd HH:mm:ss
             val formattedTimeStr = SimpleDateFormat("yyyyMMdd HH:mm:ss", Locale.getDefault()).format(Date())
 
             WeatherUiState(
