@@ -1,8 +1,8 @@
 package com.example.lifeapp.di
 
+import com.example.lifeapp.data.api.HkoApiService
 import com.example.lifeapp.data.api.KmbApiService
-import com.example.lifeapp.data.api.TrafficApiService
-import com.example.lifeapp.data.api.WeatherApiService
+import com.example.lifeapp.data.api.TdApiService
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -28,24 +28,24 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun provideWeatherApiService(okHttpClient: OkHttpClient): WeatherApiService {
+    fun provideHkoApiService(okHttpClient: OkHttpClient): HkoApiService {
         return Retrofit.Builder()
-            .baseUrl("https://data.weather.gov.hk/weatherAPI/opendata/")
+            .baseUrl("https://data.weather.gov.hk/")
             .client(okHttpClient)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
-            .create(WeatherApiService::class.java)
+            .create(HkoApiService::class.java)
     }
 
     @Provides
     @Singleton
-    fun provideTrafficApiService(okHttpClient: OkHttpClient): TrafficApiService {
+    fun provideTdApiService(okHttpClient: OkHttpClient): TdApiService {
         return Retrofit.Builder()
-            .baseUrl("https://data.gov.hk/")
+            .baseUrl("https://www.td.gov.hk/")
             .client(okHttpClient)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
-            .create(TrafficApiService::class.java)
+            .create(TdApiService::class.java)
     }
 
     @Provides
