@@ -1,9 +1,10 @@
 package com.example.lifeapp.ui.traffic
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -15,68 +16,55 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.lifeapp.data.model.TrafficNews
 import com.example.lifeapp.ui.theme.*
 
 @Composable
 fun TrafficScreen(viewModel: TrafficViewModel = hiltViewModel()) {
     val uiState by viewModel.uiState.collectAsState()
 
-    if (uiState.isLoading) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(BackgroundLight)
+    ) {
+        if (uiState.isLoading) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = PrimaryBlue)
-                Spacer(modifier = Modifier.height(12.dp))
-                Text("正在獲取最新交通消息...", color = TextGray, fontSize = 14.sp)
             }
-        }
-    } else if (uiState.errorMessage != null) {
-        Box(modifier = Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.Center) {
-            Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFFFEBEE))) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text("⚠️ 載入失敗", fontWeight = FontWeight.Bold, color = WarningRed)
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(uiState.errorMessage!!, color = TextDark)
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Button(
-                        onClick = { viewModel.refresh() },
-                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue)
-                    ) {
-                        Text("重試")
+        } else if (uiState.errorMessage != null) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(text = uiState.errorMessage!!, color = WarningRed, fontSize = 14.sp)
+            }
+        } else if (uiState.newsList.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("目前沒有特別交通消息", color = TextGray, fontSize = 14.sp)
+            }
+        } else {
+            // 🌟 加上 statusBarsPadding，讓交通新聞列表向上滾動時融入頂部 Status Bar
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .statusBarsPadding()
+                    .padding(horizontal = 16.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("🚗 即時特別交通消息", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = PrimaryDarkBlue)
+                    if (uiState.lastUpdatedText.isNotEmpty()) {
+                        Text(uiState.lastUpdatedText, fontSize = 11.sp, color = TextGray)
                     }
                 }
-            }
-        }
-    } else {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp)
-                .verticalScroll(rememberScrollState())
-        ) {
-            // 頂部顯示最後更新時間 (年月日時分秒)
-            if (uiState.updateTimeText.isNotEmpty()) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                    horizontalArrangement = Arrangement.End
-                ) {
-                    Text(text = "🕒 ${uiState.updateTimeText}", fontSize = 12.sp, color = TextGray)
-                }
-            }
 
-            Text("即時特別交通通告", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = PrimaryDarkBlue)
-            Spacer(modifier = Modifier.height(12.dp))
-
-            if (uiState.items.isNotEmpty()) {
-                for (item in uiState.items) {
-                    TrafficItemCard(timeText = item.timeText, contentText = item.title)
-                }
-            } else {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = Color.White)
+                LazyColumn(
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    contentPadding = PaddingValues(bottom = 16.dp)
                 ) {
-                    Box(modifier = Modifier.padding(24.dp), contentAlignment = Alignment.Center) {
-                        Text("✅ 現時無特別交通通告，道路交通大致正常。", fontSize = 14.sp, color = TextDark)
+                    items(uiState.newsList) { news ->
+                        TrafficNewsCard(news)
                     }
                 }
             }
@@ -85,20 +73,41 @@ fun TrafficScreen(viewModel: TrafficViewModel = hiltViewModel()) {
 }
 
 @Composable
-fun TrafficItemCard(timeText: String, contentText: String) {
+fun TrafficNewsCard(news: TrafficNews) {
     Card(
-        modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+        modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         shape = RoundedCornerShape(12.dp)
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("🔴 ", fontSize = 14.sp)
-                Text(timeText, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextGray)
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Surface(
+                    color = PrimaryLightBlue,
+                    shape = RoundedCornerShape(6.dp)
+                ) {
+                    Text(
+                        text = "特別路況",
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = PrimaryBlue
+                    )
+                }
+                Text(news.referenceDate, fontSize = 11.sp, color = TextGray)
             }
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(contentText, fontSize = 14.sp, color = TextDark, lineHeight = 22.sp)
+
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = news.chinText,
+                fontSize = 14.sp,
+                color = TextDark,
+                lineHeight = 20.sp
+            )
         }
     }
 }
