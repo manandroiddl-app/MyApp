@@ -22,17 +22,17 @@ class WeatherRepository @Inject constructor(
             // 解析警告訊息
             val warnText = warnRes?.details?.firstOrNull()?.contents?.firstOrNull() ?: ""
 
-            // 解析地區氣溫
-            val districtTemps = currRes.temperature?.data?.map {
+            // 明確指定 DistrictTemperature 型別，防止 Kotlin 編譯器推導失敗
+            val districtTemps: List<DistrictTemperature> = currRes.temperature?.data?.map { node ->
                 DistrictTemperature(
-                    place = it.place ?: "",
-                    value = it.value ?: 0,
-                    unit = it.unit ?: "C"
+                    place = node.place ?: "",
+                    value = node.value ?: 0,
+                    unit = node.unit ?: "C"
                 )
             } ?: emptyList()
 
-            // 解析九天天氣預報
-            val forecasts = nineRes?.weatherForecast?.map { f ->
+            // 明確指定 ForecastItem 型別
+            val forecasts: List<ForecastItem> = nineRes?.weatherForecast?.map { f ->
                 ForecastItem(
                     forecastDate = f.forecastDate ?: "",
                     week = f.week ?: "",
