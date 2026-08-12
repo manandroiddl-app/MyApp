@@ -2,10 +2,7 @@ package com.example.lifeapp.data.repository
 
 import android.util.Log
 import com.example.lifeapp.data.api.HkoApiService
-import com.example.lifeapp.data.model.DistrictTemperature
-import com.example.lifeapp.data.model.ForecastItem
-import com.example.lifeapp.data.model.ForecastVal
-import com.example.lifeapp.data.model.WeatherUiState
+import com.example.lifeapp.data.model.*
 import com.google.gson.JsonObject
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -19,68 +16,72 @@ class WeatherRepository @Inject constructor(
 ) {
     suspend fun fetchWeatherInfo(): WeatherUiState {
         return runCatching {
-            // 1. 即時天氣 (rhrread)
-            val rawCurrent = hkoApiService.getRealtimeWeatherRaw()
-            val currentObj = if (rawCurrent.isJsonObject) rawCurrent.asJsonObject else JsonObject()
-
-            // 2. 九天天氣預報 (fnd)
+            // 併發取得 4 支天文台 API 資料
+            val rawWarning = runCatching { hkoApiService.getWarningSummaryRaw() }.getOrNull()
+            val rawRealtime = runCatching { hkoApiService.getRealtimeWeatherRaw() }.getOrNull()
+            val rawToday = runCatching { hkoApiService.getTodayForecastRaw() }.getOrNull()
             val rawNineDay = runCatching { hkoApiService.getNineDayForecastRaw() }.getOrNull()
-            val nineDayObj = if (rawNineDay?.isJsonObject == true) rawNineDay.asJsonObject else null
 
-            // --- 1. 頂部與本港概況 ---
-            // 天文台 rhrread 在不同時間可能是 generalSituation 或 forecastPeriod
-            val generalSituation = when {
-                currentObj.has("generalSituation") && !currentObj.get("generalSituation").asString.isNullOrBlank() -> 
-                    currentObj.get("generalSituation").asString
-                currentObj.has("forecastPeriod") && !currentObj.get("forecastPeriod").asString.isNullOrBlank() -> 
-                    currentObj.get("forecastPeriod").asString
-                else -> "本港地區天氣情況良好。"
+            // 1. 解析生效中警告 (warnsum)
+            val warnings = mutableListOf<WeatherWarningItem>()
+            if (rawWarning?.isJsonObject == true) {
+                val warnObj = rawWarning.asJsonObject
+                warnObj.keySet().forEach { key ->
+                    val itemObj = warnObj.getAsJsonObject(key)
+                    val name = if (itemObj.has("name")) itemObj.get("name").asString else key
+                    val code = if (itemObj.has("code")) itemObj.get("code").asString else ""
+                    warnings.add(WeatherWarningItem(code = code, name = name))
+                }
             }
 
-            val updateTimeStr = when {
-                currentObj.has("updateTime") -> currentObj.get("updateTime").asString
-                else -> ""
-            }
-
-            // --- 2. 分區氣溫 (temperature -> data 陣列) ---
+            // 2. 解析分區氣溫 (rhrread)
             val districtTemps = mutableListOf<DistrictTemperature>()
-            if (currentObj.has("temperature")) {
-                val tempObj = currentObj.get("temperature")
-                if (tempObj.isJsonObject && tempObj.asJsonObject.has("data")) {
-                    val dataArray = tempObj.asJsonObject.getAsJsonArray("data")
-                    for (elem in dataArray) {
+            var updateTimeStr = ""
+            if (rawRealtime?.isJsonObject == true) {
+                val realObj = rawRealtime.asJsonObject
+                if (realObj.has("updateTime")) updateTimeStr = realObj.get("updateTime").asString
+                
+                if (realObj.has("temperature") && realObj.getAsJsonObject("temperature").has("data")) {
+                    realObj.getAsJsonObject("temperature").getAsJsonArray("data").forEach { elem ->
                         if (elem.isJsonObject) {
                             val item = elem.asJsonObject
                             val place = if (item.has("place")) item.get("place").asString else ""
-                            val value = if (item.has("value")) item.get("value").asInt else 0
-                            val unit = if (item.has("unit")) item.get("unit").asString else "°C"
+                            val valueInt = when {
+                                !item.has("value") -> 0
+                                item.get("value").isJsonPrimitive && item.get("value").asJsonPrimitive.isNumber -> item.get("value").asInt
+                                else -> item.get("value").asString.toIntOrNull() ?: 0
+                            }
                             if (place.isNotBlank()) {
-                                districtTemps.add(DistrictTemperature(place = place, value = value, unit = unit))
+                                districtTemps.add(DistrictTemperature(place = place, value = valueInt))
                             }
                         }
                     }
                 }
             }
 
-            // --- 3. 九天天氣預報 (weatherForecast 陣列) ---
+            // 3. 解析今日天氣預報 (flw)
+            var todayForecastDesc = ""
+            if (rawToday?.isJsonObject == true) {
+                val todayObj = rawToday.asJsonObject
+                todayForecastDesc = when {
+                    todayObj.has("forecastDesc") -> todayObj.get("forecastDesc").asString
+                    todayObj.has("generalSituation") -> todayObj.get("generalSituation").asString
+                    else -> ""
+                }
+            }
+
+            // 4. 解析九天天氣預報 (fnd)
             val forecastList = mutableListOf<ForecastItem>()
-            if (nineDayObj != null && nineDayObj.has("weatherForecast")) {
-                val forecastArray = nineDayObj.getAsJsonArray("weatherForecast")
-                for (elem in forecastArray) {
+            if (rawNineDay?.isJsonObject == true && rawNineDay.asJsonObject.has("weatherForecast")) {
+                rawNineDay.asJsonObject.getAsJsonArray("weatherForecast").forEach { elem ->
                     if (elem.isJsonObject) {
                         val f = elem.asJsonObject
                         val date = if (f.has("forecastDate")) f.get("forecastDate").asString else ""
                         val week = if (f.has("week")) f.get("week").asString else ""
                         val weather = if (f.has("forecastWeather")) f.get("forecastWeather").asString else ""
                         
-                        // 處理最高與最低溫 (forecastMaxtemp -> value)
-                        val maxTemp = if (f.has("forecastMaxtemp") && f.getAsJsonObject("forecastMaxtemp").has("value")) {
-                            f.getAsJsonObject("forecastMaxtemp").get("value").asInt
-                        } else 0
-
-                        val minTemp = if (f.has("forecastMintemp") && f.getAsJsonObject("forecastMintemp").has("value")) {
-                            f.getAsJsonObject("forecastMintemp").get("value").asInt
-                        } else 0
+                        val maxTempInt = runCatching { f.getAsJsonObject("forecastMaxtemp")?.get("value")?.asInt ?: 0 }.getOrDefault(0)
+                        val minTempInt = runCatching { f.getAsJsonObject("forecastMintemp")?.get("value")?.asInt ?: 0 }.getOrDefault(0)
 
                         if (date.isNotBlank()) {
                             forecastList.add(
@@ -88,8 +89,8 @@ class WeatherRepository @Inject constructor(
                                     forecastDate = date,
                                     week = week,
                                     forecastWeather = weather,
-                                    forecastMaxtemp = ForecastVal(value = maxTemp, unit = "°C"),
-                                    forecastMintemp = ForecastVal(value = minTemp, unit = "°C")
+                                    forecastMaxtemp = ForecastVal(value = maxTempInt, unit = "°C"),
+                                    forecastMintemp = ForecastVal(value = minTempInt, unit = "°C")
                                 )
                             )
                         }
@@ -101,10 +102,11 @@ class WeatherRepository @Inject constructor(
 
             WeatherUiState(
                 isLoading = false,
-                generalSituation = generalSituation,
-                updateTime = if (updateTimeStr.isNotBlank()) updateTimeStr else nowStr,
+                warningSummary = warnings,
                 districtTemperatures = districtTemps,
+                todayForecast = todayForecastDesc.ifBlank { "本港地區天氣情況良好。" },
                 nineDayForecast = forecastList,
+                updateTime = updateTimeStr.ifBlank { nowStr },
                 errorMessage = null
             )
         }.getOrElse { e ->
