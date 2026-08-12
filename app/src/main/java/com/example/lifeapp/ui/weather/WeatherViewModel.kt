@@ -30,4 +30,9 @@ class WeatherViewModel @Inject constructor(
             _uiState.value = result
         }
     }
+
+    // 👈 補上 refresh()，對應 MainActivity.kt 第 74 行的呼叫
+    fun refresh() {
+        loadWeatherData()
+    }
 }
