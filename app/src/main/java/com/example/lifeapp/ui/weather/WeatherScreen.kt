@@ -17,7 +17,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.lifeapp.data.model.DistrictTemperature
-import com.example.lifeapp.data.model.NineDayForecast
+import com.example.lifeapp.data.model.ForecastItem
 import com.example.lifeapp.ui.theme.*
 
 @Composable
@@ -38,7 +38,6 @@ fun WeatherScreen(viewModel: WeatherViewModel = hiltViewModel()) {
                 Text(text = uiState.errorMessage!!, color = WarningRed, fontSize = 14.sp)
             }
         } else {
-            // 🌟 加上 statusBarsPadding，讓天氣卡片向上滾動時能透入 Status Bar 後方，同時保護標題不被卡到
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -49,7 +48,7 @@ fun WeatherScreen(viewModel: WeatherViewModel = hiltViewModel()) {
                 Spacer(modifier = Modifier.height(8.dp))
                 
                 // 天氣警告標籤
-                if (uiState.warningSummaries.isNotEmpty()) {
+                if (uiState.warningStatement.isNotEmpty()) {
                     Card(
                         modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
                         colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF3E0)),
@@ -57,9 +56,7 @@ fun WeatherScreen(viewModel: WeatherViewModel = hiltViewModel()) {
                     ) {
                         Column(modifier = Modifier.padding(12.dp)) {
                             Text("⚠️ 現正生效警告：", fontWeight = FontWeight.Bold, color = Color(0xFFE65100), fontSize = 14.sp)
-                            uiState.warningSummaries.forEach { warning ->
-                                Text("• $warning", color = Color(0xFFE65100), fontSize = 13.sp)
-                            }
+                            Text(uiState.warningStatement, color = Color(0xFFE65100), fontSize = 13.sp)
                         }
                     }
                 }
@@ -90,7 +87,7 @@ fun WeatherScreen(viewModel: WeatherViewModel = hiltViewModel()) {
 
                 // 九天天氣預報
                 Text("📅 九天天氣預報", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = PrimaryDarkBlue, modifier = Modifier.padding(bottom = 8.dp))
-                NineDayForecastSection(uiState.nineDayForecasts)
+                NineDayForecastSection(uiState.nineDayForecast)
 
                 Spacer(modifier = Modifier.height(24.dp))
             }
@@ -108,9 +105,12 @@ fun DistrictTempSection(list: List<DistrictTemperature>) {
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
             val chunked = list.chunked(2)
-            chunked.forEach { rowItems ->
-                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                    rowItems.forEach { item ->
+            for (rowItems in chunked) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    for (item in rowItems) {
                         Row(modifier = Modifier.weight(1f), horizontalArrangement = Arrangement.SpaceBetween) {
                             Text(item.place, fontSize = 13.sp, color = TextDark)
                             Text("${item.value}°C", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = PrimaryBlue)
@@ -127,9 +127,9 @@ fun DistrictTempSection(list: List<DistrictTemperature>) {
 }
 
 @Composable
-fun NineDayForecastSection(list: List<NineDayForecast>) {
+fun NineDayForecastSection(list: List<ForecastItem>) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        list.forEach { forecast ->
+        for (forecast in list) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -142,7 +142,7 @@ fun NineDayForecastSection(list: List<NineDayForecast>) {
                 ) {
                     Column {
                         Text("${forecast.forecastDate} (${forecast.week})", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = PrimaryDarkBlue)
-                        Text("${forecast.forecastWeather} | 濕度 ${forecast.forecastRH.min}-${forecast.forecastRH.max}%", fontSize = 12.sp, color = TextGray)
+                        Text("${forecast.forecastWeather} | 濕度 ${forecast.forecastMinRh.value}% - ${forecast.forecastMaxRh.value}%", fontSize = 12.sp, color = TextGray)
                     }
                     Text("${forecast.forecastMaxtemp.value}° / ${forecast.forecastMintemp.value}°C", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = PrimaryBlue)
                 }
