@@ -14,7 +14,6 @@ import javax.inject.Singleton
 class WeatherRepository @Inject constructor(
     private val hkoApiService: HkoApiService
 ) {
-    // 地區英中對照表 (極簡寫法，找不到直接顯示中文名)
     private val nameMap = mapOf(
         "香港天文台" to "Hong Kong Observatory",
         "赤鱲角" to "Chek Lap Kok",
@@ -54,12 +53,12 @@ class WeatherRepository @Inject constructor(
 
     suspend fun fetchWeatherInfo(): WeatherUiState {
         return try {
-            // 獨立請求，互相不幹擾
             val rawRealtime = runCatching { hkoApiService.getRealtimeWeatherRaw() }.getOrNull()
             val rawToday = runCatching { hkoApiService.getTodayForecastRaw() }.getOrNull()
             val rawNineDay = runCatching { hkoApiService.getNineDayForecastRaw() }.getOrNull()
             val rawWarningSum = runCatching { hkoApiService.getWarningSummaryRaw() }.getOrNull()
             val rawWarningDetail = runCatching { hkoApiService.getWarningInfoRaw() }.getOrNull()
+            val rawSwt = runCatching { hkoApiService.getSpecialWeatherTipsRaw() }.getOrNull()
 
             // 1. 警告內文對照
             val detailsMap = mutableMapOf<String, String>()
@@ -80,8 +79,9 @@ class WeatherRepository @Inject constructor(
                 } catch (e: Exception) { Log.e("WeatherRepo", "Warning detail parse error", e) }
             }
 
-            // 生效中警告
             val warnings = mutableListOf<WeatherWarningItem>()
+
+            // A. 生效中警告 (warnsum)
             if (rawWarningSum?.isJsonObject == true) {
                 val warnObj = rawWarningSum.asJsonObject
                 warnObj.keySet().forEach { key ->
@@ -93,6 +93,27 @@ class WeatherRepository @Inject constructor(
                         warnings.add(WeatherWarningItem(code = code, name = name, details = detail))
                     } catch (e: Exception) { Log.e("WeatherRepo", "Warning sum parse error", e) }
                 }
+            }
+
+            // B. 特別天氣提示 (swt)
+            if (rawSwt?.isJsonObject == true && rawSwt.asJsonObject.has("swt")) {
+                try {
+                    rawSwt.asJsonObject.getAsJsonArray("swt").forEach { elem ->
+                        if (elem.isJsonObject) {
+                            val obj = elem.asJsonObject
+                            val desc = if (obj.has("desc")) obj.get("desc").asString else ""
+                            if (desc.isNotBlank()) {
+                                warnings.add(
+                                    WeatherWarningItem(
+                                        code = "SWT",
+                                        name = "特別天氣提示",
+                                        details = desc
+                                    )
+                                )
+                            }
+                        }
+                    }
+                } catch (e: Exception) { Log.e("WeatherRepo", "SWT parse error", e) }
             }
 
             // 2. 即時天氣/分區/濕度/UV
@@ -113,13 +134,13 @@ class WeatherRepository @Inject constructor(
                     }
                 } catch (e: Exception) { Log.e("WeatherRepo", "Humidity error", e) }
 
-                // UV
+                // UV 紫外線指數
                 try {
                     if (realObj.has("uvindex") && realObj.getAsJsonObject("uvindex").has("data")) {
                         val uvArr = realObj.getAsJsonObject("uvindex").getAsJsonArray("data")
                         if (uvArr.size() > 0) {
                             val uObj = uvArr.get(0).asJsonObject
-                            val vStr = if (uObj.has("value")) uObj.get("value").asString else ""
+                            val vStr = if (uObj.has("value")) uObj.get("value").toString() else ""
                             val dStr = if (uObj.has("desc")) uObj.get("desc").asString else ""
                             if (vStr.isNotBlank()) uvInfo = UvIndexInfo(value = vStr, desc = dStr)
                         }
@@ -152,7 +173,6 @@ class WeatherRepository @Inject constructor(
                 } catch (e: Exception) { Log.e("WeatherRepo", "Temp array error", e) }
             }
 
-            // 按英文 Alphabetically 排序
             val sortedDistricts = districtList.sortedBy { it.placeEn }
 
             // 3. 今日天氣預報
