@@ -5,9 +5,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -16,7 +16,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.lifeapp.data.model.DistrictTemperature
 import com.example.lifeapp.data.model.WeatherWarningItem
 import com.example.lifeapp.ui.theme.PrimaryDarkBlue
 import com.example.lifeapp.ui.theme.PrimaryLightBlue
@@ -28,10 +27,7 @@ fun WeatherScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
-    // 彈出警告 Dialog 狀態
     var selectedWarning by remember { mutableStateOf<WeatherWarningItem?>(null) }
-
-    // 下拉選單 Dropdown 狀態 (Default 預設香港天文台)
     var dropdownExpanded by remember { mutableStateOf(false) }
     var selectedDistrict by remember(uiState.districtTemperatures) {
         mutableStateOf(
@@ -51,7 +47,7 @@ fun WeatherScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // 要求 1: 頂部最後更新時間 (yyyyMMdd HH:mm:ss)
+            // 1. 頂部最後更新時間 (yyyyMMdd HH:mm:ss)
             item {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -67,7 +63,7 @@ fun WeatherScreen(
                 }
             }
 
-            // 要求 3: 警告部分 (按落去彈出 Dialog)
+            // 2. 警告部分
             if (uiState.warningSummary.isNotEmpty()) {
                 item {
                     Column(
@@ -103,7 +99,7 @@ fun WeatherScreen(
                 }
             }
 
-            // 要求 4: 分區天氣 (Dropdown List 選擇地區, 英文排序, 氣溫/濕度/UV)
+            // 3. 分區天氣 Dropdown List
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -114,7 +110,6 @@ fun WeatherScreen(
                         Text(text = "📍 分區氣象觀察", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = PrimaryDarkBlue)
                         Spacer(modifier = Modifier.height(12.dp))
 
-                        // 下拉選單選擇地區
                         ExposedDropdownMenuBox(
                             expanded = dropdownExpanded,
                             onExpandedChange = { dropdownExpanded = !dropdownExpanded }
@@ -146,7 +141,6 @@ fun WeatherScreen(
 
                         Spacer(modifier = Modifier.height(16.dp))
 
-                        // 顯示選中地區之數據
                         selectedDistrict?.let { dist ->
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -163,7 +157,6 @@ fun WeatherScreen(
                             }
                         }
 
-                        // UV 紫外線指數
                         uiState.uvIndexInfo?.let { uv ->
                             Divider(modifier = Modifier.padding(vertical = 12.dp))
                             Row(
@@ -179,7 +172,7 @@ fun WeatherScreen(
                 }
             }
 
-            // 今日天氣預報 (藍色卡片)
+            // 4. 今日天氣預報
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -193,7 +186,7 @@ fun WeatherScreen(
                 }
             }
 
-            // 要求 5: 九天天氣預報 (內容太長時分行顯示)
+            // 5. 九天天氣預報
             if (uiState.nineDayForecast.isNotEmpty()) {
                 item {
                     Text(text = "📅 九天天氣預報", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = PrimaryDarkBlue)
@@ -221,7 +214,6 @@ fun WeatherScreen(
                                 )
                             }
                             Spacer(modifier = Modifier.height(6.dp))
-                            // 要求 5: 自動分行、設定適當 lineHeight 避免重疊
                             Text(
                                 text = item.forecastWeather,
                                 fontSize = 13.sp,
@@ -235,17 +227,25 @@ fun WeatherScreen(
         }
     }
 
-    // 要求 3: 彈出詳細警告內文 AlertDialog
+    // 👈 核心修復 1: 彈出警告 Dialog 加上 verticalScroll 滾動條
     selectedWarning?.let { warning ->
+        val scrollState = rememberScrollState()
         AlertDialog(
             onDismissRequest = { selectedWarning = null },
             title = { Text(text = "⚠️ ${warning.name} 詳情", fontWeight = FontWeight.Bold, color = PrimaryDarkBlue) },
             text = {
-                Text(
-                    text = warning.details,
-                    fontSize = 14.sp,
-                    lineHeight = 20.sp
-                )
+                Box(
+                    modifier = Modifier
+                        .heightIn(max = 350.dp) // 限制最大高度，超出的部分可滑動
+                        .verticalScroll(scrollState)
+                ) {
+                    Text(
+                        text = warning.details,
+                        fontSize = 14.sp,
+                        lineHeight = 22.sp,
+                        color = Color.DarkGray
+                    )
+                }
             },
             confirmButton = {
                 TextButton(onClick = { selectedWarning = null }) {
