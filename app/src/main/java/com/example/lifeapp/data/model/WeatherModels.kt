@@ -1,40 +1,49 @@
 package com.example.lifeapp.data.model
 
-// 1. 天氣警告項目
+// 1. 天氣警告項目 (含詳細內文)
 data class WeatherWarningItem(
     val code: String = "",
     val name: String = "",
-    val actionCode: String = ""
+    val details: String = "" // 更詳細的天氣警告內容
 )
 
-// 2. 分區氣溫項目
+// 2. 分區天氣項目 (含中英文名、溫度、濕度)
 data class DistrictTemperature(
-    val place: String = "",
-    val value: Int = 0,
+    val placeTc: String = "",
+    val placeEn: String = "",
+    val tempValue: Int = 0,
+    val humidityValue: Int? = null,
     val unit: String = "°C"
 )
 
-// 3. 九天天氣預報項目
+// 3. 紫外線指數
+data class UvIndexInfo(
+    val value: String = "",
+    val desc: String = ""
+)
+
+// 4. 九天天氣預報項目
 data class ForecastVal(
     val value: Int = 0,
     val unit: String = "°C"
 )
 
 data class ForecastItem(
-    val forecastDate: String = "",      // 例如: 20260812
-    val week: String = "",              // 例如: 星期三
-    val forecastWeather: String = "",   // 天氣描述
+    val forecastDate: String = "",
+    val week: String = "",
+    val forecastWeather: String = "",
     val forecastMaxtemp: ForecastVal = ForecastVal(),
     val forecastMintemp: ForecastVal = ForecastVal()
 )
 
-// 4. 天氣頁面總 UI 狀態
+// 5. 天氣頁面總 UI 狀態
 data class WeatherUiState(
     val isLoading: Boolean = true,
-    val warningSummary: List<WeatherWarningItem> = emptyList(), // 1. 生效中的天氣警告
-    val districtTemperatures: List<DistrictTemperature> = emptyList(), // 2. 分區天氣
-    val todayForecast: String = "",                             // 3. 今日天氣預報
-    val nineDayForecast: List<ForecastItem> = emptyList(),      // 4. 九天天氣預報
+    val warningSummary: List<WeatherWarningItem> = emptyList(),
+    val districtTemperatures: List<DistrictTemperature> = emptyList(),
+    val uvIndexInfo: UvIndexInfo? = null,
+    val todayForecast: String = "",
+    val nineDayForecast: List<ForecastItem> = emptyList(),
     val updateTime: String = "",
     val errorMessage: String? = null
 )
