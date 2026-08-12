@@ -81,7 +81,7 @@ class WeatherRepository @Inject constructor(
 
             val warnings = mutableListOf<WeatherWarningItem>()
 
-            // A. 生效中警告 (warnsum)
+            // 生效中警告 (warnsum)
             if (rawWarningSum?.isJsonObject == true) {
                 val warnObj = rawWarningSum.asJsonObject
                 warnObj.keySet().forEach { key ->
@@ -95,7 +95,7 @@ class WeatherRepository @Inject constructor(
                 }
             }
 
-            // B. 特別天氣提示 (swt)
+            // 特別天氣提示 (swt)
             if (rawSwt?.isJsonObject == true && rawSwt.asJsonObject.has("swt")) {
                 try {
                     rawSwt.asJsonObject.getAsJsonArray("swt").forEach { elem ->
@@ -116,7 +116,7 @@ class WeatherRepository @Inject constructor(
                 } catch (e: Exception) { Log.e("WeatherRepo", "SWT parse error", e) }
             }
 
-            // 2. 即時天氣/分區/濕度/UV
+            // 2. 即時天氣 / 分區氣溫 / 濕度 / UV 紫外線指數
             val districtList = mutableListOf<DistrictTemperature>()
             var globalHumidity: Int? = null
             var uvInfo: UvIndexInfo? = null
@@ -124,28 +124,45 @@ class WeatherRepository @Inject constructor(
             if (rawRealtime?.isJsonObject == true) {
                 val realObj = rawRealtime.asJsonObject
 
-                // 濕度
+                // 濕度解析
                 try {
                     if (realObj.has("humidity") && realObj.getAsJsonObject("humidity").has("data")) {
                         val humArr = realObj.getAsJsonObject("humidity").getAsJsonArray("data")
-                        if (humArr.size() > 0) {
-                            globalHumidity = humArr.get(0).asJsonObject.get("value").asInt
+                        if (humArr.size() > 0 && humArr.get(0).isJsonObject) {
+                            globalHumidity = humArr.get(0).asJsonObject.get("value")?.asInt
                         }
                     }
                 } catch (e: Exception) { Log.e("WeatherRepo", "Humidity error", e) }
 
-                // UV 紫外線指數
+                // 🌟 修復核心：紫外線指數 (UV Index) 超強容錯解析
                 try {
                     if (realObj.has("uvindex") && realObj.getAsJsonObject("uvindex").has("data")) {
-                        val uvArr = realObj.getAsJsonObject("uvindex").getAsJsonArray("data")
-                        if (uvArr.size() > 0) {
-                            val uObj = uvArr.get(0).asJsonObject
-                            val vStr = if (uObj.has("value")) uObj.get("value").toString() else ""
-                            val dStr = if (uObj.has("desc")) uObj.get("desc").asString else ""
-                            if (vStr.isNotBlank()) uvInfo = UvIndexInfo(value = vStr, desc = dStr)
+                        val uvData = realObj.getAsJsonObject("uvindex").get("data")
+                        if (uvData.isJsonArray && uvData.asJsonArray.size() > 0) {
+                            val uObj = uvData.asJsonArray.get(0).asJsonObject
+                            
+                            val valStr = when {
+                                !uObj.has("value") -> "0"
+                                uObj.get("value").isJsonPrimitive -> uObj.get("value").asString
+                                else -> "0"
+                            }
+                            
+                            val descStr = when {
+                                uObj.has("desc") -> uObj.get("desc").asString
+                                else -> "低"
+                            }
+                            
+                            uvInfo = UvIndexInfo(value = valStr, desc = descStr)
                         }
                     }
-                } catch (e: Exception) { Log.e("WeatherRepo", "UV error", e) }
+                } catch (e: Exception) { 
+                    Log.e("WeatherRepo", "UV Index parse error", e) 
+                }
+
+                // 就算 API 沒有回傳 uvindex 或夜間沒有 UV 數據，給予預設 Low 顯示
+                if (uvInfo == null) {
+                    uvInfo = UvIndexInfo(value = "0", desc = "低 (夜間或未有數據)")
+                }
 
                 // 分區氣溫
                 try {
