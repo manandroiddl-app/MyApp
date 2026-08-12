@@ -159,7 +159,7 @@ fun WeatherScreen(
                         }
 
                         uiState.uvIndexInfo?.let { uv ->
-                            Divider(modifier = Modifier.padding(vertical = 12.dp))
+                            HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
