@@ -5,13 +5,6 @@ import retrofit2.http.GET
 import retrofit2.http.Query
 
 interface HkoApiService {
-    // 2. 分區天氣 (rhrread)
-    @GET("weatherAPI/opendata/weather.php")
-    suspend fun getRealtimeWeatherRaw(
-        @Query("dataType") dataType: String = "rhrread",
-        @Query("lang") lang: String = "tc"
-    ): JsonElement
-
     // 1. 生效中警告摘要 (warnsum)
     @GET("weatherAPI/opendata/weather.php")
     suspend fun getWarningSummaryRaw(
@@ -19,17 +12,10 @@ interface HkoApiService {
         @Query("lang") lang: String = "tc"
     ): JsonElement
 
-    // 1. 警告詳細資料 (warninginfo)
+    // 2. 分區天氣 (rhrread)
     @GET("weatherAPI/opendata/weather.php")
-    suspend fun getWarningInfoRaw(
-        @Query("dataType") dataType: String = "warninginfo",
-        @Query("lang") lang: String = "tc"
-    ): JsonElement
-
-    // 1. 特別天氣提示 (swt)
-    @GET("weatherAPI/opendata/weather.php")
-    suspend fun getSpecialWeatherTipsRaw(
-        @Query("dataType") dataType: String = "swt",
+    suspend fun getRealtimeWeatherRaw(
+        @Query("dataType") dataType: String = "rhrread",
         @Query("lang") lang: String = "tc"
     ): JsonElement
 
