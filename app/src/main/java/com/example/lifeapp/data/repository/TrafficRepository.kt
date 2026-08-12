@@ -15,7 +15,8 @@ class TrafficRepository @Inject constructor(
 ) {
     suspend fun fetchTrafficNews(): TrafficUiState {
         return runCatching {
-            val newsList = trafficApiService.getTrafficNews()
+            val response = trafficApiService.getTrafficNews()
+            val newsList = response.trafficnews ?: emptyList()
             val nowStr = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
 
             TrafficUiState(
@@ -28,7 +29,7 @@ class TrafficRepository @Inject constructor(
             Log.e("TrafficRepo", "Fetch traffic error", e)
             TrafficUiState(
                 isLoading = false,
-                errorMessage = "無法獲取特別交通消息，請再試一遍"
+                errorMessage = "無法獲取特別交通消息：${e.localizedMessage}"
             )
         }
     }
