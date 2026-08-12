@@ -66,7 +66,7 @@ class KmbRepository @Inject constructor(
         }
     }
 
-    // 🌟 2c) 批量拉取整條路線各車站的即時 ETA
+    // 🌟 2) 抓取車站即時 ETA 與車費資訊
     suspend fun fetchEtaForStop(stopId: String, route: String, serviceType: String): List<String> {
         return runCatching {
             val res = kmbApiService.getStopEta(stopId, route, serviceType)
