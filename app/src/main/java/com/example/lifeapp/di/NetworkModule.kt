@@ -12,6 +12,7 @@ import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
+import com.example.lifeapp.data.api.AppConfigApiService
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -58,4 +59,11 @@ object NetworkModule {
             .build()
             .create(KmbApiService::class.java)
     }
+    
+    @Provides
+    @Singleton
+    fun provideAppConfigApiService(retrofit: Retrofit): AppConfigApiService {
+        return retrofit.create(AppConfigApiService::class.java)
+    }
+    
 }
