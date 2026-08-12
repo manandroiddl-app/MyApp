@@ -41,7 +41,7 @@ object NetworkModule {
     @Singleton
     fun provideTdApiService(okHttpClient: OkHttpClient): TdApiService {
         return Retrofit.Builder()
-            .baseUrl("https://www.td.gov.hk/")
+            .baseUrl("https://data.gov.hk/")
             .client(okHttpClient)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
