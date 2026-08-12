@@ -7,9 +7,11 @@ import com.example.lifeapp.data.model.GlobalAnnouncement
 import com.example.lifeapp.data.model.HubCardConfig
 import com.example.lifeapp.data.model.HubConfig
 import com.google.gson.Gson
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -17,10 +19,10 @@ import javax.inject.Singleton
 class AppConfigRepository @Inject constructor(
     private val configApiService: AppConfigApiService
 ) {
-    // 👈 請填入你自己的 GitHub Raw 網址
-    private val rawConfigUrl = "https://raw.githubusercontent.com/manandroiddl-app/MyApp/refs/heads/main/config.json"
+    // ⚠️【請務必確認】在 GitHub 網頁上將下面網址替換為你真實的 config.json Raw 網址！
+    private val rawConfigUrl = "https://raw.githubusercontent.com/YOUR_GITHUB_USERNAME/YOUR_REPO/main/config.json"
 
-    // 本地預設保底設定 (Fallback)，確保無網路時 App 一樣能正常運作
+    // 預設保底設定
     private val defaultConfig = AppConfig(
         globalAnnouncement = null,
         hubScreen = HubConfig(
@@ -36,18 +38,28 @@ class AppConfigRepository @Inject constructor(
     val appConfig: StateFlow<AppConfig> = _appConfig.asStateFlow()
 
     suspend fun loadRemoteConfig() {
-        runCatching {
-            // 加上時間戳破壞 CDN 快取，確保每次重新整理均獲取最新檔案
-            val liveUrl = "$rawConfigUrl?t=${System.currentTimeMillis()}"
-            val jsonObject = configApiService.getRemoteConfigRaw(liveUrl)
-            val parsedConfig = Gson().fromJson(jsonObject, AppConfig::class.java)
+        withContext(Dispatchers.IO) {
+            runCatching {
+                // 強制加上時間戳記，避免 GitHub CDN 快取
+                val cacheBustingUrl = "$rawConfigUrl?t=${System.currentTimeMillis()}"
+                
+                val jsonObject = configApiService.getRemoteConfigRaw(cacheBustingUrl)
+                val parsedConfig = Gson().fromJson(jsonObject, AppConfig::class.java)
 
-            if (parsedConfig != null) {
-                _appConfig.value = parsedConfig
-                Log.d("AppConfigRepo", "Remote config loaded successfully")
+                if (parsedConfig != null) {
+                    _appConfig.value = parsedConfig
+                }
+            }.onFailure { e ->
+                // 如果連線失敗或網址錯了，在大目錄跳出紅色提示告訴你原因
+                _appConfig.value = defaultConfig.copy(
+                    globalAnnouncement = GlobalAnnouncement(
+                        enabled = true,
+                        title = "Remote Config 讀取失敗",
+                        message = "無法連接 GitHub，請檢查 rawConfigUrl 網址是否正確。錯誤: ${e.localizedMessage}",
+                        level = "warning"
+                    )
+                )
             }
-        }.onFailure { e ->
-            Log.e("AppConfigRepo", "Failed to fetch remote config, using defaults", e)
         }
     }
 }
