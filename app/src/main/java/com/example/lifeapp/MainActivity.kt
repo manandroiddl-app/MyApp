@@ -1,5 +1,6 @@
 package com.example.lifeapp
 
+import android.app.Activity
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -19,9 +20,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.view.WindowCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.lifeapp.ui.bus.BusScreen
 import com.example.lifeapp.ui.bus.BusViewModel
@@ -44,10 +48,19 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        // 🌟 啟用 Edge-to-Edge 沉浸式頂部 Status Bar 效果
         enableEdgeToEdge()
 
         setContent {
+            // 🌟 修復 3: 強制 Status Bar 圖示為白色（時間、電量清晰可見）
+            val view = LocalView.current
+            if (!view.isInEditMode) {
+                SideEffect {
+                    val window = (view.context as Activity).window
+                    window.statusBarColor = android.graphics.Color.TRANSPARENT
+                    WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = false
+                }
+            }
+
             LifeAppTheme {
                 MainAppLayout()
             }
@@ -109,7 +122,7 @@ fun HubScreen(onNavigate: (Screen) -> Unit) {
         Text("生活大目錄", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = PrimaryDarkBlue)
         Text("請選擇你想要查看的即時資訊", fontSize = 14.sp, color = TextGray, modifier = Modifier.padding(bottom = 20.dp))
 
-        MenuCard(title = "香港天氣", subtitle = "警告、分區氣溫、今日及九日預報", iconText = "☀️", onClick = { onNavigate(Screen.WEATHER) })
+        MenuCard(title = "香港天氣", subtitle = "警告、特別提示、分區氣溫/濕度/UV及預報", iconText = "☀️", onClick = { onNavigate(Screen.WEATHER) })
         Spacer(modifier = Modifier.height(12.dp))
         MenuCard(title = "交通消息", subtitle = "特別交通預告及即時路況", iconText = "🚗", onClick = { onNavigate(Screen.TRAFFIC) })
         Spacer(modifier = Modifier.height(12.dp))
