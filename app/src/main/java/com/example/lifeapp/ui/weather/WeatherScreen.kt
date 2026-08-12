@@ -1,31 +1,48 @@
 package com.example.lifeapp.ui.weather
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.lifeapp.data.model.DistrictTemperature
+import com.example.lifeapp.data.model.WeatherWarningItem
+import com.example.lifeapp.ui.theme.PrimaryDarkBlue
+import com.example.lifeapp.ui.theme.PrimaryLightBlue
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WeatherScreen(
     viewModel: WeatherViewModel
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
+    // 彈出警告 Dialog 狀態
+    var selectedWarning by remember { mutableStateOf<WeatherWarningItem?>(null) }
+
+    // 下拉選單 Dropdown 狀態 (Default 預設香港天文台)
+    var dropdownExpanded by remember { mutableStateOf(false) }
+    var selectedDistrict by remember(uiState.districtTemperatures) {
+        mutableStateOf(
+            uiState.districtTemperatures.firstOrNull { it.placeTc == "香港天文台" }
+                ?: uiState.districtTemperatures.firstOrNull()
+        )
+    }
+
     if (uiState.isLoading) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator()
+            CircularProgressIndicator(color = PrimaryDarkBlue)
         }
     } else {
         LazyColumn(
@@ -34,49 +51,51 @@ fun WeatherScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // 區塊 1: 生效中的天氣警告 (最頂部)
+            // 要求 1: 頂部最後更新時間 (yyyyMMdd HH:mm:ss)
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(text = "香港天氣概況", fontWeight = FontWeight.Bold, fontSize = 20.sp, color = PrimaryDarkBlue)
+                    Text(
+                        text = "更新時間: ${uiState.updateTime}",
+                        fontSize = 12.sp,
+                        color = Color.Gray
+                    )
+                }
+            }
+
+            // 要求 3: 警告部分 (按落去彈出 Dialog)
             if (uiState.warningSummary.isNotEmpty()) {
                 item {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(Color(0xFFFFEBEE), shape = RoundedCornerShape(8.dp))
+                            .background(Color(0xFFE3F2FD), shape = RoundedCornerShape(12.dp))
                             .padding(12.dp)
                     ) {
                         Text(
-                            text = "⚠️ 生效中的天氣警告",
+                            text = "⚠️ 生效中的天氣警告 (點擊查看詳情)",
                             fontWeight = FontWeight.Bold,
-                            color = Color.Red,
-                            fontSize = 16.sp
+                            color = PrimaryDarkBlue,
+                            fontSize = 15.sp
                         )
-                        Spacer(modifier = Modifier.height(4.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
                         uiState.warningSummary.forEach { warning ->
-                            Text(text = "• ${warning.name}", color = Color(0xFFC62828))
-                        }
-                    }
-                }
-            }
-
-            // 區塊 2: 分區天氣 (橫向可滑動 Chip/Card)
-            if (uiState.districtTemperatures.isNotEmpty()) {
-                item {
-                    Text(text = "🌡️ 分區氣溫", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(uiState.districtTemperatures) { district ->
                             Card(
-                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp)
+                                    .clickable { selectedWarning = warning },
+                                colors = CardDefaults.cardColors(containerColor = Color.White)
                             ) {
-                                Column(
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally
+                                Row(
+                                    modifier = Modifier.padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text(text = district.place, fontSize = 14.sp)
-                                    Text(
-                                        text = "${district.value}${district.unit}",
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 16.sp
-                                    )
+                                    Text(text = "🚨 ${warning.name}", fontWeight = FontWeight.Bold, color = PrimaryDarkBlue)
                                 }
                             }
                         }
@@ -84,54 +103,155 @@ fun WeatherScreen(
                 }
             }
 
-            // 區塊 3: 今日天氣預報
+            // 要求 4: 分區天氣 (Dropdown List 選擇地區, 英文排序, 氣溫/濕度/UV)
             item {
-                Card(modifier = Modifier.fillMaxWidth()) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                ) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        Text(text = "📝 今日天氣預報", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(text = uiState.todayForecast, fontSize = 14.sp)
+                        Text(text = "📍 分區氣象觀察", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = PrimaryDarkBlue)
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // 下拉選單選擇地區
+                        ExposedDropdownMenuBox(
+                            expanded = dropdownExpanded,
+                            onExpandedChange = { dropdownExpanded = !dropdownExpanded }
+                        ) {
+                            OutlinedTextField(
+                                value = selectedDistrict?.let { "${it.placeTc} (${it.placeEn})" } ?: "選擇地區",
+                                onValueChange = {},
+                                readOnly = true,
+                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = dropdownExpanded) },
+                                modifier = Modifier
+                                    .menuAnchor()
+                                    .fillMaxWidth()
+                            )
+                            ExposedDropdownMenu(
+                                expanded = dropdownExpanded,
+                                onDismissRequest = { dropdownExpanded = false }
+                            ) {
+                                uiState.districtTemperatures.forEach { district ->
+                                    DropdownMenuItem(
+                                        text = { Text("${district.placeTc} (${district.placeEn})") },
+                                        onClick = {
+                                            selectedDistrict = district
+                                            dropdownExpanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        // 顯示選中地區之數據
+                        selectedDistrict?.let { dist ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceAround
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text("🌡️ 氣溫", fontSize = 13.sp, color = Color.Gray)
+                                    Text("${dist.tempValue}${dist.unit}", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = PrimaryDarkBlue)
+                                }
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text("💧 相對濕度", fontSize = 13.sp, color = Color.Gray)
+                                    Text("${dist.humidityValue ?: "--"}%", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = PrimaryDarkBlue)
+                                }
+                            }
+                        }
+
+                        // UV 紫外線指數
+                        uiState.uvIndexInfo?.let { uv ->
+                            Divider(modifier = Modifier.padding(vertical = 12.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("☀️ 全港紫外線指數", fontSize = 14.sp, color = Color.Gray)
+                                Text("${uv.value} (${uv.desc})", fontWeight = FontWeight.Bold, color = PrimaryDarkBlue)
+                            }
+                        }
                     }
                 }
             }
 
-            // 區塊 4: 九天天氣預報
+            // 今日天氣預報 (藍色卡片)
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = PrimaryLightBlue)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(text = "📝 今日天氣預報", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = PrimaryDarkBlue)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(text = uiState.todayForecast, fontSize = 14.sp, lineHeight = 20.sp, color = Color.DarkGray)
+                    }
+                }
+            }
+
+            // 要求 5: 九天天氣預報 (內容太長時分行顯示)
             if (uiState.nineDayForecast.isNotEmpty()) {
                 item {
-                    Text(text = "📅 九天天氣預報", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                    Text(text = "📅 九天天氣預報", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = PrimaryDarkBlue)
                 }
                 items(uiState.nineDayForecast) { item ->
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
                     ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(12.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column {
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
                                 Text(
                                     text = "${item.forecastDate} (${item.week})",
-                                    fontWeight = FontWeight.SemiBold
+                                    fontWeight = FontWeight.Bold,
+                                    color = PrimaryDarkBlue
                                 )
                                 Text(
-                                    text = item.forecastWeather,
-                                    fontSize = 12.sp,
-                                    color = Color.Gray
+                                    text = "${item.forecastMintemp.value}°C - ${item.forecastMaxtemp.value}°C",
+                                    fontWeight = FontWeight.Bold,
+                                    color = PrimaryDarkBlue
                                 )
                             }
+                            Spacer(modifier = Modifier.height(6.dp))
+                            // 要求 5: 自動分行、設定適當 lineHeight 避免重疊
                             Text(
-                                text = "${item.forecastMintemp.value}°C - ${item.forecastMaxtemp.value}°C",
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary
+                                text = item.forecastWeather,
+                                fontSize = 13.sp,
+                                lineHeight = 18.sp,
+                                color = Color.DarkGray
                             )
                         }
                     }
                 }
             }
         }
+    }
+
+    // 要求 3: 彈出詳細警告內文 AlertDialog
+    selectedWarning?.let { warning ->
+        AlertDialog(
+            onDismissRequest = { selectedWarning = null },
+            title = { Text(text = "⚠️ ${warning.name} 詳情", fontWeight = FontWeight.Bold, color = PrimaryDarkBlue) },
+            text = {
+                Text(
+                    text = warning.details,
+                    fontSize = 14.sp,
+                    lineHeight = 20.sp
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { selectedWarning = null }) {
+                    Text("確定", color = PrimaryDarkBlue)
+                }
+            }
+        )
     }
 }
