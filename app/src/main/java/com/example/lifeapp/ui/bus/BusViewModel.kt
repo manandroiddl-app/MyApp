@@ -27,11 +27,9 @@ class BusViewModel @Inject constructor(
     private val _bookmarkUiState = MutableStateFlow(BusBookmarkUiState())
     val bookmarkUiState: StateFlow<BusBookmarkUiState> = _bookmarkUiState.asStateFlow()
 
-    // 🌟 2c) 保存當前路線每個車站 ID 對應的即時 ETA (stopId -> List<String>)
     private val _routeStopsEtaMap = MutableStateFlow<Map<String, List<String>>>(emptyMap())
     val routeStopsEtaMap: StateFlow<Map<String, List<String>>> = _routeStopsEtaMap.asStateFlow()
 
-    // 🌟 1) 當前搜尋狀態下可選擇的「下一個字元」清單
     private val _nextAvailableChars = MutableStateFlow<List<String>>(emptyList())
     val nextAvailableChars: StateFlow<List<String>> = _nextAvailableChars.asStateFlow()
 
@@ -80,7 +78,6 @@ class BusViewModel @Inject constructor(
         onSearchQueryChange(newQuery)
     }
 
-    // 🌟 1) 計算符合當前 prefix 的下一個合法字元 (數字 / 英文字母)
     private fun updateNextAvailableChars(prefix: String, allRoutes: List<KmbRoute>) {
         val matchedRoutes = if (prefix.isEmpty()) {
             allRoutes
@@ -95,7 +92,7 @@ class BusViewModel @Inject constructor(
             }
             .distinct()
             .sortedWith(comparator = compareBy({ it.first().isLetter() }, { it }))
-            .take(12) // 最高顯示前12個熱門選項
+            .take(12)
 
         _nextAvailableChars.value = chars
     }
@@ -108,7 +105,6 @@ class BusViewModel @Inject constructor(
             val stops = repository.fetchRouteStopsWithDetail(route.route, route.bound, route.serviceType)
             _searchUiState.update { it.copy(isLoading = false, stopList = stops) }
 
-            // 🌟 2c) 平行拉取每個車站的即時到站時間 (ETA)
             fetchRouteStopsEtas(route, stops)
         }
     }
@@ -163,6 +159,7 @@ class BusViewModel @Inject constructor(
         }
     }
 
+    // 🌟 5) 手動或自動刷新：同時刷新「已收藏頁」與「當前開啟的詳細車站頁」
     fun refreshBookmarkEtas() {
         viewModelScope.launch {
             _bookmarkUiState.update { it.copy(isLoading = true) }
@@ -182,9 +179,17 @@ class BusViewModel @Inject constructor(
                     lastUpdatedText = "最後更新：$nowStr (每分鐘自動更新)"
                 )
             }
+
+            // 🌟 3) 若目前有開啟的詳細車站頁，同步刷新其 ETA
+            val currentSelectedRoute = _searchUiState.value.selectedRoute
+            val currentStopList = _searchUiState.value.stopList
+            if (currentSelectedRoute != null && currentStopList.isNotEmpty()) {
+                fetchRouteStopsEtas(currentSelectedRoute, currentStopList)
+            }
         }
     }
 
+    // 🌟 3) 1 分鐘定時自動刷新
     private fun startAutoRefreshTimer() {
         autoRefreshJob?.cancel()
         autoRefreshJob = viewModelScope.launch {
