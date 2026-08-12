@@ -30,6 +30,10 @@ class BusViewModel @Inject constructor(
     private val _routeStopsEtaMap = MutableStateFlow<Map<String, List<String>>>(emptyMap())
     val routeStopsEtaMap: StateFlow<Map<String, List<String>>> = _routeStopsEtaMap.asStateFlow()
 
+    // 🌟 車站金額地圖 (seq -> "$X.X")
+    private val _routeFareMap = MutableStateFlow<Map<Int, String>>(emptyMap())
+    val routeFareMap: StateFlow<Map<Int, String>> = _routeFareMap.asStateFlow()
+
     private val _nextAvailableChars = MutableStateFlow<List<String>>(emptyList())
     val nextAvailableChars: StateFlow<List<String>> = _nextAvailableChars.asStateFlow()
 
@@ -78,6 +82,7 @@ class BusViewModel @Inject constructor(
         onSearchQueryChange(newQuery)
     }
 
+    // 🌟 1b) 取消數量限制，完整顯示該位數所有出現的字母與數字
     private fun updateNextAvailableChars(prefix: String, allRoutes: List<KmbRoute>) {
         val matchedRoutes = if (prefix.isEmpty()) {
             allRoutes
@@ -92,7 +97,6 @@ class BusViewModel @Inject constructor(
             }
             .distinct()
             .sortedWith(comparator = compareBy({ it.first().isLetter() }, { it }))
-            .take(12)
 
         _nextAvailableChars.value = chars
     }
@@ -101,11 +105,21 @@ class BusViewModel @Inject constructor(
         viewModelScope.launch {
             _searchUiState.update { it.copy(isLoading = true, selectedRoute = route) }
             _routeStopsEtaMap.value = emptyMap()
+            _routeFareMap.value = emptyMap()
 
             val stops = repository.fetchRouteStopsWithDetail(route.route, route.bound, route.serviceType)
             _searchUiState.update { it.copy(isLoading = false, stopList = stops) }
 
+            // 🌟 載入車費與車站 ETA
+            fetchRouteFares(route)
             fetchRouteStopsEtas(route, stops)
+        }
+    }
+
+    private fun fetchRouteFares(route: KmbRoute) {
+        viewModelScope.launch {
+            val fares = repository.fetchRouteFares(route.route, route.bound, route.serviceType)
+            _routeFareMap.value = fares
         }
     }
 
@@ -131,6 +145,7 @@ class BusViewModel @Inject constructor(
     fun clearSelectedRoute() {
         _searchUiState.update { it.copy(selectedRoute = null, stopList = emptyList()) }
         _routeStopsEtaMap.value = emptyMap()
+        _routeFareMap.value = emptyMap()
     }
 
     fun toggleBookmark(route: KmbRoute, stopDetail: KmbStopDetail) {
@@ -159,7 +174,6 @@ class BusViewModel @Inject constructor(
         }
     }
 
-    // 🌟 5) 手動或自動刷新：同時刷新「已收藏頁」與「當前開啟的詳細車站頁」
     fun refreshBookmarkEtas() {
         viewModelScope.launch {
             _bookmarkUiState.update { it.copy(isLoading = true) }
@@ -180,7 +194,6 @@ class BusViewModel @Inject constructor(
                 )
             }
 
-            // 🌟 3) 若目前有開啟的詳細車站頁，同步刷新其 ETA
             val currentSelectedRoute = _searchUiState.value.selectedRoute
             val currentStopList = _searchUiState.value.stopList
             if (currentSelectedRoute != null && currentStopList.isNotEmpty()) {
@@ -189,7 +202,6 @@ class BusViewModel @Inject constructor(
         }
     }
 
-    // 🌟 3) 1 分鐘定時自動刷新
     private fun startAutoRefreshTimer() {
         autoRefreshJob?.cancel()
         autoRefreshJob = viewModelScope.launch {
