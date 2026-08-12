@@ -8,27 +8,26 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
 class WeatherViewModel @Inject constructor(
-    private val repository: WeatherRepository
+    private val weatherRepository: WeatherRepository
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(WeatherUiState(isLoading = true))
+    private val _uiState = MutableStateFlow(WeatherUiState())
     val uiState: StateFlow<WeatherUiState> = _uiState.asStateFlow()
 
     init {
-        refresh()
+        loadWeatherData()
     }
 
-    fun refresh() {
+    fun loadWeatherData() {
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, errorMessage = null) }
-            val newState = repository.fetchWeatherInfo()
-            _uiState.value = newState
+            _uiState.value = _uiState.value.copy(isLoading = true)
+            val result = weatherRepository.fetchWeatherInfo()
+            _uiState.value = result
         }
     }
 }
