@@ -2,8 +2,9 @@ package com.example.lifeapp.data.repository
 
 import android.util.Log
 import com.example.lifeapp.data.api.HkoApiService
-import com.example.lifeapp.data.model.*
-import com.google.gson.JsonElement
+import com.example.lifeapp.data.model.DistrictTemperature
+import com.example.lifeapp.data.model.WeatherUiState
+import com.google.gson.JsonObject
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -16,32 +17,41 @@ class WeatherRepository @Inject constructor(
 ) {
     suspend fun fetchWeatherInfo(): WeatherUiState {
         return runCatching {
-            val rawJson: JsonElement = hkoApiService.getRealtimeWeatherRaw()
-            val jsonObj = rawJson.asJsonObject
+            val rawJson = hkoApiService.getRealtimeWeatherRaw()
+            val jsonObj = if (rawJson.isJsonObject) rawJson.asJsonObject else JsonObject()
 
-            // 解析 generalSituation
-            val generalSituation = jsonObj.get("generalSituation")?.asString ?: ""
-            val updateTime = jsonObj.get("updateTime")?.asString ?: ""
+            // 1. 概況與時間
+            val generalSituation = when {
+                jsonObj.has("generalSituation") -> jsonObj.get("generalSituation").asString
+                jsonObj.has("forecastPeriod") -> jsonObj.get("forecastPeriod").asString
+                else -> ""
+            }
+            
+            val updateTimeStr = if (jsonObj.has("updateTime")) jsonObj.get("updateTime").asString else ""
 
-            // 解析地區氣溫
+            // 2. 地區氣溫解析
             val districtTemps = mutableListOf<DistrictTemperature>()
-            jsonObj.getAsJsonObject("temperature")?.getAsJsonArray("data")?.forEach { elem ->
-                val obj = elem.asJsonObject
-                districtTemps.add(
-                    DistrictTemperature(
-                        place = obj.get("place")?.asString ?: "",
-                        value = obj.get("value")?.asInt ?: 0,
-                        unit = obj.get("unit")?.asString ?: "C"
-                    )
-                )
+            if (jsonObj.has("temperature") && jsonObj.getAsJsonObject("temperature").has("data")) {
+                val tempArray = jsonObj.getAsJsonObject("temperature").getAsJsonArray("data")
+                for (elem in tempArray) {
+                    if (elem.isJsonObject) {
+                        val item = elem.asJsonObject
+                        val place = if (item.has("place")) item.get("place").asString else ""
+                        val value = if (item.has("value")) item.get("value").asInt else 0
+                        val unit = if (item.has("unit")) item.get("unit").asString else "°C"
+                        if (place.isNotBlank()) {
+                            districtTemps.add(DistrictTemperature(place = place, value = value, unit = unit))
+                        }
+                    }
+                }
             }
 
             val nowStr = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
 
             WeatherUiState(
                 isLoading = false,
-                generalSituation = generalSituation,
-                updateTime = if (updateTime.isNotBlank()) updateTime else nowStr,
+                generalSituation = generalSituation.ifBlank { "本港地區天氣情況良好。" },
+                updateTime = updateTimeStr.ifBlank { nowStr },
                 districtTemperatures = districtTemps,
                 errorMessage = null
             )
