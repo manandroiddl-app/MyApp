@@ -1,6 +1,8 @@
 package com.example.lifeapp.data.api
 
-import com.example.lifeapp.data.model.*
+import com.example.lifeapp.data.model.CurrentWeatherResponse
+import com.example.lifeapp.data.model.NineDayForecastResponse
+import com.example.lifeapp.data.model.TrafficNewsResponse
 import retrofit2.http.GET
 import retrofit2.http.Query
 
