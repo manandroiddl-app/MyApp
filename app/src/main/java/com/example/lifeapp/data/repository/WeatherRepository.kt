@@ -16,13 +16,12 @@ class WeatherRepository @Inject constructor(
     suspend fun fetchWeatherInfo(): WeatherUiState {
         return runCatching {
             val currRes = weatherApiService.getCurrentWeather()
-            val warnRes = runCatching { weatherApiService.getWarningInfo() }.getOrNull()
             val nineRes = runCatching { weatherApiService.getNineDayForecast() }.getOrNull()
 
-            // 解析警告訊息
-            val warnText = warnRes?.details?.firstOrNull()?.contents?.firstOrNull() ?: ""
+            // 從 rhrread 直接取得警告訊息
+            val warnText = currRes.warningMessage?.joinToString("\n") ?: ""
 
-            // 明確指定 DistrictTemperature 型別，防止 Kotlin 編譯器推導失敗
+            // 解析地區氣溫
             val districtTemps: List<DistrictTemperature> = currRes.temperature?.data?.map { node ->
                 DistrictTemperature(
                     place = node.place ?: "",
@@ -31,7 +30,7 @@ class WeatherRepository @Inject constructor(
                 )
             } ?: emptyList()
 
-            // 明確指定 ForecastItem 型別
+            // 解析九天天氣預報
             val forecasts: List<ForecastItem> = nineRes?.weatherForecast?.map { f ->
                 ForecastItem(
                     forecastDate = f.forecastDate ?: "",
@@ -59,7 +58,7 @@ class WeatherRepository @Inject constructor(
             Log.e("WeatherRepo", "Fetch weather error", e)
             WeatherUiState(
                 isLoading = false,
-                errorMessage = "無法獲取天氣資料，請再試一遍"
+                errorMessage = "無法獲取天氣資料：${e.localizedMessage}"
             )
         }
     }
