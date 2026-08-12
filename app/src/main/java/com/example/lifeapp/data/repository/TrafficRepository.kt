@@ -16,10 +16,27 @@ class TrafficRepository @Inject constructor(
 ) {
     suspend fun fetchTrafficNews(): TrafficUiState {
         return runCatching {
-            val responseBody = tdApiService.getSpecialTrafficNewsRaw()
-            val xmlText = responseBody.string()
-            
-            val newsList = parseXmlTrafficNews(xmlText)
+            val jsonElement = tdApiService.getSpecialTrafficNewsRaw()
+            val newsList = mutableListOf<TrafficNewsItem>()
+
+            if (jsonElement.isJsonArray) {
+                jsonElement.asJsonArray.forEach { elem ->
+                    if (elem.isJsonObject) {
+                        val obj = elem.asJsonObject
+                        val text = when {
+                            obj.has("chinText") -> obj.get("chinText").asString
+                            obj.has("msgText") -> obj.get("msgText").asString
+                            else -> ""
+                        }
+                        val date = if (obj.has("referenceDate")) obj.get("referenceDate").asString else ""
+                        
+                        if (text.isNotBlank()) {
+                            newsList.add(TrafficNewsItem(chinText = text, referenceDate = date))
+                        }
+                    }
+                }
+            }
+
             val nowStr = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
 
             TrafficUiState(
@@ -32,25 +49,8 @@ class TrafficRepository @Inject constructor(
             Log.e("TrafficRepo", "Fetch traffic error", e)
             TrafficUiState(
                 isLoading = false,
-                errorMessage = "無法獲取特別交通消息：${e.localizedMessage}"
+                errorMessage = "無法獲取特別交通消息"
             )
         }
-    }
-
-    private fun parseXmlTrafficNews(xml: String): List<TrafficNewsItem> {
-        val list = mutableListOf<TrafficNewsItem>()
-        // 兼容匹配 <chinText> ... </chinText> 或 <MsgText> ... </MsgText>
-        val regex = Regex("<(?:chinText|MsgText|content)>(.*?)</(?:chinText|MsgText|content)>", RegexOption.DOT_MATCHES_ALL)
-        
-        regex.findAll(xml).forEach { matchResult ->
-            val rawText = matchResult.groupValues[1]
-                .replace("<![CDATA[", "")
-                .replace("]]>", "")
-                .trim()
-            if (rawText.isNotEmpty()) {
-                list.add(TrafficNewsItem(chinText = rawText))
-            }
-        }
-        return list
     }
 }
