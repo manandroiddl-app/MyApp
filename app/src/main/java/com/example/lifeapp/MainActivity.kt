@@ -3,6 +3,7 @@ package com.example.lifeapp
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -42,6 +43,10 @@ enum class Screen(val title: String) {
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        // 🌟 啟用 Edge-to-Edge 沉浸式頂部 Status Bar 效果
+        enableEdgeToEdge()
+
         setContent {
             LifeAppTheme {
                 MainAppLayout()
@@ -59,6 +64,7 @@ fun MainAppLayout(
     var currentScreen by remember { mutableStateOf(Screen.HUB) }
 
     Scaffold(
+        modifier = Modifier.fillMaxSize(),
         bottomBar = {
             BottomNavControl(
                 currentScreen = currentScreen,
@@ -95,7 +101,10 @@ fun MainAppLayout(
 @Composable
 fun HubScreen(onNavigate: (Screen) -> Unit) {
     Column(
-        modifier = Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+            .verticalScroll(rememberScrollState())
     ) {
         Text("生活大目錄", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = PrimaryDarkBlue)
         Text("請選擇你想要查看的即時資訊", fontSize = 14.sp, color = TextGray, modifier = Modifier.padding(bottom = 20.dp))
@@ -143,7 +152,10 @@ fun BottomNavControl(
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(horizontal = 12.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
