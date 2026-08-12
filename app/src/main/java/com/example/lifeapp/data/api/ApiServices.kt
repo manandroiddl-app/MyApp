@@ -25,7 +25,7 @@ interface WeatherApiService {
 }
 
 interface TrafficApiService {
-    @GET("datagovhk/get-specially-traffic-news")
+    @GET("tc/special_news/trafficnews.xml") // 運輸署官方特別交通消息端點
     suspend fun getTrafficNews(
         @Query("lang") lang: String = "tc"
     ): List<TrafficNewsItem>
