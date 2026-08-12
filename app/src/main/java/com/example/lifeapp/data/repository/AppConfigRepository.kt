@@ -20,9 +20,8 @@ class AppConfigRepository @Inject constructor(
     private val configApiService: AppConfigApiService
 ) {
     // ⚠️【請務必確認】在 GitHub 網頁上將下面網址替換為你真實的 config.json Raw 網址！
-    private val rawConfigUrl = "https://raw.githubusercontent.com/manandroiddl-app/MyApp/refs/heads/main/config.json"
+    private val rawConfigUrl = "https://raw.githubusercontent.com/YOUR_GITHUB_USERNAME/YOUR_REPO/main/config.json"
 
-    // 預設保底設定
     private val defaultConfig = AppConfig(
         globalAnnouncement = null,
         hubScreen = HubConfig(
@@ -37,20 +36,22 @@ class AppConfigRepository @Inject constructor(
     private val _appConfig = MutableStateFlow(defaultConfig)
     val appConfig: StateFlow<AppConfig> = _appConfig.asStateFlow()
 
+    private val _isRefreshing = MutableStateFlow(false)
+    val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
+
     suspend fun loadRemoteConfig() {
         withContext(Dispatchers.IO) {
+            _isRefreshing.value = true
             runCatching {
-                // 強制加上時間戳記，避免 GitHub CDN 快取
                 val cacheBustingUrl = "$rawConfigUrl?t=${System.currentTimeMillis()}"
-                
                 val jsonObject = configApiService.getRemoteConfigRaw(cacheBustingUrl)
                 val parsedConfig = Gson().fromJson(jsonObject, AppConfig::class.java)
 
                 if (parsedConfig != null) {
-                    _appConfig.value = parsedConfig
+                    // 複製物件強制產生新引用，觸發 StateFlow 重新發射
+                    _appConfig.value = parsedConfig.copy()
                 }
             }.onFailure { e ->
-                // 如果連線失敗或網址錯了，在大目錄跳出紅色提示告訴你原因
                 _appConfig.value = defaultConfig.copy(
                     globalAnnouncement = GlobalAnnouncement(
                         enabled = true,
@@ -60,6 +61,7 @@ class AppConfigRepository @Inject constructor(
                     )
                 )
             }
+            _isRefreshing.value = false
         }
     }
 }
