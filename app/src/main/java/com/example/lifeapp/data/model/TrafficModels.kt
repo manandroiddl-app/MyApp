@@ -3,8 +3,12 @@ package com.example.lifeapp.data.model
 import com.google.gson.annotations.SerializedName
 
 data class TrafficNewsItem(
-    @SerializedName("referenceDate") val referenceDate: String = "",
-    @SerializedName("chinText") val chinText: String = ""
+    @SerializedName("ReferenceDate") val referenceDate: String? = "",
+    @SerializedName("MsgText") val chinText: String? = ""
+)
+
+data class TrafficNewsResponse(
+    @SerializedName("trafficnews") val trafficnews: List<TrafficNewsItem>? = null
 )
 
 data class TrafficUiState(
