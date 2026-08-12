@@ -1,6 +1,6 @@
 {
   "global_announcement": {
-    "enabled": true,
+    "enabled": false,
     "title": "系統告示",
     "message": "LifeApp 已成功接通 GitHub Remote Config 遠端動態配置！",
     "level": "info"
@@ -20,7 +20,7 @@
         "title": "交通消息",
         "subtitle": "特別交通預告及即時路況",
         "icon": "🚗",
-        "enabled": false,
+        "enabled": true,
         "badge": null
       },
       {
