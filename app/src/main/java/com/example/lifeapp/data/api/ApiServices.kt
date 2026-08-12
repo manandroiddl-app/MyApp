@@ -12,12 +12,6 @@ interface WeatherApiService {
     ): CurrentWeatherResponse
 
     @GET("weather.php")
-    suspend fun getWarningInfo(
-        @Query("dataType") dataType: String = "warnsum",
-        @Query("lang") lang: String = "tc"
-    ): WarningResponse
-
-    @GET("weather.php")
     suspend fun getNineDayForecast(
         @Query("dataType") dataType: String = "fnd",
         @Query("lang") lang: String = "tc"
@@ -25,8 +19,8 @@ interface WeatherApiService {
 }
 
 interface TrafficApiService {
-    @GET("tc/special_news/trafficnews.xml") // 運輸署官方特別交通消息端點
+    @GET("datagovhk/get-specially-traffic-news")
     suspend fun getTrafficNews(
         @Query("lang") lang: String = "tc"
-    ): List<TrafficNewsItem>
+    ): TrafficNewsResponse
 }
