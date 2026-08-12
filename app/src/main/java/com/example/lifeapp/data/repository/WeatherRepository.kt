@@ -14,14 +14,14 @@ import javax.inject.Singleton
 class WeatherRepository @Inject constructor(
     private val hkoApiService: HkoApiService
 ) {
-    // 完整地區英中對照表（確保包含所有天文台監測站）
+    // 預設地區英中對照表 (僅作排序輔助，找不到也不會掛掉)
     private val districtNameMap = mapOf(
+        "Hong Kong Observatory" to "香港天文台",
         "Chek Lap Kok" to "赤鱲角",
         "Cheung Chau" to "長洲",
         "Clear Water Bay" to "清水灣",
         "Deep Water Bay" to "深水灣",
         "Happy Valley" to "跑馬地",
-        "Hong Kong Observatory" to "香港天文台",
         "Hong Kong Park" to "香港公園",
         "Kai Tak Runway Park" to "啟德跑道公園",
         "King's Park" to "京士柏",
@@ -54,27 +54,39 @@ class WeatherRepository @Inject constructor(
 
     suspend fun fetchWeatherInfo(): WeatherUiState {
         return runCatching {
+            // 1. 即時天氣 (rhrread) - 核心
+            val rawRealtime = runCatching { hkoApiService.getRealtimeWeatherRaw() }.getOrNull()
+            val realObj = if (rawRealtime?.isJsonObject == true) rawRealtime.asJsonObject else JsonObject()
+
+            // 2. 今日天氣預報 (flw)
+            val rawToday = runCatching { hkoApiService.getTodayForecastRaw() }.getOrNull()
+            val todayObj = if (rawToday?.isJsonObject == true) rawToday.asJsonObject else JsonObject()
+
+            // 3. 九天天氣預報 (fnd)
+            val rawNineDay = runCatching { hkoApiService.getNineDayForecastRaw() }.getOrNull()
+            val nineDayObj = if (rawNineDay?.isJsonObject == true) rawNineDay.asJsonObject else JsonObject()
+
+            // 4. 生效中警告 (warnsum & warningInfo)
             val rawWarningSum = runCatching { hkoApiService.getWarningSummaryRaw() }.getOrNull()
             val rawWarningDetail = runCatching { hkoApiService.getWarningInfoRaw() }.getOrNull()
-            val rawRealtime = runCatching { hkoApiService.getRealtimeWeatherRaw() }.getOrNull()
-            val rawToday = runCatching { hkoApiService.getTodayForecastRaw() }.getOrNull()
-            val rawNineDay = runCatching { hkoApiService.getNineDayForecastRaw() }.getOrNull()
 
-            // 1. 解析警告詳情 (warningInfo)
+            // --- A. 解析警告 ---
             val warningDetailsMap = mutableMapOf<String, String>()
             if (rawWarningDetail?.isJsonObject == true && rawWarningDetail.asJsonObject.has("details")) {
-                val detailsArr = rawWarningDetail.asJsonObject.getAsJsonArray("details")
-                detailsArr.forEach { elem ->
-                    if (elem.isJsonObject) {
-                        val obj = elem.asJsonObject
-                        val code = if (obj.has("warningStatementCode")) obj.get("warningStatementCode").asString else ""
-                        val contents = if (obj.has("contents")) {
-                            val arr = obj.getAsJsonArray("contents")
-                            val sb = StringBuilder()
-                            arr.forEach { sb.append(it.asString).append("\n\n") }
-                            sb.toString().trim()
-                        } else ""
-                        if (code.isNotBlank()) warningDetailsMap[code] = contents
+                runCatching {
+                    val detailsArr = rawWarningDetail.asJsonObject.getAsJsonArray("details")
+                    detailsArr.forEach { elem ->
+                        if (elem.isJsonObject) {
+                            val obj = elem.asJsonObject
+                            val code = if (obj.has("warningStatementCode")) obj.get("warningStatementCode").asString else ""
+                            val contents = if (obj.has("contents")) {
+                                val arr = obj.getAsJsonArray("contents")
+                                val sb = StringBuilder()
+                                arr.forEach { sb.append(it.asString).append("\n\n") }
+                                sb.toString().trim()
+                            } else ""
+                            if (code.isNotBlank()) warningDetailsMap[code] = contents
+                        }
                     }
                 }
             }
@@ -83,30 +95,34 @@ class WeatherRepository @Inject constructor(
             if (rawWarningSum?.isJsonObject == true) {
                 val warnObj = rawWarningSum.asJsonObject
                 warnObj.keySet().forEach { key ->
-                    val itemObj = warnObj.getAsJsonObject(key)
-                    val name = if (itemObj.has("name")) itemObj.get("name").asString else key
-                    val code = if (itemObj.has("code")) itemObj.get("code").asString else key
-                    val detail = warningDetailsMap[code] ?: "目前發出之特別天氣警告消息，請留意最新天氣廣播。"
-                    warnings.add(WeatherWarningItem(code = code, name = name, details = detail))
+                    runCatching {
+                        val itemObj = warnObj.getAsJsonObject(key)
+                        val name = if (itemObj.has("name")) itemObj.get("name").asString else key
+                        val code = if (itemObj.has("code")) itemObj.get("code").asString else key
+                        val detail = warningDetailsMap[code] ?: "特別天氣警告生效中，請留意最新廣播。"
+                        warnings.add(WeatherWarningItem(code = code, name = name, details = detail))
+                    }
                 }
             }
 
-            // 2. 解析分區氣溫、濕度與 UV
+            // --- B. 解析分區氣溫、濕度與 UV ---
             val districtList = mutableListOf<DistrictTemperature>()
             var globalHumidity: Int? = null
             var uvInfo: UvIndexInfo? = null
 
-            if (rawRealtime?.isJsonObject == true) {
-                val realObj = rawRealtime.asJsonObject
-
-                if (realObj.has("humidity") && realObj.getAsJsonObject("humidity").has("data")) {
+            // 濕度
+            if (realObj.has("humidity") && realObj.getAsJsonObject("humidity").has("data")) {
+                runCatching {
                     val humArr = realObj.getAsJsonObject("humidity").getAsJsonArray("data")
                     if (humArr.size() > 0 && humArr.get(0).isJsonObject) {
                         globalHumidity = humArr.get(0).asJsonObject.get("value")?.asInt
                     }
                 }
+            }
 
-                if (realObj.has("uvindex") && realObj.getAsJsonObject("uvindex").has("data")) {
+            // UV
+            if (realObj.has("uvindex") && realObj.getAsJsonObject("uvindex").has("data")) {
+                runCatching {
                     val uvArr = realObj.getAsJsonObject("uvindex").getAsJsonArray("data")
                     if (uvArr.size() > 0 && uvArr.get(0).isJsonObject) {
                         val uObj = uvArr.get(0).asJsonObject
@@ -117,54 +133,54 @@ class WeatherRepository @Inject constructor(
                         }
                     }
                 }
+            }
 
-                if (realObj.has("temperature") && realObj.getAsJsonObject("temperature").has("data")) {
-                    realObj.getAsJsonObject("temperature").getAsJsonArray("data").forEach { elem ->
-                        if (elem.isJsonObject) {
-                            val item = elem.asJsonObject
-                            val placeTc = if (item.has("place")) item.get("place").asString else ""
-                            val tempVal = when {
-                                !item.has("value") -> 0
-                                item.get("value").isJsonPrimitive && item.get("value").asJsonPrimitive.isNumber -> item.get("value").asInt
-                                else -> item.get("value").asString.toIntOrNull() ?: 0
-                            }
+            // 分區氣溫 (超強容錯解析)
+            if (realObj.has("temperature") && realObj.getAsJsonObject("temperature").has("data")) {
+                val dataArr = realObj.getAsJsonObject("temperature").getAsJsonArray("data")
+                dataArr.forEach { elem ->
+                    if (elem.isJsonObject) {
+                        val item = elem.asJsonObject
+                        val placeTc = if (item.has("place")) item.get("place").asString else ""
+                        
+                        val tempVal = when {
+                            !item.has("value") -> 0
+                            item.get("value").isJsonPrimitive && item.get("value").asJsonPrimitive.isNumber -> item.get("value").asInt
+                            else -> item.get("value").asString.toIntOrNull() ?: 0
+                        }
 
-                            // 查找中文對應英文名（若完全找不到則顯示原名）
-                            val placeEn = districtNameMap.entries.firstOrNull { it.value == placeTc }?.key ?: placeTc
+                        // 自動配對英文名稱，若找不到則降級顯示原名
+                        val placeEn = districtNameMap.entries.firstOrNull { it.value == placeTc }?.key ?: placeTc
 
-                            if (placeTc.isNotBlank()) {
-                                districtList.add(
-                                    DistrictTemperature(
-                                        placeTc = placeTc,
-                                        placeEn = placeEn,
-                                        tempValue = tempVal,
-                                        humidityValue = globalHumidity
-                                    )
+                        if (placeTc.isNotBlank()) {
+                            districtList.add(
+                                DistrictTemperature(
+                                    placeTc = placeTc,
+                                    placeEn = placeEn,
+                                    tempValue = tempVal,
+                                    humidityValue = globalHumidity
                                 )
-                            }
+                            )
                         }
                     }
                 }
             }
 
-            // 按英文名稱 (Alphabetically) 排序
+            // 依英文排序
             val sortedDistricts = districtList.sortedBy { it.placeEn }
 
-            // 3. 解析今日天氣預報
-            var todayForecastDesc = ""
-            if (rawToday?.isJsonObject == true) {
-                val todayObj = rawToday.asJsonObject
-                todayForecastDesc = when {
-                    todayObj.has("forecastDesc") -> todayObj.get("forecastDesc").asString
-                    todayObj.has("generalSituation") -> todayObj.get("generalSituation").asString
-                    else -> ""
-                }
+            // --- C. 解析今日天氣預報 ---
+            val todayForecastDesc = when {
+                todayObj.has("forecastDesc") -> todayObj.get("forecastDesc").asString
+                todayObj.has("generalSituation") -> todayObj.get("generalSituation").asString
+                realObj.has("generalSituation") -> realObj.get("generalSituation").asString
+                else -> "本港地區天氣情況良好。"
             }
 
-            // 4. 解析九天天氣預報
+            // --- D. 解析九天天氣預報 ---
             val forecastList = mutableListOf<ForecastItem>()
-            if (rawNineDay?.isJsonObject == true && rawNineDay.asJsonObject.has("weatherForecast")) {
-                rawNineDay.asJsonObject.getAsJsonArray("weatherForecast").forEach { elem ->
+            if (nineDayObj.has("weatherForecast")) {
+                nineDayObj.getAsJsonArray("weatherForecast").forEach { elem ->
                     if (elem.isJsonObject) {
                         val f = elem.asJsonObject
                         val date = if (f.has("forecastDate")) f.get("forecastDate").asString else ""
@@ -196,7 +212,7 @@ class WeatherRepository @Inject constructor(
                 warningSummary = warnings,
                 districtTemperatures = sortedDistricts,
                 uvIndexInfo = uvInfo,
-                todayForecast = todayForecastDesc.ifBlank { "本港地區天氣情況良好。" },
+                todayForecast = todayForecastDesc,
                 nineDayForecast = forecastList,
                 updateTime = formattedTimeStr,
                 errorMessage = null
