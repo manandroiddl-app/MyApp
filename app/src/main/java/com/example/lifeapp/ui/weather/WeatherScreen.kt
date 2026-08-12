@@ -16,6 +16,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.lifeapp.data.model.DistrictTemperature
 import com.example.lifeapp.data.model.WeatherWarningItem
 import com.example.lifeapp.ui.theme.PrimaryDarkBlue
 import com.example.lifeapp.ui.theme.PrimaryLightBlue
@@ -29,12 +30,12 @@ fun WeatherScreen(
 
     var selectedWarning by remember { mutableStateOf<WeatherWarningItem?>(null) }
     var dropdownExpanded by remember { mutableStateOf(false) }
-    var selectedDistrict by remember(uiState.districtTemperatures) {
-        mutableStateOf(
-            uiState.districtTemperatures.firstOrNull { it.placeTc == "香港天文台" }
-                ?: uiState.districtTemperatures.firstOrNull()
-        )
-    }
+    var userChosenDistrict by remember { mutableStateOf<DistrictTemperature?>(null) }
+
+    // 自動匹配選中的地點 (預設香港天文台，找不到則用第一個)
+    val activeDistrict = userChosenDistrict
+        ?: uiState.districtTemperatures.firstOrNull { it.placeTc == "香港天文台" }
+        ?: uiState.districtTemperatures.firstOrNull()
 
     if (uiState.isLoading) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -47,7 +48,7 @@ fun WeatherScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // 1. 頂部最後更新時間 (yyyyMMdd HH:mm:ss)
+            // 1. 頂部最後更新時間
             item {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -63,7 +64,7 @@ fun WeatherScreen(
                 }
             }
 
-            // 2. 警告部分
+            // 2. 生效中警告 (點擊彈窗)
             if (uiState.warningSummary.isNotEmpty()) {
                 item {
                     Column(
@@ -99,7 +100,7 @@ fun WeatherScreen(
                 }
             }
 
-            // 3. 分區天氣 Dropdown List
+            // 3. 分區天氣 Dropdown 選單
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -115,7 +116,7 @@ fun WeatherScreen(
                             onExpandedChange = { dropdownExpanded = !dropdownExpanded }
                         ) {
                             OutlinedTextField(
-                                value = selectedDistrict?.let { "${it.placeTc} (${it.placeEn})" } ?: "選擇地區",
+                                value = activeDistrict?.let { "${it.placeTc} (${it.placeEn})" } ?: "載入地點中...",
                                 onValueChange = {},
                                 readOnly = true,
                                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = dropdownExpanded) },
@@ -131,7 +132,7 @@ fun WeatherScreen(
                                     DropdownMenuItem(
                                         text = { Text("${district.placeTc} (${district.placeEn})") },
                                         onClick = {
-                                            selectedDistrict = district
+                                            userChosenDistrict = district
                                             dropdownExpanded = false
                                         }
                                     )
@@ -141,7 +142,7 @@ fun WeatherScreen(
 
                         Spacer(modifier = Modifier.height(16.dp))
 
-                        selectedDistrict?.let { dist ->
+                        activeDistrict?.let { dist ->
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceAround
@@ -227,7 +228,7 @@ fun WeatherScreen(
         }
     }
 
-    // 👈 核心修復 1: 彈出警告 Dialog 加上 verticalScroll 滾動條
+    // 生效中警告詳細彈窗 (帶 Scroller)
     selectedWarning?.let { warning ->
         val scrollState = rememberScrollState()
         AlertDialog(
@@ -236,7 +237,7 @@ fun WeatherScreen(
             text = {
                 Box(
                     modifier = Modifier
-                        .heightIn(max = 350.dp) // 限制最大高度，超出的部分可滑動
+                        .heightIn(max = 350.dp)
                         .verticalScroll(scrollState)
                 ) {
                     Text(
