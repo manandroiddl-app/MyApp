@@ -1,0 +1,36 @@
+{
+  "global_announcement": {
+    "enabled": true,
+    "title": "系統告示",
+    "message": "LifeApp 已成功接通 GitHub Remote Config 遠端動態配置！",
+    "level": "info"
+  },
+  "hub_screen": {
+    "cards": [
+      {
+        "id": "weather",
+        "title": "香港天氣",
+        "subtitle": "警告、特別提示、分區氣溫/濕度/UV及預報",
+        "icon": "☀️",
+        "enabled": true,
+        "badge": "即時"
+      },
+      {
+        "id": "traffic",
+        "title": "交通消息",
+        "subtitle": "特別交通預告及即時路況",
+        "icon": "🚗",
+        "enabled": true,
+        "badge": null
+      },
+      {
+        "id": "bus",
+        "title": "交通工具到站時間",
+        "subtitle": "九巴 ETA 搜尋與 1 分鐘定時自動更新",
+        "icon": "🚌",
+        "enabled": true,
+        "badge": "熱門"
+      }
+    ]
+  }
+}
