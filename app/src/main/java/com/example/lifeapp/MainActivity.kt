@@ -2,6 +2,7 @@ package com.example.lifeapp
 
 import android.app.Activity
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -20,6 +21,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -82,6 +84,8 @@ fun MainAppLayout(
 ) {
     var currentScreen by remember { mutableStateOf(Screen.HUB) }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val isConfigRefreshing by appConfigRepository.isRefreshing.collectAsState()
 
     // 啟動時讀取遠端 GitHub Config
     LaunchedEffect(Unit) {
@@ -93,14 +97,28 @@ fun MainAppLayout(
         bottomBar = {
             BottomNavControl(
                 currentScreen = currentScreen,
+                isRefreshing = isConfigRefreshing,
                 onBackToHub = { currentScreen = Screen.HUB },
                 onRefresh = {
-                    scope.launch { appConfigRepository.loadRemoteConfig() }
-                    when (currentScreen) {
-                        Screen.WEATHER -> weatherViewModel.refresh()
-                        Screen.TRAFFIC -> trafficViewModel.refresh()
-                        Screen.BUS_ETA -> busViewModel.refreshBookmarkEtas()
-                        Screen.HUB -> {}
+                    scope.launch {
+                        when (currentScreen) {
+                            Screen.HUB -> {
+                                appConfigRepository.loadRemoteConfig()
+                                Toast.makeText(context, "已從 GitHub 重新載入設定", Toast.LENGTH_SHORT).show()
+                            }
+                            Screen.WEATHER -> {
+                                weatherViewModel.refresh()
+                                Toast.makeText(context, "已更新天氣數據", Toast.LENGTH_SHORT).show()
+                            }
+                            Screen.TRAFFIC -> {
+                                trafficViewModel.refresh()
+                                Toast.makeText(context, "已更新交通消息", Toast.LENGTH_SHORT).show()
+                            }
+                            Screen.BUS_ETA -> {
+                                busViewModel.refreshBookmarkEtas()
+                                Toast.makeText(context, "已更新巴士到站時間", Toast.LENGTH_SHORT).show()
+                            }
+                        }
                     }
                 }
             )
@@ -245,6 +263,7 @@ fun MenuCard(
 @Composable
 fun BottomNavControl(
     currentScreen: Screen,
+    isRefreshing: Boolean = false,
     onBackToHub: () -> Unit,
     onRefresh: () -> Unit
 ) {
@@ -263,12 +282,17 @@ fun BottomNavControl(
         ) {
             OutlinedButton(
                 onClick = onRefresh,
+                enabled = !isRefreshing,
                 shape = RoundedCornerShape(12.dp),
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
             ) {
-                Icon(Icons.Default.Refresh, contentDescription = "Refresh", modifier = Modifier.size(16.dp))
+                if (isRefreshing) {
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                } else {
+                    Icon(Icons.Default.Refresh, contentDescription = "Refresh", modifier = Modifier.size(16.dp))
+                }
                 Spacer(modifier = Modifier.width(4.dp))
-                Text("重新整理", fontSize = 13.sp)
+                Text(if (isRefreshing) "更新中..." else "重新整理", fontSize = 13.sp)
             }
 
             Text(
