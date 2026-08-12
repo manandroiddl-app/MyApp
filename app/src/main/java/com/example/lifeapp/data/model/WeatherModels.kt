@@ -35,18 +35,7 @@ data class NineDayForecastResponse(
     @SerializedName("weatherForecast") val weatherForecast: List<ApiForecastItem>? = null
 )
 
-// --- 交通 API 實體 Response DTO ---
-
-data class TrafficNewsItem(
-    @SerializedName("ReferenceDate") val referenceDate: String? = null,
-    @SerializedName("MsgText") val chinText: String? = null
-)
-
-data class TrafficNewsResponse(
-    @SerializedName("trafficnews") val trafficnews: List<TrafficNewsItem>? = null
-)
-
-// --- UI Domain Models ---
+// --- 天氣 UI Domain Models ---
 
 data class DistrictTemperature(
     val place: String = "",
@@ -76,12 +65,5 @@ data class WeatherUiState(
     val updateTime: String = "",
     val districtTemperatures: List<DistrictTemperature> = emptyList(),
     val nineDayForecast: List<ForecastItem> = emptyList(),
-    val errorMessage: String? = null
-)
-
-data class TrafficUiState(
-    val isLoading: Boolean = false,
-    val trafficNews: List<TrafficNewsItem> = emptyList(),
-    val updateTime: String = "",
     val errorMessage: String? = null
 )
