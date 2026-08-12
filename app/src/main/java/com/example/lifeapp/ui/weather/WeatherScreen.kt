@@ -16,8 +16,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.example.lifeapp.data.model.DistrictTemperature
-import com.example.lifeapp.data.model.ForecastItem
 import com.example.lifeapp.ui.theme.*
 
 @Composable
@@ -41,26 +39,11 @@ fun WeatherScreen(viewModel: WeatherViewModel = hiltViewModel()) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .statusBarsPadding()
                     .padding(horizontal = 16.dp)
                     .verticalScroll(rememberScrollState())
             ) {
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(16.dp))
                 
-                // 天氣警告標籤
-                if (uiState.warningStatement.isNotEmpty()) {
-                    Card(
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF3E0)),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            Text("⚠️ 現正生效警告：", fontWeight = FontWeight.Bold, color = Color(0xFFE65100), fontSize = 14.sp)
-                            Text(uiState.warningStatement, color = Color(0xFFE65100), fontSize = 13.sp)
-                        }
-                    }
-                }
-
                 // 本港地區天氣概要
                 Card(
                     modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
@@ -79,73 +62,7 @@ fun WeatherScreen(viewModel: WeatherViewModel = hiltViewModel()) {
                     }
                 }
 
-                // 分區氣溫
-                Text("🌡️ 各區即時氣溫", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = PrimaryDarkBlue, modifier = Modifier.padding(bottom = 8.dp))
-                DistrictTempSection(uiState.districtTemperatures)
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // 九天天氣預報
-                Text("📅 九天天氣預報", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = PrimaryDarkBlue, modifier = Modifier.padding(bottom = 8.dp))
-                NineDayForecastSection(uiState.nineDayForecast)
-
                 Spacer(modifier = Modifier.height(24.dp))
-            }
-        }
-    }
-}
-
-@Composable
-fun DistrictTempSection(list: List<DistrictTemperature>) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        shape = RoundedCornerShape(16.dp)
-    ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            val chunked = list.chunked(2)
-            for (rowItems in chunked) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    for (item in rowItems) {
-                        Row(modifier = Modifier.weight(1f), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text(item.place, fontSize = 13.sp, color = TextDark)
-                            Text("${item.value}°C", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = PrimaryBlue)
-                            Spacer(modifier = Modifier.width(8.dp))
-                        }
-                    }
-                    if (rowItems.size == 1) {
-                        Spacer(modifier = Modifier.weight(1f))
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun NineDayForecastSection(list: List<ForecastItem>) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        for (forecast in list) {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Row(
-                    modifier = Modifier.padding(12.dp).fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text("${forecast.forecastDate} (${forecast.week})", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = PrimaryDarkBlue)
-                        Text("${forecast.forecastWeather} | 濕度 ${forecast.forecastMinRh.value}% - ${forecast.forecastMaxRh.value}%", fontSize = 12.sp, color = TextGray)
-                    }
-                    Text("${forecast.forecastMaxtemp.value}° / ${forecast.forecastMintemp.value}°C", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = PrimaryBlue)
-                }
             }
         }
     }
