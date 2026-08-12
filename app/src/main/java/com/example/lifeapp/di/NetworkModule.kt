@@ -1,8 +1,7 @@
 package com.example.lifeapp.di
 
+import com.example.lifeapp.data.api.AppConfigApiService
 import com.example.lifeapp.data.api.HkoApiService
-import com.example.lifeapp.data.api.KmbApiService
-import com.example.lifeapp.data.api.TdApiService
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -12,7 +11,6 @@ import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
-import com.example.lifeapp.data.api.AppConfigApiService
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -27,43 +25,26 @@ object NetworkModule {
             .build()
     }
 
+    // 👈 核心修正：補齊 provideRetrofit，解決 MissingBinding 錯誤
     @Provides
     @Singleton
-    fun provideHkoApiService(okHttpClient: OkHttpClient): HkoApiService {
+    fun provideRetrofit(okHttpClient: OkHttpClient): Retrofit {
         return Retrofit.Builder()
-            .baseUrl("https://data.weather.gov.hk/")
+            .baseUrl("https://data.weather.gov.hk/") // 預設 Base URL
             .client(okHttpClient)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
-            .create(HkoApiService::class.java)
     }
 
     @Provides
     @Singleton
-    fun provideTdApiService(okHttpClient: OkHttpClient): TdApiService {
-        return Retrofit.Builder()
-            .baseUrl("https://data.gov.hk/")
-            .client(okHttpClient)
-            .addConverterFactory(GsonConverterFactory.create())
-            .build()
-            .create(TdApiService::class.java)
+    fun provideHkoApiService(retrofit: Retrofit): HkoApiService {
+        return retrofit.create(HkoApiService::class.java)
     }
 
-    @Provides
-    @Singleton
-    fun provideKmbApiService(okHttpClient: OkHttpClient): KmbApiService {
-        return Retrofit.Builder()
-            .baseUrl("https://data.etabus.gov.hk/")
-            .client(okHttpClient)
-            .addConverterFactory(GsonConverterFactory.create())
-            .build()
-            .create(KmbApiService::class.java)
-    }
-    
     @Provides
     @Singleton
     fun provideAppConfigApiService(retrofit: Retrofit): AppConfigApiService {
         return retrofit.create(AppConfigApiService::class.java)
     }
-    
 }
