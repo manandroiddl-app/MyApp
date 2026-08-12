@@ -1,16 +1,15 @@
 package com.example.lifeapp.data.model
 
-// UI 顯示用的乾淨模型
-data class TrafficItem(
-    val id: String,
-    val title: String,
-    val timeText: String
+import com.google.gson.annotations.SerializedName
+
+data class TrafficNewsItem(
+    @SerializedName("referenceDate") val referenceDate: String = "",
+    @SerializedName("chinText") val chinText: String = ""
 )
 
-// Traffic UI 綜合狀態
 data class TrafficUiState(
-    val isLoading: Boolean = true,
-    val items: List<TrafficItem> = emptyList(),
-    val updateTimeText: String = "",
+    val isLoading: Boolean = false,
+    val trafficNews: List<TrafficNewsItem> = emptyList(),
+    val updateTime: String = "",
     val errorMessage: String? = null
 )
