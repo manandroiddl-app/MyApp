@@ -16,7 +16,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.example.lifeapp.data.model.TrafficNews
+import com.example.lifeapp.data.model.TrafficNewsItem
 import com.example.lifeapp.ui.theme.*
 
 @Composable
@@ -36,12 +36,11 @@ fun TrafficScreen(viewModel: TrafficViewModel = hiltViewModel()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(text = uiState.errorMessage!!, color = WarningRed, fontSize = 14.sp)
             }
-        } else if (uiState.newsList.isEmpty()) {
+        } else if (uiState.trafficNews.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text("目前沒有特別交通消息", color = TextGray, fontSize = 14.sp)
             }
         } else {
-            // 🌟 加上 statusBarsPadding，讓交通新聞列表向上滾動時融入頂部 Status Bar
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -54,8 +53,8 @@ fun TrafficScreen(viewModel: TrafficViewModel = hiltViewModel()) {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text("🚗 即時特別交通消息", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = PrimaryDarkBlue)
-                    if (uiState.lastUpdatedText.isNotEmpty()) {
-                        Text(uiState.lastUpdatedText, fontSize = 11.sp, color = TextGray)
+                    if (uiState.updateTime.isNotEmpty()) {
+                        Text("更新：${uiState.updateTime}", fontSize = 11.sp, color = TextGray)
                     }
                 }
 
@@ -63,7 +62,7 @@ fun TrafficScreen(viewModel: TrafficViewModel = hiltViewModel()) {
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                     contentPadding = PaddingValues(bottom = 16.dp)
                 ) {
-                    items(uiState.newsList) { news ->
+                    items(uiState.trafficNews) { news ->
                         TrafficNewsCard(news)
                     }
                 }
@@ -73,7 +72,7 @@ fun TrafficScreen(viewModel: TrafficViewModel = hiltViewModel()) {
 }
 
 @Composable
-fun TrafficNewsCard(news: TrafficNews) {
+fun TrafficNewsCard(news: TrafficNewsItem) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = Color.White),
