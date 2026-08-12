@@ -35,7 +35,7 @@ fun WeatherScreen(viewModel: WeatherViewModel = hiltViewModel()) {
             }
         } else if (uiState.errorMessage != null) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(text = uiState.errorMessage!!, color = WarningRed, fontSize = 14.sp)
+                Text(text = uiState.errorMessage ?: "", color = WarningRed, fontSize = 14.sp)
             }
         } else {
             Column(
