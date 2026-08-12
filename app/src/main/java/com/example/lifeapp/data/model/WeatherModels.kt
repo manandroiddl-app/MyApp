@@ -2,7 +2,7 @@ package com.example.lifeapp.data.model
 
 import com.google.gson.annotations.SerializedName
 
-// --- API DTOs ---
+// --- 天氣 API 實體 Response DTO ---
 
 data class TempDataNode(
     @SerializedName("place") val place: String? = null,
@@ -17,15 +17,8 @@ data class TempContainer(
 data class CurrentWeatherResponse(
     @SerializedName("generalSituation") val generalSituation: String? = null,
     @SerializedName("updateTime") val updateTime: String? = null,
-    @SerializedName("temperature") val temperature: TempContainer? = null
-)
-
-data class WarningDetail(
-    @SerializedName("contents") val contents: List<String>? = null
-)
-
-data class WarningResponse(
-    @SerializedName("details") val details: List<WarningDetail>? = null
+    @SerializedName("temperature") val temperature: TempContainer? = null,
+    @SerializedName("warningMessage") val warningMessage: List<String>? = null
 )
 
 data class ApiForecastItem(
@@ -40,6 +33,17 @@ data class ApiForecastItem(
 
 data class NineDayForecastResponse(
     @SerializedName("weatherForecast") val weatherForecast: List<ApiForecastItem>? = null
+)
+
+// --- 交通 API 實體 Response DTO ---
+
+data class TrafficNewsItem(
+    @SerializedName("ReferenceDate") val referenceDate: String? = null,
+    @SerializedName("MsgText") val chinText: String? = null
+)
+
+data class TrafficNewsResponse(
+    @SerializedName("trafficnews") val trafficnews: List<TrafficNewsItem>? = null
 )
 
 // --- UI Domain Models ---
@@ -72,5 +76,12 @@ data class WeatherUiState(
     val updateTime: String = "",
     val districtTemperatures: List<DistrictTemperature> = emptyList(),
     val nineDayForecast: List<ForecastItem> = emptyList(),
+    val errorMessage: String? = null
+)
+
+data class TrafficUiState(
+    val isLoading: Boolean = false,
+    val trafficNews: List<TrafficNewsItem> = emptyList(),
+    val updateTime: String = "",
     val errorMessage: String? = null
 )
