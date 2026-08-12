@@ -20,7 +20,7 @@ class AppConfigRepository @Inject constructor(
     private val configApiService: AppConfigApiService
 ) {
     // ⚠️【請務必確認】在 GitHub 網頁上將下面網址替換為你真實的 config.json Raw 網址！
-    private val rawConfigUrl = "https://raw.githubusercontent.com/YOUR_GITHUB_USERNAME/YOUR_REPO/main/config.json"
+    private val rawConfigUrl = "https://raw.githubusercontent.com/manandroiddl-app/MyApp/refs/heads/main/config.json"
 
     private val defaultConfig = AppConfig(
         globalAnnouncement = null,
