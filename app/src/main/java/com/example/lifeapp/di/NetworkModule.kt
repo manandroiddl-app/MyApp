@@ -41,7 +41,7 @@ object NetworkModule {
     @Singleton
     fun provideTrafficApiService(okHttpClient: OkHttpClient): TrafficApiService {
         return Retrofit.Builder()
-            .baseUrl("https://td.rtis.gov.hk/")
+            .baseUrl("https://data.gov.hk/")
             .client(okHttpClient)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
