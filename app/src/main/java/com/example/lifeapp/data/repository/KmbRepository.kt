@@ -66,7 +66,20 @@ class KmbRepository @Inject constructor(
         }
     }
 
-    // 🌟 2) 抓取車站即時 ETA 與車費資訊
+    // 🌟 車站車費地圖 (seq -> fare string，例："7.2")
+    suspend fun fetchRouteFares(route: String, bound: String, serviceType: String): Map<Int, String> {
+        return runCatching {
+            val apiBound = formatBoundParam(bound)
+            val res = kmbApiService.getRouteFare(route, apiBound, serviceType)
+            val fares = res.data ?: emptyList()
+            fares.mapNotNull { f ->
+                if (f.seq != null && f.fare != null) f.seq to f.fare else null
+            }.toMap()
+        }.getOrElse {
+            emptyMap()
+        }
+    }
+
     suspend fun fetchEtaForStop(stopId: String, route: String, serviceType: String): List<String> {
         return runCatching {
             val res = kmbApiService.getStopEta(stopId, route, serviceType)
