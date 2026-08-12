@@ -4,7 +4,6 @@ import androidx.room.Entity
 import androidx.room.PrimaryKey
 import com.google.gson.annotations.SerializedName
 
-// === 九巴 API 網絡回應模型 ===
 data class KmbDataResponse<T>(
     @SerializedName("type") val type: String?,
     @SerializedName("version") val version: String?,
@@ -14,7 +13,7 @@ data class KmbDataResponse<T>(
 
 data class KmbRoute(
     @SerializedName("route") val route: String,
-    @SerializedName("bound") val bound: String, // "I" 或 "O"
+    @SerializedName("bound") val bound: String,
     @SerializedName("service_type") val serviceType: String,
     @SerializedName("orig_tc") val origTc: String,
     @SerializedName("dest_tc") val destTc: String
@@ -46,10 +45,18 @@ data class KmbEta(
     @SerializedName("rmk_tc") val rmkTc: String?
 )
 
-// === 本地資料庫實體：Bookmark 收藏 ===
+// 🌟 車站車費資料模型
+data class KmbRouteFare(
+    @SerializedName("route") val route: String?,
+    @SerializedName("bound") val bound: String?,
+    @SerializedName("service_type") val serviceType: String?,
+    @SerializedName("fare") val fare: String?,
+    @SerializedName("seq") val seq: Int?
+)
+
 @Entity(tableName = "bus_bookmarks")
 data class BusBookmarkEntity(
-    @PrimaryKey val id: String, // route_stopId_bound
+    @PrimaryKey val id: String,
     val transportCompany: String = "KMB",
     val route: String,
     val bound: String,
@@ -60,7 +67,6 @@ data class BusBookmarkEntity(
     val createTime: Long = System.currentTimeMillis()
 )
 
-// === UI 顯示模型 ===
 data class BusEtaUiItem(
     val bookmarkId: String,
     val route: String,
@@ -88,6 +94,6 @@ enum class BusSearchType {
 data class BusBookmarkUiState(
     val isLoading: Boolean = false,
     val bookmarks: List<BusBookmarkEntity> = emptyList(),
-    val etaMap: Map<String, List<BusEtaUiItem>> = emptyMap(), // bookmarkId -> ETA清單
+    val etaMap: Map<String, List<BusEtaUiItem>> = emptyMap(),
     val lastUpdatedText: String = ""
 )
