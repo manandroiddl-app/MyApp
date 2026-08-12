@@ -1,8 +1,9 @@
 package com.example.lifeapp.data.repository
 
 import android.util.Log
-import com.example.lifeapp.data.api.WeatherApiService
+import com.example.lifeapp.data.api.HkoApiService
 import com.example.lifeapp.data.model.*
+import com.google.gson.JsonElement
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -11,47 +12,37 @@ import javax.inject.Singleton
 
 @Singleton
 class WeatherRepository @Inject constructor(
-    private val weatherApiService: WeatherApiService
+    private val hkoApiService: HkoApiService
 ) {
     suspend fun fetchWeatherInfo(): WeatherUiState {
         return runCatching {
-            val currRes = weatherApiService.getCurrentWeather()
-            val nineRes = runCatching { weatherApiService.getNineDayForecast() }.getOrNull()
+            val rawJson: JsonElement = hkoApiService.getRealtimeWeatherRaw()
+            val jsonObj = rawJson.asJsonObject
 
-            // 從 rhrread 直接取得警告訊息
-            val warnText = currRes.warningMessage?.joinToString("\n") ?: ""
+            // 解析 generalSituation
+            val generalSituation = jsonObj.get("generalSituation")?.asString ?: ""
+            val updateTime = jsonObj.get("updateTime")?.asString ?: ""
 
             // 解析地區氣溫
-            val districtTemps: List<DistrictTemperature> = currRes.temperature?.data?.map { node ->
-                DistrictTemperature(
-                    place = node.place ?: "",
-                    value = node.value ?: 0,
-                    unit = node.unit ?: "C"
+            val districtTemps = mutableListOf<DistrictTemperature>()
+            jsonObj.getAsJsonObject("temperature")?.getAsJsonArray("data")?.forEach { elem ->
+                val obj = elem.asJsonObject
+                districtTemps.add(
+                    DistrictTemperature(
+                        place = obj.get("place")?.asString ?: "",
+                        value = obj.get("value")?.asInt ?: 0,
+                        unit = obj.get("unit")?.asString ?: "C"
+                    )
                 )
-            } ?: emptyList()
-
-            // 解析九天天氣預報
-            val forecasts: List<ForecastItem> = nineRes?.weatherForecast?.map { f ->
-                ForecastItem(
-                    forecastDate = f.forecastDate ?: "",
-                    week = f.week ?: "",
-                    forecastWeather = f.forecastWeather ?: "",
-                    forecastMaxtemp = ForecastVal(f.forecastMaxtemp?.value ?: 0, f.forecastMaxtemp?.unit ?: "C"),
-                    forecastMintemp = ForecastVal(f.forecastMintemp?.value ?: 0, f.forecastMintemp?.unit ?: "C"),
-                    forecastMinRh = ForecastVal(f.forecastMinRh?.value ?: 0, f.forecastMinRh?.unit ?: "%"),
-                    forecastMaxRh = ForecastVal(f.forecastMaxRh?.value ?: 0, f.forecastMaxRh?.unit ?: "%")
-                )
-            } ?: emptyList()
+            }
 
             val nowStr = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
 
             WeatherUiState(
                 isLoading = false,
-                warningStatement = warnText,
-                generalSituation = currRes.generalSituation ?: "",
-                updateTime = currRes.updateTime ?: nowStr,
+                generalSituation = generalSituation,
+                updateTime = if (updateTime.isNotBlank()) updateTime else nowStr,
                 districtTemperatures = districtTemps,
-                nineDayForecast = forecasts,
                 errorMessage = null
             )
         }.getOrElse { e ->
