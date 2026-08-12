@@ -1,69 +1,40 @@
 package com.example.lifeapp.data.model
 
-import com.google.gson.annotations.SerializedName
-
-// --- 天氣 API 實體 Response DTO ---
-
-data class TempDataNode(
-    @SerializedName("place") val place: String? = null,
-    @SerializedName("value") val value: Int? = null,
-    @SerializedName("unit") val unit: String? = null
+// 1. 天氣警告項目
+data class WeatherWarningItem(
+    val code: String = "",
+    val name: String = "",
+    val actionCode: String = ""
 )
 
-data class TempContainer(
-    @SerializedName("data") val data: List<TempDataNode>? = null
-)
-
-data class CurrentWeatherResponse(
-    @SerializedName("generalSituation") val generalSituation: String? = null,
-    @SerializedName("updateTime") val updateTime: String? = null,
-    @SerializedName("temperature") val temperature: TempContainer? = null,
-    @SerializedName("warningMessage") val warningMessage: List<String>? = null
-)
-
-data class ApiForecastItem(
-    @SerializedName("forecastDate") val forecastDate: String? = null,
-    @SerializedName("week") val week: String? = null,
-    @SerializedName("forecastWeather") val forecastWeather: String? = null,
-    @SerializedName("forecastMaxtemp") val forecastMaxtemp: ForecastVal? = null,
-    @SerializedName("forecastMintemp") val forecastMintemp: ForecastVal? = null,
-    @SerializedName("forecastMinRh") val forecastMinRh: ForecastVal? = null,
-    @SerializedName("forecastMaxRh") val forecastMaxRh: ForecastVal? = null
-)
-
-data class NineDayForecastResponse(
-    @SerializedName("weatherForecast") val weatherForecast: List<ApiForecastItem>? = null
-)
-
-// --- 天氣 UI Domain Models ---
-
+// 2. 分區氣溫項目
 data class DistrictTemperature(
     val place: String = "",
     val value: Int = 0,
-    val unit: String = "C"
+    val unit: String = "°C"
 )
 
+// 3. 九天天氣預報項目
 data class ForecastVal(
-    @SerializedName("value") val value: Int = 0,
-    @SerializedName("unit") val unit: String = ""
+    val value: Int = 0,
+    val unit: String = "°C"
 )
 
 data class ForecastItem(
-    val forecastDate: String = "",
-    val week: String = "",
-    val forecastWeather: String = "",
+    val forecastDate: String = "",      // 例如: 20260812
+    val week: String = "",              // 例如: 星期三
+    val forecastWeather: String = "",   // 天氣描述
     val forecastMaxtemp: ForecastVal = ForecastVal(),
-    val forecastMintemp: ForecastVal = ForecastVal(),
-    val forecastMinRh: ForecastVal = ForecastVal(),
-    val forecastMaxRh: ForecastVal = ForecastVal()
+    val forecastMintemp: ForecastVal = ForecastVal()
 )
 
+// 4. 天氣頁面總 UI 狀態
 data class WeatherUiState(
-    val isLoading: Boolean = false,
-    val warningStatement: String = "",
-    val generalSituation: String = "",
+    val isLoading: Boolean = true,
+    val warningSummary: List<WeatherWarningItem> = emptyList(), // 1. 生效中的天氣警告
+    val districtTemperatures: List<DistrictTemperature> = emptyList(), // 2. 分區天氣
+    val todayForecast: String = "",                             // 3. 今日天氣預報
+    val nineDayForecast: List<ForecastItem> = emptyList(),      // 4. 九天天氣預報
     val updateTime: String = "",
-    val districtTemperatures: List<DistrictTemperature> = emptyList(),
-    val nineDayForecast: List<ForecastItem> = emptyList(),
     val errorMessage: String? = null
 )
