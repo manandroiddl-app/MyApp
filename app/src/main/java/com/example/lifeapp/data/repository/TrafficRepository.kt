@@ -19,7 +19,6 @@ class TrafficRepository @Inject constructor(
             val responseBody = tdApiService.getSpecialTrafficNewsRaw()
             val xmlText = responseBody.string()
             
-            // 簡單解析 XML 內文 (例如標籤 <chinText> 或 <MsgText>)
             val newsList = parseXmlTrafficNews(xmlText)
             val nowStr = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
 
@@ -27,7 +26,7 @@ class TrafficRepository @Inject constructor(
                 isLoading = false,
                 trafficNews = newsList,
                 updateTime = nowStr,
-                errorMessage = null
+                errorMessage = if (newsList.isEmpty()) "目前沒有特別交通消息" else null
             )
         }.getOrElse { e ->
             Log.e("TrafficRepo", "Fetch traffic error", e)
@@ -40,11 +39,16 @@ class TrafficRepository @Inject constructor(
 
     private fun parseXmlTrafficNews(xml: String): List<TrafficNewsItem> {
         val list = mutableListOf<TrafficNewsItem>()
-        val regex = Regex("<chinText>(.*?)</chinText>", RegexOption.DOT_MATCHES_ALL)
+        // 兼容匹配 <chinText> ... </chinText> 或 <MsgText> ... </MsgText>
+        val regex = Regex("<(?:chinText|MsgText|content)>(.*?)</(?:chinText|MsgText|content)>", RegexOption.DOT_MATCHES_ALL)
+        
         regex.findAll(xml).forEach { matchResult ->
-            val text = matchResult.groupValues[1].trim()
-            if (text.isNotEmpty()) {
-                list.add(TrafficNewsItem(chinText = text))
+            val rawText = matchResult.groupValues[1]
+                .replace("<![CDATA[", "")
+                .replace("]]>", "")
+                .trim()
+            if (rawText.isNotEmpty()) {
+                list.add(TrafficNewsItem(chinText = rawText))
             }
         }
         return list
