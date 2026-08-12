@@ -1,5 +1,6 @@
 package com.example.lifeapp.di
 
+import com.example.lifeapp.data.api.KmbApiService
 import com.example.lifeapp.data.api.TrafficApiService
 import com.example.lifeapp.data.api.WeatherApiService
 import dagger.Module
@@ -45,5 +46,16 @@ object NetworkModule {
             .addConverterFactory(GsonConverterFactory.create())
             .build()
             .create(TrafficApiService::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideKmbApiService(okHttpClient: OkHttpClient): KmbApiService {
+        return Retrofit.Builder()
+            .baseUrl("https://data.etabus.gov.hk/")
+            .client(okHttpClient)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+            .create(KmbApiService::class.java)
     }
 }
