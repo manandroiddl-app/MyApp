@@ -65,13 +65,19 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
 
-    // 👈 【關鍵新增】Coil 圖片載入庫 (修復 Unresolved reference: coil)
+    // Coil 圖片載入庫 (天氣 Icon 渲染)
     implementation("io.coil-kt:coil-compose:2.6.0")
 
     // Hilt (Dependency Injection)
     implementation("com.google.dagger:hilt-android:2.50")
     kapt("com.google.dagger:hilt-android-compiler:2.50")
     implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
+
+    // 👈 【關鍵新增】Room Database 數據庫 (修復 kapt NonExistentClass 錯誤)
+    val roomVersion = "2.6.1"
+    implementation("androidx.room:room-runtime:$roomVersion")
+    implementation("androidx.room:room-ktx:$roomVersion")
+    kapt("androidx.room:room-compiler:$roomVersion")
 
     // Retrofit & Gson (Networking)
     implementation("com.squareup.retrofit2:retrofit:2.9.0")
