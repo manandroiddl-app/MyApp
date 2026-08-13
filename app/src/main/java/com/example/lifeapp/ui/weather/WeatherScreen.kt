@@ -34,8 +34,9 @@ fun WeatherScreen(
     var selectedWarning by remember { mutableStateOf<WeatherWarningItem?>(null) }
     var dropdownExpanded by remember { mutableStateOf(false) }
     var userChosenDistrict by remember { mutableStateOf<DistrictTemperature?>(null) }
-    var showRainfallSheet by remember { mutableStateOf(false) } // 👈 新增雨量 Sheet 狀態
+    var showRainfallSheet by remember { mutableStateOf(false) }
 
+    // 自動匹配選中的地點 (預設香港天文台，找不到則用第一個)
     val activeDistrict = userChosenDistrict
         ?: uiState.districtTemperatures.firstOrNull { it.placeTc == "香港天文台" }
         ?: uiState.districtTemperatures.firstOrNull()
@@ -103,7 +104,7 @@ fun WeatherScreen(
                 }
             }
 
-            // 3. 分區天氣 Dropdown 選單與雨量按鈕
+            // 3. 分區天氣 Dropdown 選單與 🌧️ 雨量按鈕
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -118,7 +119,6 @@ fun WeatherScreen(
                         ) {
                             Text(text = "📍 分區氣象觀察", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = PrimaryDarkBlue)
                             
-                            // 👈 🌧️ 按鈕：點擊開啟分區雨量 BottomSheet
                             Button(
                                 onClick = { showRainfallSheet = true },
                                 colors = ButtonDefaults.buttonColors(containerColor = PrimaryLightBlue),
@@ -206,7 +206,7 @@ fun WeatherScreen(
                 }
             }
 
-            // 5. 九天天氣預報
+            // 5. 九天天氣預報 (On Top 增量版)
             if (uiState.nineDayForecast.isNotEmpty()) {
                 item {
                     Text(text = "📅 九天天氣預報", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = PrimaryDarkBlue)
@@ -218,28 +218,76 @@ fun WeatherScreen(
                         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
                     ) {
                         Column(modifier = Modifier.padding(14.dp)) {
+                            // 標題列：日期、星期與氣溫範圍
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
+                                val formattedDate = if (item.forecastDate.length == 8) {
+                                    "${item.forecastDate.substring(4, 6)}月${item.forecastDate.substring(6, 8)}日"
+                                } else item.forecastDate
+
                                 Text(
-                                    text = "${item.forecastDate} (${item.week})",
+                                    text = "$formattedDate (${item.week})",
                                     fontWeight = FontWeight.Bold,
-                                    color = PrimaryDarkBlue
+                                    color = PrimaryDarkBlue,
+                                    fontSize = 15.sp
                                 )
+
                                 Text(
                                     text = "${item.forecastMintemp.value}°C - ${item.forecastMaxtemp.value}°C",
                                     fontWeight = FontWeight.Bold,
-                                    color = PrimaryDarkBlue
+                                    color = PrimaryDarkBlue,
+                                    fontSize = 15.sp
                                 )
                             }
-                            Spacer(modifier = Modifier.height(6.dp))
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            // 詳細天氣描述
                             Text(
                                 text = item.forecastWeather,
                                 fontSize = 13.sp,
                                 lineHeight = 18.sp,
                                 color = Color.DarkGray
                             )
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            // On Top 增量資訊列：風向、濕度、降雨概率
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                if (item.wind.isNotBlank()) {
+                                    Text(
+                                        text = "🚩 ${item.wind}",
+                                        fontSize = 11.sp,
+                                        color = Color.Gray,
+                                        modifier = Modifier.weight(1f, fill = false)
+                                    )
+                                }
+
+                                Column(horizontalAlignment = Alignment.End) {
+                                    if (item.forecastRh.minrh > 0) {
+                                        Text(
+                                            text = "💧 濕度: ${item.forecastRh.minrh}% - ${item.forecastRh.maxrh}%",
+                                            fontSize = 11.sp,
+                                            color = Color.Gray
+                                        )
+                                    }
+                                    if (item.psr.isNotBlank()) {
+                                        Text(
+                                            text = "🌧️ 降雨概率: ${item.psr}",
+                                            fontSize = 11.sp,
+                                            color = PrimaryDarkBlue,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -275,7 +323,7 @@ fun WeatherScreen(
         )
     }
 
-    // 👈 6. 分區雨量 ModalBottomSheet (On Top 新增)
+    // 分區雨量 ModalBottomSheet
     if (showRainfallSheet) {
         ModalBottomSheet(
             onDismissRequest = { showRainfallSheet = false },
