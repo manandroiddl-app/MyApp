@@ -251,7 +251,7 @@ class WeatherRepository @Inject constructor(
                 }
             }
 
-            // 4. 九天天氣預報解析 (On Top 補強 4 個新欄位)
+            // 4. 九天天氣預報解析 (修正 Key 對齊問題)
             val forecastList = mutableListOf<ForecastItem>()
             if (rawNineDay?.isJsonObject == true && rawNineDay.asJsonObject.has("weatherForecast")) {
                 try {
@@ -265,11 +265,15 @@ class WeatherRepository @Inject constructor(
                             val maxTemp = f.getAsJsonObject("forecastMaxtemp")?.get("value")?.asInt ?: 0
                             val minTemp = f.getAsJsonObject("forecastMintemp")?.get("value")?.asInt ?: 0
 
-                            // 👈 補齊解析：風向、濕度、降雨概率、Icon 編號
-                            val minRh = f.getAsJsonObject("forecastRh")?.get("minrh")?.asInt ?: 0
-                            val maxRh = f.getAsJsonObject("forecastRh")?.get("maxrh")?.asInt ?: 0
+                            // 🔧 1. 修正風向 Key: forecastWind
+                            val windStr = if (f.has("forecastWind")) f.get("forecastWind").asString else ""
+
+                            // 🔧 2. 修正濕度 Key: forecastMinrh 與 forecastMaxrh
+                            val minRh = f.getAsJsonObject("forecastMinrh")?.get("value")?.asInt ?: 0
+                            val maxRh = f.getAsJsonObject("forecastMaxrh")?.get("value")?.asInt ?: 0
+
+                            // 3. 降雨概率與 Icon
                             val psrStr = if (f.has("PSR")) f.get("PSR").asString else ""
-                            val windStr = if (f.has("wind")) f.get("wind").asString else ""
                             val iconNum = if (f.has("ForecastIcon")) f.get("ForecastIcon").asInt else 0
 
                             if (date.isNotBlank()) {
