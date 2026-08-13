@@ -22,9 +22,23 @@ android {
         }
     }
 
+    // 🔑 1. 設定簽署配置 (使用專案內的 app/debug.keystore)
+    signingConfigs {
+        create("customDebugKey") {
+            // 指向 app/debug.keystore 檔案
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
+            // 👈 2. 指定 Release 版本使用剛剛設定的 customDebugKey 進行數位簽署
+            signingConfig = signingConfigs.getByName("customDebugKey")
+            
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -65,10 +79,10 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
 
-    // 👈 【關鍵新增】Compose Material Extended Icons (修復 Bookmark / BookmarkBorder 未定義錯誤)
+    // Compose Material Extended Icons
     implementation("androidx.compose.material:material-icons-extended")
 
-    // Coil 圖片載入庫 (天氣 Icon 渲染)
+    // Coil 圖片載入庫
     implementation("io.coil-kt:coil-compose:2.6.0")
 
     // Hilt (Dependency Injection)
