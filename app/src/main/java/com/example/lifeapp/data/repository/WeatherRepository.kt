@@ -142,9 +142,9 @@ class WeatherRepository @Inject constructor(
                 } catch (e: Exception) { Log.e("WeatherRepo", "SWT parse error", e) }
             }
 
-            // 2. 即時天氣 / 分區氣溫 / 濕度 / UV 紫外線指數 / 🌧️ 雨量
+            // 2. 即時天氣 / 分區氣溫 / 濕度 / UV 紫外線指數 / 雨量
             val districtList = mutableListOf<DistrictTemperature>()
-            val rainfallList = mutableListOf<DistrictRainfall>() // 👈 新增雨量容器
+            val rainfallList = mutableListOf<DistrictRainfall>()
             var globalHumidity: Int? = null
             var uvInfo: UvIndexInfo? = null
 
@@ -161,30 +161,25 @@ class WeatherRepository @Inject constructor(
                     }
                 } catch (e: Exception) { Log.e("WeatherRepo", "Humidity error", e) }
 
-                // 紫外線指數 (UV Index) 解析
+                // 紫外線指數 (UV Index)
                 try {
                     if (realObj.has("uvindex") && realObj.getAsJsonObject("uvindex").has("data")) {
                         val uvData = realObj.getAsJsonObject("uvindex").get("data")
                         if (uvData.isJsonArray && uvData.asJsonArray.size() > 0) {
                             val uObj = uvData.asJsonArray.get(0).asJsonObject
-                            
                             val valStr = when {
                                 !uObj.has("value") -> "0"
                                 uObj.get("value").isJsonPrimitive -> uObj.get("value").asString
                                 else -> "0"
                             }
-                            
                             val descStr = when {
                                 uObj.has("desc") -> uObj.get("desc").asString
                                 else -> "低"
                             }
-                            
                             uvInfo = UvIndexInfo(value = valStr, desc = descStr)
                         }
                     }
-                } catch (e: Exception) { 
-                    Log.e("WeatherRepo", "UV Index parse error", e) 
-                }
+                } catch (e: Exception) { Log.e("WeatherRepo", "UV Index parse error", e) }
 
                 if (uvInfo == null) {
                     uvInfo = UvIndexInfo(value = "0", desc = "低 (夜間或未有數據)")
@@ -215,7 +210,7 @@ class WeatherRepository @Inject constructor(
                     }
                 } catch (e: Exception) { Log.e("WeatherRepo", "Temp array error", e) }
 
-                // 👈 新增：分區雨量解析 (rainfall)
+                // 分區雨量 (rainfall)
                 try {
                     if (realObj.has("rainfall") && realObj.getAsJsonObject("rainfall").has("data")) {
                         realObj.getAsJsonObject("rainfall").getAsJsonArray("data").forEach { elem ->
@@ -256,7 +251,7 @@ class WeatherRepository @Inject constructor(
                 }
             }
 
-            // 4. 九天天氣預報
+            // 4. 九天天氣預報解析 (On Top 補強 4 個新欄位)
             val forecastList = mutableListOf<ForecastItem>()
             if (rawNineDay?.isJsonObject == true && rawNineDay.asJsonObject.has("weatherForecast")) {
                 try {
@@ -270,13 +265,12 @@ class WeatherRepository @Inject constructor(
                             val maxTemp = f.getAsJsonObject("forecastMaxtemp")?.get("value")?.asInt ?: 0
                             val minTemp = f.getAsJsonObject("forecastMintemp")?.get("value")?.asInt ?: 0
 
-                            // 👈 On Top 增量解析 4 個欄位
+                            // 👈 補齊解析：風向、濕度、降雨概率、Icon 編號
                             val minRh = f.getAsJsonObject("forecastRh")?.get("minrh")?.asInt ?: 0
                             val maxRh = f.getAsJsonObject("forecastRh")?.get("maxrh")?.asInt ?: 0
                             val psrStr = if (f.has("PSR")) f.get("PSR").asString else ""
                             val windStr = if (f.has("wind")) f.get("wind").asString else ""
                             val iconNum = if (f.has("ForecastIcon")) f.get("ForecastIcon").asInt else 0
-                            
 
                             if (date.isNotBlank()) {
                                 forecastList.add(
@@ -285,7 +279,11 @@ class WeatherRepository @Inject constructor(
                                         week = week,
                                         forecastWeather = weather,
                                         forecastMaxtemp = ForecastVal(value = maxTemp, unit = "°C"),
-                                        forecastMintemp = ForecastVal(value = minTemp, unit = "°C")
+                                        forecastMintemp = ForecastVal(value = minTemp, unit = "°C"),
+                                        forecastRh = ForecastRhRange(minrh = minRh, maxrh = maxRh, unit = "%"),
+                                        psr = psrStr,
+                                        wind = windStr,
+                                        iconCode = iconNum
                                     )
                                 )
                             }
@@ -300,7 +298,7 @@ class WeatherRepository @Inject constructor(
                 isLoading = false,
                 warningSummary = warnings,
                 districtTemperatures = sortedDistricts,
-                districtRainfall = sortedRainfall, // 👈 帶入雨量數據
+                districtRainfall = sortedRainfall,
                 uvIndexInfo = uvInfo,
                 todayForecast = todayDesc.ifBlank { "本港地區天氣情況良好。" },
                 nineDayForecast = forecastList,
