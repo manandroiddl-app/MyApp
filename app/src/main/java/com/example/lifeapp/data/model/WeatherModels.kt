@@ -2,11 +2,11 @@ package com.example.lifeapp.data.model
 
 import com.google.gson.annotations.SerializedName
 
-// 1. 即時天氣 (rhrread) 數據模型
+// --- 1. 即時天氣 (rhrread) 數據模型 ---
 data class HkoRhrreadResponse(
     val temperature: TemperatureContainer? = null,
     val humidity: HumidityContainer? = null,
-    val rainfall: RainfallContainer? = null,
+    val rainfall: RainfallContainer? = null, // 👈 新增雨量
     val warningMessage: List<String>? = null,
     val uvindex: UvIndexContainer? = null,
     val updateTime: String? = null
@@ -34,6 +34,7 @@ data class PlaceHumidityData(
     val unit: String = "%"
 )
 
+// 👈 新增雨量資料模型
 data class RainfallContainer(
     val data: List<PlaceRainfallData> = emptyList(),
     val startTime: String? = null,
@@ -57,7 +58,7 @@ data class UvData(
     val desc: String = ""
 )
 
-// 2. 9 天天氣預報 (fnd) 數據模型
+// --- 2. 九天天氣預報 (fnd) 數據模型 ---
 data class HkoFndResponse(
     val weatherForecast: List<DayForecast> = emptyList(),
     val generalSituation: String? = null
@@ -70,7 +71,7 @@ data class DayForecast(
     val forecastMaxtemp: TemperatureValue? = null,
     val forecastMintemp: TemperatureValue? = null,
     val forecastRh: HumidityValue? = null,
-    val PSR: String = "" // 每日本地預報雨量機率
+    val PSR: String = ""
 )
 
 data class TemperatureValue(
