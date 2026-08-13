@@ -21,7 +21,6 @@ class WeatherRepository @Inject constructor(
     suspend fun getFullWeatherData(): Result<CompleteWeatherData> {
         return withContext(Dispatchers.IO) {
             runCatching {
-                // 並行併發抓取即時天氣與 9 天預報
                 val rhrreadDeferred = async { hkoApiService.getRhrread() }
                 val fndDeferred = async { runCatching { hkoApiService.getFnd() }.getOrNull() }
 
