@@ -39,6 +39,9 @@ fun WeatherScreen(
                 modifier = Modifier.align(Alignment.Center)
             )
         } else {
+            val rhrread = state.weatherData?.rhrread
+            val fnd = state.weatherData?.fnd
+
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -48,27 +51,46 @@ fun WeatherScreen(
                 Text("香港即時天氣", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = PrimaryDarkBlue)
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // 警告訊息
-                state.rhrreadData?.warningMessage?.filter { it.isNotBlank() }?.let { warnings ->
+                // 1. 生效中天氣警告/提示卡片
+                rhrread?.warningMessage?.filter { it.isNotBlank() }?.let { warnings ->
                     if (warnings.isNotEmpty()) {
                         Card(
                             colors = CardDefaults.cardColors(containerColor = Color(0xFFFFEBEE)),
-                            modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
                         ) {
                             Column(modifier = Modifier.padding(12.dp)) {
+                                Text("⚠️ 天氣警告與提示", fontWeight = FontWeight.Bold, color = Color.Red, fontSize = 14.sp)
+                                Spacer(modifier = Modifier.height(4.dp))
                                 warnings.forEach { warning ->
-                                    Text("⚠️ $warning", color = Color.Red, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                    Text("• $warning", color = Color(0xFFC62828), fontSize = 13.sp)
                                 }
                             }
                         }
                     }
                 }
 
-                // 1. 分區氣溫與雨量按鈕區塊
+                // 2. UV 紫外線指數卡片 (若有資料)
+                rhrread?.uvindex?.data?.firstOrNull()?.let { uv ->
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF8E1)),
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp).fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("☀️ 紫外線指數", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextDark)
+                            Text("${uv.value} (${uv.desc})", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFFF57F17))
+                        }
+                    }
+                }
+
+                // 3. 分區氣溫 (右側附帶 🌧️ 雨量按鈕)
                 Card(
                     colors = CardDefaults.cardColors(containerColor = Color.White),
                     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Row(
@@ -78,6 +100,7 @@ fun WeatherScreen(
                         ) {
                             Text("分區氣溫", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextDark)
                             
+                            // 🌧️ 雨量按鈕 (On Top 新增)
                             Button(
                                 onClick = { showRainfallSheet = true },
                                 colors = ButtonDefaults.buttonColors(containerColor = PrimaryLightBlue),
@@ -90,8 +113,7 @@ fun WeatherScreen(
 
                         HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
 
-                        // 分區氣溫列表
-                        state.rhrreadData?.temperature?.data?.forEach { temp ->
+                        rhrread?.temperature?.data?.forEach { temp ->
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -104,17 +126,57 @@ fun WeatherScreen(
                         }
                     }
                 }
+
+                // 4. 九天天氣預報區塊
+                fnd?.weatherForecast?.let { forecasts ->
+                    if (forecasts.isNotEmpty()) {
+                        Text("📅 九天天氣預報", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = PrimaryDarkBlue)
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        fnd.generalSituation?.let { situation ->
+                            Text(situation, fontSize = 12.sp, color = TextGray, modifier = Modifier.padding(bottom = 12.dp))
+                        }
+
+                        forecasts.forEach { day ->
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = Color.White),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(12.dp).fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text("${day.forecastDate} (${day.week})", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextDark)
+                                        Text(day.forecastWeather, fontSize = 12.sp, color = TextGray)
+                                        if (day.PSR.isNotBlank()) {
+                                            Text("顯著降雨概率: ${day.PSR}", fontSize = 11.sp, color = PrimaryDarkBlue)
+                                        }
+                                    }
+                                    Text(
+                                        "${day.forecastMintemp?.value ?: "-"} - ${day.forecastMaxtemp?.value ?: "-"}°C",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp,
+                                        color = PrimaryDarkBlue
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
 
-        // 分區雨量彈出選單 (ModalBottomSheet)
+        // 5. 分區雨量 ModalBottomSheet (On Top 新增)
         if (showRainfallSheet) {
             ModalBottomSheet(
                 onDismissRequest = { showRainfallSheet = false },
                 containerColor = Color.White
             ) {
                 RainfallSheetContent(
-                    rainfallData = state.rhrreadData?.rainfall?.data ?: emptyList(),
+                    rainfallData = state.weatherData?.rhrread?.rainfall?.data ?: emptyList(),
                     onClose = { showRainfallSheet = false }
                 )
             }
