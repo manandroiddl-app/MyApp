@@ -2,7 +2,7 @@ package com.example.lifeapp.ui.weather
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.lifeapp.data.model.HkoRhrreadResponse
+import com.example.lifeapp.data.repository.CompleteWeatherData
 import com.example.lifeapp.data.repository.WeatherRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -13,7 +13,7 @@ import javax.inject.Inject
 
 data class WeatherUiState(
     val isLoading: Boolean = false,
-    val rhrreadData: HkoRhrreadResponse? = null,
+    val weatherData: CompleteWeatherData? = null,
     val error: String? = null
 )
 
@@ -32,10 +32,10 @@ class WeatherViewModel @Inject constructor(
     fun refresh() {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
-            val result = repository.getWeatherRealtimeData()
+            val result = repository.getFullWeatherData()
             result.fold(
-                onSuccess = { response ->
-                    _uiState.value = WeatherUiState(isLoading = false, rhrreadData = response)
+                onSuccess = { data ->
+                    _uiState.value = WeatherUiState(isLoading = false, weatherData = data)
                 },
                 onFailure = { e ->
                     _uiState.value = WeatherUiState(isLoading = false, error = e.localizedMessage)
