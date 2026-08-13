@@ -65,6 +65,9 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
 
+    // 👈 【關鍵新增】Compose Material Extended Icons (修復 Bookmark / BookmarkBorder 未定義錯誤)
+    implementation("androidx.compose.material:material-icons-extended")
+
     // Coil 圖片載入庫 (天氣 Icon 渲染)
     implementation("io.coil-kt:coil-compose:2.6.0")
 
@@ -73,7 +76,7 @@ dependencies {
     kapt("com.google.dagger:hilt-android-compiler:2.50")
     implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
 
-    // 👈 【關鍵新增】Room Database 數據庫 (修復 kapt NonExistentClass 錯誤)
+    // Room Database 數據庫
     val roomVersion = "2.6.1"
     implementation("androidx.room:room-runtime:$roomVersion")
     implementation("androidx.room:room-ktx:$roomVersion")
