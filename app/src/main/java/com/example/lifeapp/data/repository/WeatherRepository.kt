@@ -270,6 +270,14 @@ class WeatherRepository @Inject constructor(
                             val maxTemp = f.getAsJsonObject("forecastMaxtemp")?.get("value")?.asInt ?: 0
                             val minTemp = f.getAsJsonObject("forecastMintemp")?.get("value")?.asInt ?: 0
 
+                            // 👈 On Top 增量解析 4 個欄位
+                            val minRh = f.getAsJsonObject("forecastRh")?.get("minrh")?.asInt ?: 0
+                            val maxRh = f.getAsJsonObject("forecastRh")?.get("maxrh")?.asInt ?: 0
+                            val psrStr = if (f.has("PSR")) f.get("PSR").asString else ""
+                            val windStr = if (f.has("wind")) f.get("wind").asString else ""
+                            val iconNum = if (f.has("ForecastIcon")) f.get("ForecastIcon").asInt else 0
+                            
+
                             if (date.isNotBlank()) {
                                 forecastList.add(
                                     ForecastItem(
