@@ -78,7 +78,6 @@ fun WeatherScreen(
                         ) {
                             Text("分區氣溫", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextDark)
                             
-                            // 👈 雨量按鈕：點擊後彈出雨量 Modal
                             Button(
                                 onClick = { showRainfallSheet = true },
                                 colors = ButtonDefaults.buttonColors(containerColor = PrimaryLightBlue),
@@ -108,7 +107,7 @@ fun WeatherScreen(
             }
         }
 
-        // 👈 分區雨量彈出選單 (ModalBottomSheet)
+        // 分區雨量彈出選單 (ModalBottomSheet)
         if (showRainfallSheet) {
             ModalBottomSheet(
                 onDismissRequest = { showRainfallSheet = false },
