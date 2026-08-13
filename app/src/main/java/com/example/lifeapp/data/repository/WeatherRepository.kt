@@ -15,6 +15,7 @@ class WeatherRepository @Inject constructor(
     private val hkoApiService: HkoApiService
 ) {
     private val nameMap = mapOf(
+        // --- 1. 個別氣象站地點 (氣溫 / 濕度) ---
         "香港天文台" to "Hong Kong Observatory",
         "赤鱲角" to "Chek Lap Kok",
         "長洲" to "Cheung Chau",
@@ -48,7 +49,32 @@ class WeatherRepository @Inject constructor(
         "屯門" to "Tuen Mun",
         "黃竹坑" to "Wong Chuk Hang",
         "黃大仙" to "Wong Tai Sin",
-        "元朗公園" to "Yuen Long Park"
+        "元朗公園" to "Yuen Long Park",
+
+        // --- 2. 行政分區名稱 (雨量專用 Mapping) ---
+        "中西區" to "Central & Western",
+        "灣仔" to "Wan Chai",
+        "灣仔區" to "Wan Chai District",
+        "東區" to "Eastern District",
+        "南區" to "Southern District",
+        "油尖旺" to "Yau Tsim Mong",
+        "深水埗區" to "Sham Shui Po District",
+        "九龍城區" to "Kowloon City District",
+        "黃大仙區" to "Wong Tai Sin District",
+        "觀塘區" to "Kwun Tong District",
+        "葵青" to "Kwai Tsing",
+        "葵青區" to "Kwai Tsing District",
+        "荃灣" to "Tsuen Wan",
+        "荃灣區" to "Tsuen Wan District",
+        "屯門區" to "Tuen Mun District",
+        "元朗" to "Yuen Long",
+        "元朗區" to "Yuen Long District",
+        "北區" to "North District",
+        "大埔區" to "Tai Po District",
+        "沙田區" to "Sha Tin District",
+        "西貢區" to "Sai Kung District",
+        "離島" to "Islands",
+        "離島區" to "Islands District"
     )
 
     suspend fun fetchWeatherInfo(): WeatherUiState {
