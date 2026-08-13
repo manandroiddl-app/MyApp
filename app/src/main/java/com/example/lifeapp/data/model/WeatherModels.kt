@@ -4,7 +4,7 @@ package com.example.lifeapp.data.model
 data class WeatherWarningItem(
     val code: String = "",
     val name: String = "",
-    val details: String = "" // 更詳細的天氣警告內容
+    val details: String = ""
 )
 
 // 2. 分區天氣項目 (含中英文名、溫度、濕度)
@@ -16,7 +16,7 @@ data class DistrictTemperature(
     val unit: String = "°C"
 )
 
-// 👈 2.1 新增：分區雨量項目
+// 分區雨量項目
 data class DistrictRainfall(
     val placeTc: String = "",
     val placeEn: String = "",
@@ -37,12 +37,23 @@ data class ForecastVal(
     val unit: String = "°C"
 )
 
+// 👈 新增濕度範圍模型
+data class ForecastRhRange(
+    val minrh: Int = 0,
+    val maxrh: Int = 0,
+    val unit: String = "%"
+)
+
 data class ForecastItem(
     val forecastDate: String = "",
     val week: String = "",
     val forecastWeather: String = "",
     val forecastMaxtemp: ForecastVal = ForecastVal(),
-    val forecastMintemp: ForecastVal = ForecastVal()
+    val forecastMintemp: ForecastVal = ForecastVal(),
+    val forecastRh: ForecastRhRange = ForecastRhRange(), // 👈 1. 濕度範圍
+    val psr: String = "",                                // 👈 2. 顯著降雨概率
+    val wind: String = "",                               // 👈 3. 風向風力
+    val iconCode: Int = 0                                // 👈 4. 天氣圖示編號
 )
 
 // 5. 天氣頁面總 UI 狀態
@@ -50,7 +61,7 @@ data class WeatherUiState(
     val isLoading: Boolean = true,
     val warningSummary: List<WeatherWarningItem> = emptyList(),
     val districtTemperatures: List<DistrictTemperature> = emptyList(),
-    val districtRainfall: List<DistrictRainfall> = emptyList(), // 👈 新增雨量列表
+    val districtRainfall: List<DistrictRainfall> = emptyList(),
     val uvIndexInfo: UvIndexInfo? = null,
     val todayForecast: String = "",
     val nineDayForecast: List<ForecastItem> = emptyList(),
