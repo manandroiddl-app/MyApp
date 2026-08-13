@@ -2,7 +2,7 @@ package com.example.lifeapp.ui.weather
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.lifeapp.data.repository.CompleteWeatherData
+import com.example.lifeapp.data.model.WeatherUiState
 import com.example.lifeapp.data.repository.WeatherRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -11,36 +11,27 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-data class WeatherUiState(
-    val isLoading: Boolean = false,
-    val weatherData: CompleteWeatherData? = null,
-    val error: String? = null
-)
-
 @HiltViewModel
 class WeatherViewModel @Inject constructor(
-    private val repository: WeatherRepository
+    private val weatherRepository: WeatherRepository
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(WeatherUiState(isLoading = true))
+    private val _uiState = MutableStateFlow(WeatherUiState())
     val uiState: StateFlow<WeatherUiState> = _uiState.asStateFlow()
 
     init {
-        refresh()
+        loadWeatherData()
+    }
+
+    fun loadWeatherData() {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoading = true)
+            val result = weatherRepository.fetchWeatherInfo()
+            _uiState.value = result
+        }
     }
 
     fun refresh() {
-        viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true, error = null)
-            val result = repository.getFullWeatherData()
-            result.fold(
-                onSuccess = { data ->
-                    _uiState.value = WeatherUiState(isLoading = false, weatherData = data)
-                },
-                onFailure = { e ->
-                    _uiState.value = WeatherUiState(isLoading = false, error = e.localizedMessage)
-                }
-            )
-        }
+        loadWeatherData()
     }
 }
