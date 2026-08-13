@@ -16,13 +16,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage // 👈 導入 Coil 圖片加載元件
 import com.example.lifeapp.data.model.DistrictRainfall
 import com.example.lifeapp.data.model.DistrictTemperature
 import com.example.lifeapp.data.model.WeatherWarningItem
 import com.example.lifeapp.ui.theme.PrimaryDarkBlue
 import com.example.lifeapp.ui.theme.PrimaryLightBlue
 import com.example.lifeapp.ui.theme.TextDark
-import com.example.lifeapp.ui.theme.TextGray
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -36,7 +36,6 @@ fun WeatherScreen(
     var userChosenDistrict by remember { mutableStateOf<DistrictTemperature?>(null) }
     var showRainfallSheet by remember { mutableStateOf(false) }
 
-    // 自動匹配選中的地點 (預設香港天文台，找不到則用第一個)
     val activeDistrict = userChosenDistrict
         ?: uiState.districtTemperatures.firstOrNull { it.placeTc == "香港天文台" }
         ?: uiState.districtTemperatures.firstOrNull()
@@ -104,7 +103,7 @@ fun WeatherScreen(
                 }
             }
 
-            // 3. 分區天氣 Dropdown 選單與 🌧️ 雨量按鈕
+            // 3. 分區天氣 Dropdown 選單與雨量按鈕
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -206,7 +205,7 @@ fun WeatherScreen(
                 }
             }
 
-            // 5. 九天天氣預報 (On Top 增量版)
+            // 5. 九天天氣預報
             if (uiState.nineDayForecast.isNotEmpty()) {
                 item {
                     Text(text = "📅 九天天氣預報", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = PrimaryDarkBlue)
@@ -218,22 +217,35 @@ fun WeatherScreen(
                         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
                     ) {
                         Column(modifier = Modifier.padding(14.dp)) {
-                            // 標題列：日期、星期與氣溫範圍
+                            // 標題列：Icon、日期、星期與氣溫範圍
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                val formattedDate = if (item.forecastDate.length == 8) {
-                                    "${item.forecastDate.substring(4, 6)}月${item.forecastDate.substring(6, 8)}日"
-                                } else item.forecastDate
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    // 🖼️ 1. 使用 Coil AsyncImage 渲染天氣圖示
+                                    if (item.iconCode > 0) {
+                                        AsyncImage(
+                                            model = "https://www.hko.gov.hk/images/HKOWxIconOutline/pic${item.iconCode}.png",
+                                            contentDescription = "Weather Icon",
+                                            modifier = Modifier
+                                                .size(32.dp)
+                                                .padding(end = 8.dp)
+                                        )
+                                    }
 
-                                Text(
-                                    text = "$formattedDate (${item.week})",
-                                    fontWeight = FontWeight.Bold,
-                                    color = PrimaryDarkBlue,
-                                    fontSize = 15.sp
-                                )
+                                    val formattedDate = if (item.forecastDate.length == 8) {
+                                        "${item.forecastDate.substring(4, 6)}月${item.forecastDate.substring(6, 8)}日"
+                                    } else item.forecastDate
+
+                                    Text(
+                                        text = "$formattedDate (${item.week})",
+                                        fontWeight = FontWeight.Bold,
+                                        color = PrimaryDarkBlue,
+                                        fontSize = 15.sp
+                                    )
+                                }
 
                                 Text(
                                     text = "${item.forecastMintemp.value}°C - ${item.forecastMaxtemp.value}°C",
@@ -255,37 +267,36 @@ fun WeatherScreen(
 
                             Spacer(modifier = Modifier.height(8.dp))
 
-                            // On Top 增量資訊列：風向、濕度、降雨概率
+                            // 🚩 風向風力
+                            if (item.wind.isNotBlank()) {
+                                Text(
+                                    text = "🚩 風力: ${item.wind}",
+                                    fontSize = 12.sp,
+                                    color = Color.DarkGray,
+                                    modifier = Modifier.padding(bottom = 4.dp)
+                                )
+                            }
+
+                            // 💧 濕度範圍 & 🌧️ 降雨概率
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                if (item.wind.isNotBlank()) {
+                                if (item.forecastRh.minrh > 0) {
                                     Text(
-                                        text = "🚩 ${item.wind}",
-                                        fontSize = 11.sp,
-                                        color = Color.Gray,
-                                        modifier = Modifier.weight(1f, fill = false)
+                                        text = "💧 濕度: ${item.forecastRh.minrh}% - ${item.forecastRh.maxrh}%",
+                                        fontSize = 12.sp,
+                                        color = Color.Gray
                                     )
                                 }
-
-                                Column(horizontalAlignment = Alignment.End) {
-                                    if (item.forecastRh.minrh > 0) {
-                                        Text(
-                                            text = "💧 濕度: ${item.forecastRh.minrh}% - ${item.forecastRh.maxrh}%",
-                                            fontSize = 11.sp,
-                                            color = Color.Gray
-                                        )
-                                    }
-                                    if (item.psr.isNotBlank()) {
-                                        Text(
-                                            text = "🌧️ 降雨概率: ${item.psr}",
-                                            fontSize = 11.sp,
-                                            color = PrimaryDarkBlue,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    }
+                                if (item.psr.isNotBlank()) {
+                                    Text(
+                                        text = "🌧️ 降雨概率: ${item.psr}",
+                                        fontSize = 12.sp,
+                                        color = PrimaryDarkBlue,
+                                        fontWeight = FontWeight.Bold
+                                    )
                                 }
                             }
                         }
