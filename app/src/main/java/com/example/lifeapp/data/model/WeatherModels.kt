@@ -1,49 +1,58 @@
 package com.example.lifeapp.data.model
 
-// 1. 天氣警告項目 (含詳細內文)
-data class WeatherWarningItem(
-    val code: String = "",
-    val name: String = "",
-    val details: String = "" // 更詳細的天氣警告內容
+import com.google.gson.annotations.SerializedName
+
+data class HkoRhrreadResponse(
+    val temperature: TemperatureContainer? = null,
+    val humidity: HumidityContainer? = null,
+    val rainfall: RainfallContainer? = null,
+    val warningMessage: List<String>? = null,
+    val uvindex: UvIndexContainer? = null,
+    val updateTime: String? = null
 )
 
-// 2. 分區天氣項目 (含中英文名、溫度、濕度)
-data class DistrictTemperature(
-    val placeTc: String = "",
-    val placeEn: String = "",
-    val tempValue: Int = 0,
-    val humidityValue: Int? = null,
-    val unit: String = "°C"
+data class TemperatureContainer(
+    val data: List<PlaceData> = emptyList(),
+    val recordTime: String? = null
 )
 
-// 3. 紫外線指數
-data class UvIndexInfo(
-    val value: String = "",
-    val desc: String = ""
+data class HumidityContainer(
+    val data: List<PlaceHumidityData> = emptyList(),
+    val recordTime: String? = null
 )
 
-// 4. 九天天氣預報項目
-data class ForecastVal(
+data class PlaceData(
+    val place: String = "",
     val value: Int = 0,
-    val unit: String = "°C"
+    val unit: String = "C"
 )
 
-data class ForecastItem(
-    val forecastDate: String = "",
-    val week: String = "",
-    val forecastWeather: String = "",
-    val forecastMaxtemp: ForecastVal = ForecastVal(),
-    val forecastMintemp: ForecastVal = ForecastVal()
+data class PlaceHumidityData(
+    val place: String = "",
+    val value: Int = 0,
+    val unit: String = "%"
 )
 
-// 5. 天氣頁面總 UI 狀態
-data class WeatherUiState(
-    val isLoading: Boolean = true,
-    val warningSummary: List<WeatherWarningItem> = emptyList(),
-    val districtTemperatures: List<DistrictTemperature> = emptyList(),
-    val uvIndexInfo: UvIndexInfo? = null,
-    val todayForecast: String = "",
-    val nineDayForecast: List<ForecastItem> = emptyList(),
-    val updateTime: String = "",
-    val errorMessage: String? = null
+// 👈 新增雨量資料模型
+data class RainfallContainer(
+    val data: List<PlaceRainfallData> = emptyList(),
+    val startTime: String? = null,
+    val endTime: String? = null
+)
+
+data class PlaceRainfallData(
+    val place: String = "",
+    val max: Int = 0,
+    val min: Int = 0,
+    val unit: String = "mm"
+)
+
+data class UvIndexContainer(
+    val data: List<UvData> = emptyList()
+)
+
+data class UvData(
+    val place: String = "",
+    val value: Double = 0.0,
+    val desc: String = ""
 )
