@@ -3,6 +3,7 @@ package com.example.lifeapp.data.repository
 import android.util.Log
 import com.example.lifeapp.data.api.HkoApiService
 import com.example.lifeapp.data.model.*
+import com.example.lifeapp.ui.weather.WeatherUiState
 import com.google.gson.JsonObject
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -240,19 +241,24 @@ class WeatherRepository @Inject constructor(
             val sortedDistricts = districtList.sortedBy { it.placeEn }
             val sortedRainfall = rainfallList.sortedBy { it.placeEn }
 
-            // 3. 今日天氣預報
+            // 3. 本地天氣預報 (flw API) 完整解析
             var todayDesc = ""
+            var generalSituation = ""
+            var outlook = ""
+            var tcInfo = ""
+            var fireDangerWarning = ""
+
             if (rawToday?.isJsonObject == true) {
                 val tObj = rawToday.asJsonObject
-                todayDesc = when {
-                    tObj.has("forecastDesc") -> tObj.get("forecastDesc").asString
-                    tObj.has("generalSituation") -> tObj.get("generalSituation").asString
-                    else -> ""
-                }
+                if (tObj.has("forecastDesc")) todayDesc = tObj.get("forecastDesc").asString
+                if (tObj.has("generalSituation")) generalSituation = tObj.get("generalSituation").asString
+                if (tObj.has("outlook")) outlook = tObj.get("outlook").asString
+                if (tObj.has("tcInfo")) tcInfo = tObj.get("tcInfo").asString
+                if (tObj.has("fireDangerWarning")) fireDangerWarning = tObj.get("fireDangerWarning").asString
             }
 
-            // 4. 九天天氣預報解析 (修正 Key 對齊問題)
-            val forecastList = mutableListOf<ForecastItem>()
+            // 4. 九天天氣預報解析 (對齊 NineDayForecastItem)
+            val forecastList = mutableListOf<NineDayForecastItem>()
             if (rawNineDay?.isJsonObject == true && rawNineDay.asJsonObject.has("weatherForecast")) {
                 try {
                     rawNineDay.asJsonObject.getAsJsonArray("weatherForecast").forEach { elem ->
@@ -265,20 +271,17 @@ class WeatherRepository @Inject constructor(
                             val maxTemp = f.getAsJsonObject("forecastMaxtemp")?.get("value")?.asInt ?: 0
                             val minTemp = f.getAsJsonObject("forecastMintemp")?.get("value")?.asInt ?: 0
 
-                            // 🔧 1. 修正風向 Key: forecastWind
                             val windStr = if (f.has("forecastWind")) f.get("forecastWind").asString else ""
 
-                            // 🔧 2. 修正濕度 Key: forecastMinrh 與 forecastMaxrh
                             val minRh = f.getAsJsonObject("forecastMinrh")?.get("value")?.asInt ?: 0
                             val maxRh = f.getAsJsonObject("forecastMaxrh")?.get("value")?.asInt ?: 0
 
-                            // 3. 降雨概率與 Icon
                             val psrStr = if (f.has("PSR")) f.get("PSR").asString else ""
                             val iconNum = if (f.has("ForecastIcon")) f.get("ForecastIcon").asInt else 0
 
                             if (date.isNotBlank()) {
                                 forecastList.add(
-                                    ForecastItem(
+                                    NineDayForecastItem(
                                         forecastDate = date,
                                         week = week,
                                         forecastWeather = weather,
@@ -305,6 +308,10 @@ class WeatherRepository @Inject constructor(
                 districtRainfall = sortedRainfall,
                 uvIndexInfo = uvInfo,
                 todayForecast = todayDesc.ifBlank { "本港地區天氣情況良好。" },
+                generalSituation = generalSituation,
+                outlook = outlook,
+                tcInfo = tcInfo,
+                fireDangerWarning = fireDangerWarning,
                 nineDayForecast = forecastList,
                 updateTime = formattedTime,
                 errorMessage = null
