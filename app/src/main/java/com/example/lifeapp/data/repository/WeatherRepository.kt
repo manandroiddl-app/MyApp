@@ -3,8 +3,6 @@ package com.example.lifeapp.data.repository
 import android.util.Log
 import com.example.lifeapp.data.api.HkoApiService
 import com.example.lifeapp.data.model.*
-import com.example.lifeapp.ui.weather.WeatherUiState
-import com.google.gson.JsonObject
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
