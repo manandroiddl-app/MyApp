@@ -34,3 +34,8 @@
 * [ ] **Payload 結構對齊**：確認 Repository 解析的 JSON Key 與官方 API 的 Real Payload 完全吻合。
 * [ ] **語法與類型對齊**：確認 Retrofit 介面回傳型態、Repository 解析邏輯與 ViewModel/UI State 的資料型態完全一致。
 * [ ] **Compose 規範檢查**：確認沒有缺少關鍵的 Compose Runtime Imports（如 `getValue`、`setValue`、`collectAsState` 等）及圖片渲染元件（如 Coil `AsyncImage`）。
+
+📌 額外補充規則 (使用者要求)
+顯示完整檔案路徑：每次輸出 Full Code 時，必須在頂部明確標示檔案的完整相對路徑（如 app/src/main/java/com/example/lifeapp/...）。
+
+基準版本對齊：目前所有修改皆以 MyApp-1.1.1-weather-ok (v1.1.1) 為 100% 基礎。
