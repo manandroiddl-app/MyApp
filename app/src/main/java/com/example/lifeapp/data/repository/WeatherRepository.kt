@@ -14,7 +14,6 @@ class WeatherRepository @Inject constructor(
     private val hkoApiService: HkoApiService
 ) {
     private val nameMap = mapOf(
-        // --- 1. 個別氣象站地點 (氣溫 / 濕度) ---
         "香港天文台" to "Hong Kong Observatory",
         "赤鱲角" to "Chek Lap Kok",
         "長洲" to "Cheung Chau",
@@ -49,8 +48,6 @@ class WeatherRepository @Inject constructor(
         "黃竹坑" to "Wong Chuk Hang",
         "黃大仙" to "Wong Tai Sin",
         "元朗公園" to "Yuen Long Park",
-
-        // --- 2. 行政分區名稱 (雨量專用 Mapping) ---
         "中西區" to "Central & Western",
         "灣仔" to "Wan Chai",
         "灣仔區" to "Wan Chai District",
@@ -120,23 +117,28 @@ class WeatherRepository @Inject constructor(
                 }
             }
 
-            // 特別天氣提示 (swt)
+            // 特別天氣提示 (swt) - 將多條提示組合為單一項目
             if (rawSwt?.isJsonObject == true && rawSwt.asJsonObject.has("swt")) {
                 try {
+                    val swtList = mutableListOf<String>()
                     rawSwt.asJsonObject.getAsJsonArray("swt").forEach { elem ->
                         if (elem.isJsonObject) {
                             val obj = elem.asJsonObject
                             val desc = if (obj.has("desc")) obj.get("desc").asString else ""
                             if (desc.isNotBlank()) {
-                                warnings.add(
-                                    WeatherWarningItem(
-                                        code = "SWT",
-                                        name = "特別天氣提示",
-                                        details = desc
-                                    )
-                                )
+                                swtList.add(desc)
                             }
                         }
+                    }
+                    if (swtList.isNotEmpty()) {
+                        warnings.add(
+                            WeatherWarningItem(
+                                code = "SWT",
+                                name = "特別天氣提示",
+                                details = swtList.joinToString("\n\n---\n\n"),
+                                detailsList = swtList
+                            )
+                        )
                     }
                 } catch (e: Exception) { Log.e("WeatherRepo", "SWT parse error", e) }
             }
@@ -209,7 +211,7 @@ class WeatherRepository @Inject constructor(
                     }
                 } catch (e: Exception) { Log.e("WeatherRepo", "Temp array error", e) }
 
-                // 分區雨量 (rainfall)
+                // 分區雨量
                 try {
                     if (realObj.has("rainfall") && realObj.getAsJsonObject("rainfall").has("data")) {
                         realObj.getAsJsonObject("rainfall").getAsJsonArray("data").forEach { elem ->
@@ -255,7 +257,7 @@ class WeatherRepository @Inject constructor(
                 if (tObj.has("fireDangerWarning")) fireDangerWarning = tObj.get("fireDangerWarning").asString
             }
 
-            // 4. 九天天氣預報解析 (對齊 NineDayForecastItem)
+            // 4. 九天天氣預報解析
             val forecastList = mutableListOf<NineDayForecastItem>()
             if (rawNineDay?.isJsonObject == true && rawNineDay.asJsonObject.has("weatherForecast")) {
                 try {
