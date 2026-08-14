@@ -62,8 +62,9 @@ fun WeatherScreen(
                 }
             }
 
-            // 2. 生效中警告 (點擊彈窗)
-            if (uiState.warningSummary.isNotEmpty()) {
+            // 2. 生效中警告 (使用 Icon + 點擊彈窗)
+            val activeWarnings = uiState.warningSummary.filter { it.code != "CANCEL" }
+            if (activeWarnings.isNotEmpty()) {
                 item {
                     Column(
                         modifier = Modifier
@@ -78,7 +79,7 @@ fun WeatherScreen(
                             fontSize = 15.sp
                         )
                         Spacer(modifier = Modifier.height(8.dp))
-                        uiState.warningSummary.forEach { warning ->
+                        activeWarnings.forEach { warning ->
                             Card(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -90,7 +91,23 @@ fun WeatherScreen(
                                     modifier = Modifier.padding(12.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text(text = "🚨 ${warning.name}", fontWeight = FontWeight.Bold, color = PrimaryDarkBlue)
+                                    val iconUrl = warning.getIconUrl()
+                                    if (iconUrl != null) {
+                                        AsyncImage(
+                                            model = iconUrl,
+                                            contentDescription = warning.name,
+                                            modifier = Modifier.size(36.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(12.dp))
+                                    } else {
+                                        Text(text = "🚨 ", fontSize = 18.sp)
+                                    }
+                                    Text(
+                                        text = warning.name,
+                                        fontWeight = FontWeight.Bold,
+                                        color = PrimaryDarkBlue,
+                                        fontSize = 15.sp
+                                    )
                                 }
                             }
                         }
@@ -98,7 +115,7 @@ fun WeatherScreen(
                 }
             }
 
-            // 3. 分區氣象觀察 (新排版：雙按鈕 + 濕度/紫外線)
+            // 3. 分區氣象觀察 (雙按鈕 + 濕度/紫外線)
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -115,7 +132,7 @@ fun WeatherScreen(
 
                         Spacer(modifier = Modifier.height(12.dp))
 
-                        // 第一行：溫度按鈕 & 雨量按鈕 (雙欄平行排版)
+                        // 第一行：溫度按鈕 & 雨量按鈕
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -197,7 +214,7 @@ fun WeatherScreen(
                 }
             }
 
-            // 4. 今日天氣預報 (展示 flw API 全部資料)
+            // 4. 今日天氣預報
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -208,7 +225,6 @@ fun WeatherScreen(
                         
                         Spacer(modifier = Modifier.height(12.dp))
 
-                        // A. 天氣概況 (generalSituation)
                         if (uiState.generalSituation.isNotBlank()) {
                             Text(text = "🌐 華南天氣概況", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = PrimaryDarkBlue)
                             Spacer(modifier = Modifier.height(4.dp))
@@ -216,14 +232,12 @@ fun WeatherScreen(
                             HorizontalDivider(modifier = Modifier.padding(vertical = 10.dp), color = Color(0xFFB3E5FC))
                         }
 
-                        // B. 本港地區天氣預報 (forecastDesc / todayForecast)
                         if (uiState.todayForecast.isNotBlank()) {
                             Text(text = "🌤️ 本港地區天氣預報", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = PrimaryDarkBlue)
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(text = uiState.todayForecast, fontSize = 13.sp, lineHeight = 19.sp, color = Color.DarkGray)
                         }
 
-                        // C. 未來展望 (outlook)
                         if (uiState.outlook.isNotBlank()) {
                             HorizontalDivider(modifier = Modifier.padding(vertical = 10.dp), color = Color(0xFFB3E5FC))
                             Text(text = "🔮 未來展望", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = PrimaryDarkBlue)
@@ -231,7 +245,6 @@ fun WeatherScreen(
                             Text(text = uiState.outlook, fontSize = 13.sp, lineHeight = 19.sp, color = Color.DarkGray)
                         }
 
-                        // D. 熱帶氣旋資訊 (tcInfo - 若有)
                         if (uiState.tcInfo.isNotBlank()) {
                             HorizontalDivider(modifier = Modifier.padding(vertical = 10.dp), color = Color(0xFFB3E5FC))
                             Text(text = "🌀 熱帶氣旋消息", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFFD32F2F))
@@ -239,7 +252,6 @@ fun WeatherScreen(
                             Text(text = uiState.tcInfo, fontSize = 13.sp, lineHeight = 19.sp, color = Color.DarkGray)
                         }
 
-                        // E. 火災危險警告資訊 (fireDangerWarning - 若有)
                         if (uiState.fireDangerWarning.isNotBlank()) {
                             HorizontalDivider(modifier = Modifier.padding(vertical = 10.dp), color = Color(0xFFB3E5FC))
                             Text(text = "🔥 火災危險警告描述", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFFE65100))
@@ -250,7 +262,7 @@ fun WeatherScreen(
                 }
             }
 
-            // 5. 九天天氣預報 (四行結構 + 藍色襯底 Icon)
+            // 5. 九天天氣預報
             if (uiState.nineDayForecast.isNotEmpty()) {
                 item {
                     Text(text = "📅 九天天氣預報", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = PrimaryDarkBlue)
@@ -268,13 +280,11 @@ fun WeatherScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            // 左側：4 行預報內容
                             Column(
                                 modifier = Modifier
                                     .weight(1f)
                                     .padding(end = 12.dp)
                             ) {
-                                // 行 1: 日期
                                 val formattedDate = if (item.forecastDate.length == 8) {
                                     "${item.forecastDate.substring(4, 6)}月${item.forecastDate.substring(6, 8)}日"
                                 } else item.forecastDate
@@ -288,7 +298,6 @@ fun WeatherScreen(
 
                                 Spacer(modifier = Modifier.height(4.dp))
 
-                                // 行 2: 預報資料 (詳細天氣描述)
                                 Text(
                                     text = item.forecastWeather,
                                     fontSize = 13.sp,
@@ -298,7 +307,6 @@ fun WeatherScreen(
 
                                 Spacer(modifier = Modifier.height(6.dp))
 
-                                // 行 3: 溫度 濕度
                                 Row(
                                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                                     verticalAlignment = Alignment.CenterVertically
@@ -320,7 +328,6 @@ fun WeatherScreen(
 
                                 Spacer(modifier = Modifier.height(4.dp))
 
-                                // 行 4: 風力 降雨概率
                                 Row(
                                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                                     verticalAlignment = Alignment.CenterVertically
@@ -343,7 +350,6 @@ fun WeatherScreen(
                                 }
                             }
 
-                            // 右側: 藍色襯底的 Icon 容器
                             if (item.iconCode > 0) {
                                 Box(
                                     modifier = Modifier
@@ -369,7 +375,7 @@ fun WeatherScreen(
         }
     }
 
-    // 生效中警告詳細彈窗 (帶 Scroller)
+    // 生效中警告詳細彈窗
     selectedWarning?.let { warning ->
         val scrollState = rememberScrollState()
         AlertDialog(
@@ -410,7 +416,7 @@ fun WeatherScreen(
         }
     }
 
-    // 全港分區氣溫 ModalBottomSheet
+    // 全港分區氣溫 ModalBottomSheet (已移除濕度)
     if (showTempSheet) {
         ModalBottomSheet(
             onDismissRequest = { showTempSheet = false },
@@ -424,7 +430,6 @@ fun WeatherScreen(
     }
 }
 
-// 分區雨量 BottomSheet 內容
 @Composable
 fun RainfallSheetContent(
     rainfallList: List<DistrictRainfall>,
@@ -492,7 +497,7 @@ fun RainfallSheetContent(
     }
 }
 
-// 全港分區氣溫 BottomSheet 內容 (格式與雨量齊平)
+// 全港分區氣溫 BottomSheet 內容 (已移除濕度顯示)
 @Composable
 fun TempSheetContent(
     tempList: List<DistrictTemperature>,
@@ -513,7 +518,7 @@ fun TempSheetContent(
                 Text("關閉", color = Color.Gray)
             }
         }
-        Text("即時錄得之區域氣溫與濕度", fontSize = 12.sp, color = Color.Gray)
+        Text("即時錄得之區域氣溫", fontSize = 12.sp, color = Color.Gray)
         
         Spacer(modifier = Modifier.height(12.dp))
 
@@ -533,12 +538,7 @@ fun TempSheetContent(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column {
-                            Text("${item.placeTc} (${item.placeEn})", fontSize = 14.sp, color = TextDark)
-                            if (item.humidityValue != null) {
-                                Text("濕度: ${item.humidityValue}%", fontSize = 11.sp, color = Color.Gray)
-                            }
-                        }
+                        Text("${item.placeTc} (${item.placeEn})", fontSize = 14.sp, color = TextDark)
                         
                         Surface(
                             color = Color(0xFFE3F2FD),
