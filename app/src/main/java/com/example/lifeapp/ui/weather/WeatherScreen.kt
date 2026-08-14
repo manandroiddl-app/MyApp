@@ -62,7 +62,7 @@ fun WeatherScreen(
                 }
             }
 
-            // 2. 生效中警告 (過濾 CANCEL，特化 WTCPRE8 預警樣式)
+            // 2. 生效中警告 (支援多條提示組合)
             val activeWarnings = uiState.warningSummary.filter { it.code != "CANCEL" }
             if (activeWarnings.isNotEmpty()) {
                 item {
@@ -103,17 +103,27 @@ fun WeatherScreen(
                                         )
                                         Spacer(modifier = Modifier.width(12.dp))
                                     } else {
-                                        Text(text = "🚨 ", fontSize = 18.sp)
+                                        Text(
+                                            text = if (warning.code == "SWT") "💡 " else "🚨 ",
+                                            fontSize = 18.sp
+                                        )
                                     }
 
                                     Column(modifier = Modifier.weight(1f)) {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
+                                            val displayName = if (warning.code == "SWT" && warning.detailsList.size > 1) {
+                                                "${warning.name} (共 ${warning.detailsList.size} 條)"
+                                            } else {
+                                                warning.name
+                                            }
+
                                             Text(
-                                                text = warning.name,
+                                                text = displayName,
                                                 fontWeight = FontWeight.Bold,
                                                 color = if (isPre8) Color(0xFFE65100) else PrimaryDarkBlue,
                                                 fontSize = 15.sp
                                             )
+
                                             if (isPre8) {
                                                 Spacer(modifier = Modifier.width(8.dp))
                                                 Surface(
@@ -155,7 +165,7 @@ fun WeatherScreen(
 
                         Spacer(modifier = Modifier.height(12.dp))
 
-                        // 第一行：溫度按鈕 & 雨量按鈕
+                        // 氣溫按鈕 & 雨量按鈕
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -193,7 +203,7 @@ fun WeatherScreen(
 
                         Spacer(modifier = Modifier.height(16.dp))
 
-                        // 第二行：相對濕度 & 紫外線指數
+                        // 相對濕度 & 紫外線指數
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -202,7 +212,6 @@ fun WeatherScreen(
                             horizontalArrangement = Arrangement.SpaceAround,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            // 平均相對濕度
                             val avgHumidity = uiState.districtTemperatures
                                 .mapNotNull { it.humidityValue }
                                 .takeIf { it.isNotEmpty() }
@@ -220,7 +229,6 @@ fun WeatherScreen(
                                 )
                             }
 
-                            // 紫外線指數
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Text("☀️ 紫外線指數", fontSize = 12.sp, color = Color.Gray)
                                 Spacer(modifier = Modifier.height(4.dp))
@@ -398,24 +406,61 @@ fun WeatherScreen(
         }
     }
 
-    // 生效中警告詳細彈窗
+    // 生效中警告詳細彈窗 (支援逐條展示多條特別天氣提示)
     selectedWarning?.let { warning ->
         val scrollState = rememberScrollState()
         AlertDialog(
             onDismissRequest = { selectedWarning = null },
-            title = { Text(text = "⚠️ ${warning.name} 詳情", fontWeight = FontWeight.Bold, color = PrimaryDarkBlue) },
+            title = {
+                val titleText = if (warning.code == "SWT" && warning.detailsList.size > 1) {
+                    "💡 特別天氣提示 (共 ${warning.detailsList.size} 條)"
+                } else {
+                    "⚠️ ${warning.name} 詳情"
+                }
+                Text(text = titleText, fontWeight = FontWeight.Bold, color = PrimaryDarkBlue)
+            },
             text = {
                 Box(
                     modifier = Modifier
-                        .heightIn(max = 350.dp)
+                        .heightIn(max = 400.dp)
                         .verticalScroll(scrollState)
                 ) {
-                    Text(
-                        text = warning.details,
-                        fontSize = 14.sp,
-                        lineHeight = 22.sp,
-                        color = Color.DarkGray
-                    )
+                    if (warning.detailsList.isNotEmpty()) {
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            warning.detailsList.forEachIndexed { index, tip ->
+                                Card(
+                                    colors = CardDefaults.cardColors(containerColor = Color(0xFFF8FAFC)),
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Column(modifier = Modifier.padding(12.dp)) {
+                                        if (warning.detailsList.size > 1) {
+                                            Text(
+                                                text = "📌 提示 ${index + 1}",
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 12.sp,
+                                                color = PrimaryDarkBlue
+                                            )
+                                            Spacer(modifier = Modifier.height(4.dp))
+                                        }
+                                        Text(
+                                            text = tip,
+                                            fontSize = 13.sp,
+                                            lineHeight = 19.sp,
+                                            color = Color.DarkGray
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        Text(
+                            text = warning.details,
+                            fontSize = 14.sp,
+                            lineHeight = 22.sp,
+                            color = Color.DarkGray
+                        )
+                    }
                 }
             },
             confirmButton = {
