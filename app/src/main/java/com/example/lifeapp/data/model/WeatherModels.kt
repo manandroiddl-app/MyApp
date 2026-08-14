@@ -22,7 +22,37 @@ data class WeatherWarningItem(
     val code: String = "",
     val name: String = "",
     val details: String = ""
-)
+) {
+    // 取得警告圖示 URL
+    fun getIconUrl(): String? {
+        val iconName = when (code) {
+            "WFROST" -> "frost"
+            "WHOT" -> "vhot"
+            "WCOLD" -> "cold"
+            "WMSGNL" -> "sms"
+            "WFNTSA" -> "ntfl"
+            "WL" -> "landslip"
+            "WTMW" -> "tsunami-warn"
+            "WTS" -> "ts"
+            "WFIREY" -> "firey"
+            "WFIRER" -> "firer"
+            "TC1" -> "tc1"
+            "TC3" -> "tc3"
+            "TC8NE" -> "tc8ne"
+            "TC8SE" -> "tc8b"
+            "TC8SW" -> "tc8c"
+            "TC8NW" -> "tc8d"
+            "TC9" -> "tc9"
+            "TC10" -> "tc10"
+            "WRAINA" -> "raina"
+            "WRAINR" -> "rainr"
+            "WRAINB" -> "rainb"
+            "WTCPRE8" -> "tc8ne" // 特別預警使用 8 號球圖示替代
+            else -> null
+        }
+        return iconName?.let { "https://www.hko.gov.hk/tc/wxinfo/dailywx/images/$it.gif" }
+    }
+}
 
 // 3. 分區氣溫
 data class DistrictTemperature(
