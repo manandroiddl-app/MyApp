@@ -17,11 +17,12 @@ data class WeatherUiState(
     val errorMessage: String? = null
 )
 
-// 2. 天氣警告項目
+// 2. 天氣警告項目 (支援聚合多條提示)
 data class WeatherWarningItem(
     val code: String = "",
     val name: String = "",
-    val details: String = ""
+    val details: String = "",
+    val detailsList: List<String> = emptyList() // 聚合多條特別天氣提示時使用
 ) {
     // 是否為預警八號
     fun isTcPre8(): Boolean = code == "WTCPRE8"
