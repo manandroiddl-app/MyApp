@@ -32,13 +32,8 @@ fun WeatherScreen(
     val uiState by viewModel.uiState.collectAsState()
 
     var selectedWarning by remember { mutableStateOf<WeatherWarningItem?>(null) }
-    var dropdownExpanded by remember { mutableStateOf(false) }
-    var userChosenDistrict by remember { mutableStateOf<DistrictTemperature?>(null) }
     var showRainfallSheet by remember { mutableStateOf(false) }
-
-    val activeDistrict = userChosenDistrict
-        ?: uiState.districtTemperatures.firstOrNull { it.placeTc == "香港天文台" }
-        ?: uiState.districtTemperatures.firstOrNull()
+    var showTempSheet by remember { mutableStateOf(false) }
 
     if (uiState.isLoading) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -103,7 +98,7 @@ fun WeatherScreen(
                 }
             }
 
-            // 3. 分區天氣 Dropdown 選單與雨量按鈕
+            // 3. 分區氣象觀察 (新排版：雙按鈕 + 濕度/紫外線)
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -111,101 +106,151 @@ fun WeatherScreen(
                     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                            text = "📍 本港氣象觀察",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 18.sp,
+                            color = PrimaryDarkBlue
+                        )
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // 第一行：溫度按鈕 & 雨量按鈕 (雙欄平行排版)
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            Text(text = "📍 分區氣象觀察", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = PrimaryDarkBlue)
-                            
+                            Button(
+                                onClick = { showTempSheet = true },
+                                colors = ButtonDefaults.buttonColors(containerColor = PrimaryLightBlue),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.weight(1f),
+                                contentPadding = PaddingValues(vertical = 10.dp)
+                            ) {
+                                Text(
+                                    text = "🌡️ 查看分區氣溫",
+                                    color = PrimaryDarkBlue,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+
                             Button(
                                 onClick = { showRainfallSheet = true },
                                 colors = ButtonDefaults.buttonColors(containerColor = PrimaryLightBlue),
                                 shape = RoundedCornerShape(8.dp),
-                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                                modifier = Modifier.weight(1f),
+                                contentPadding = PaddingValues(vertical = 10.dp)
                             ) {
-                                Text("🌧️ 查看雨量", color = PrimaryDarkBlue, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                            }
-                        }
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        ExposedDropdownMenuBox(
-                            expanded = dropdownExpanded,
-                            onExpandedChange = { dropdownExpanded = !dropdownExpanded }
-                        ) {
-                            OutlinedTextField(
-                                value = activeDistrict?.let { "${it.placeTc} (${it.placeEn})" } ?: "載入地點中...",
-                                onValueChange = {},
-                                readOnly = true,
-                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = dropdownExpanded) },
-                                modifier = Modifier
-                                    .menuAnchor()
-                                    .fillMaxWidth()
-                            )
-                            ExposedDropdownMenu(
-                                expanded = dropdownExpanded,
-                                onDismissRequest = { dropdownExpanded = false }
-                            ) {
-                                uiState.districtTemperatures.forEach { district ->
-                                    DropdownMenuItem(
-                                        text = { Text("${district.placeTc} (${district.placeEn})") },
-                                        onClick = {
-                                            userChosenDistrict = district
-                                            dropdownExpanded = false
-                                        }
-                                    )
-                                }
+                                Text(
+                                    text = "🌧️ 查看分區雨量",
+                                    color = PrimaryDarkBlue,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
                             }
                         }
 
                         Spacer(modifier = Modifier.height(16.dp))
 
-                        activeDistrict?.let { dist ->
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceAround
-                            ) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text("🌡️ 氣溫", fontSize = 13.sp, color = Color.Gray)
-                                    Text("${dist.tempValue}${dist.unit}", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = PrimaryDarkBlue)
-                                }
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text("💧 相對濕度", fontSize = 13.sp, color = Color.Gray)
-                                    Text("${dist.humidityValue ?: "--"}%", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = PrimaryDarkBlue)
-                                }
-                            }
-                        }
+                        // 第二行：相對濕度 & 紫外線指數
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(Color(0xFFF8FAFC), shape = RoundedCornerShape(8.dp))
+                                .padding(12.dp),
+                            horizontalArrangement = Arrangement.SpaceAround,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // 平均相對濕度
+                            val avgHumidity = uiState.districtTemperatures
+                                .mapNotNull { it.humidityValue }
+                                .takeIf { it.isNotEmpty() }
+                                ?.average()
+                                ?.toInt()
 
-                        uiState.uvIndexInfo?.let { uv ->
-                            HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text("☀️ 全港紫外線指數", fontSize = 14.sp, color = Color.Gray)
-                                Text("${uv.value} (${uv.desc})", fontWeight = FontWeight.Bold, color = PrimaryDarkBlue)
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text("💧 平均相對濕度", fontSize = 12.sp, color = Color.Gray)
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = if (avgHumidity != null) "$avgHumidity%" else "--",
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = PrimaryDarkBlue
+                                )
+                            }
+
+                            // 紫外線指數
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text("☀️ 紫外線指數", fontSize = 12.sp, color = Color.Gray)
+                                Spacer(modifier = Modifier.height(4.dp))
+                                val uvText = uiState.uvIndexInfo?.let { "${it.value} (${it.desc})" } ?: "無資料"
+                                Text(
+                                    text = uvText,
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = PrimaryDarkBlue
+                                )
                             }
                         }
                     }
                 }
             }
 
-            // 4. 今日天氣預報
+            // 4. 今日天氣預報 (展示 flw API 全部資料)
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(containerColor = PrimaryLightBlue)
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        Text(text = "📝 今日天氣預報", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = PrimaryDarkBlue)
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(text = uiState.todayForecast, fontSize = 14.sp, lineHeight = 20.sp, color = Color.DarkGray)
+                        Text(text = "📝 今日天氣預報與概況", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = PrimaryDarkBlue)
+                        
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // A. 天氣概況 (generalSituation)
+                        if (uiState.generalSituation.isNotBlank()) {
+                            Text(text = "🌐 華南天氣概況", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = PrimaryDarkBlue)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(text = uiState.generalSituation, fontSize = 13.sp, lineHeight = 19.sp, color = Color.DarkGray)
+                            HorizontalDivider(modifier = Modifier.padding(vertical = 10.dp), color = Color(0xFFB3E5FC))
+                        }
+
+                        // B. 本港地區天氣預報 (forecastDesc / todayForecast)
+                        if (uiState.todayForecast.isNotBlank()) {
+                            Text(text = "🌤️ 本港地區天氣預報", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = PrimaryDarkBlue)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(text = uiState.todayForecast, fontSize = 13.sp, lineHeight = 19.sp, color = Color.DarkGray)
+                        }
+
+                        // C. 未來展望 (outlook)
+                        if (uiState.outlook.isNotBlank()) {
+                            HorizontalDivider(modifier = Modifier.padding(vertical = 10.dp), color = Color(0xFFB3E5FC))
+                            Text(text = "🔮 未來展望", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = PrimaryDarkBlue)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(text = uiState.outlook, fontSize = 13.sp, lineHeight = 19.sp, color = Color.DarkGray)
+                        }
+
+                        // D. 熱帶氣旋資訊 (tcInfo - 若有)
+                        if (uiState.tcInfo.isNotBlank()) {
+                            HorizontalDivider(modifier = Modifier.padding(vertical = 10.dp), color = Color(0xFFB3E5FC))
+                            Text(text = "🌀 熱帶氣旋消息", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFFD32F2F))
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(text = uiState.tcInfo, fontSize = 13.sp, lineHeight = 19.sp, color = Color.DarkGray)
+                        }
+
+                        // E. 火災危險警告資訊 (fireDangerWarning - 若有)
+                        if (uiState.fireDangerWarning.isNotBlank()) {
+                            HorizontalDivider(modifier = Modifier.padding(vertical = 10.dp), color = Color(0xFFB3E5FC))
+                            Text(text = "🔥 火災危險警告描述", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFFE65100))
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(text = uiState.fireDangerWarning, fontSize = 13.sp, lineHeight = 19.sp, color = Color.DarkGray)
+                        }
                     }
                 }
             }
 
-            // 5. 九天天氣預報 (全新四行結構 + 藍色襯底 Icon)
+            // 5. 九天天氣預報 (四行結構 + 藍色襯底 Icon)
             if (uiState.nineDayForecast.isNotEmpty()) {
                 item {
                     Text(text = "📅 九天天氣預報", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = PrimaryDarkBlue)
@@ -298,13 +343,13 @@ fun WeatherScreen(
                                 }
                             }
 
-                            // 右側: 藍色襯底的 Icon 容器 (解決 GIF 透明度問題)
+                            // 右側: 藍色襯底的 Icon 容器
                             if (item.iconCode > 0) {
                                 Box(
                                     modifier = Modifier
                                         .size(52.dp)
                                         .background(
-                                            color = Color(0xFFE0F2FE), // 淡藍色襯底
+                                            color = Color(0xFFE0F2FE),
                                             shape = RoundedCornerShape(10.dp)
                                         )
                                         .padding(6.dp),
@@ -364,8 +409,22 @@ fun WeatherScreen(
             )
         }
     }
+
+    // 全港分區氣溫 ModalBottomSheet
+    if (showTempSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showTempSheet = false },
+            containerColor = Color.White
+        ) {
+            TempSheetContent(
+                tempList = uiState.districtTemperatures,
+                onClose = { showTempSheet = false }
+            )
+        }
+    }
 }
 
+// 分區雨量 BottomSheet 內容
 @Composable
 fun RainfallSheetContent(
     rainfallList: List<DistrictRainfall>,
@@ -420,6 +479,75 @@ fun RainfallSheetContent(
                                 text = rainText,
                                 color = textColor,
                                 fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+                    HorizontalDivider(color = Color(0xFFEEEEEE))
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(20.dp))
+    }
+}
+
+// 全港分區氣溫 BottomSheet 內容 (格式與雨量齊平)
+@Composable
+fun TempSheetContent(
+    tempList: List<DistrictTemperature>,
+    onClose: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 10.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("🌡️ 全港分區即時氣溫", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = PrimaryDarkBlue)
+            TextButton(onClick = onClose) {
+                Text("關閉", color = Color.Gray)
+            }
+        }
+        Text("即時錄得之區域氣溫與濕度", fontSize = 12.sp, color = Color.Gray)
+        
+        Spacer(modifier = Modifier.height(12.dp))
+
+        if (tempList.isEmpty()) {
+            Text("暫無分區氣溫數據", color = Color.Gray, modifier = Modifier.padding(vertical = 20.dp))
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 400.dp)
+            ) {
+                items(tempList) { item ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text("${item.placeTc} (${item.placeEn})", fontSize = 14.sp, color = TextDark)
+                            if (item.humidityValue != null) {
+                                Text("濕度: ${item.humidityValue}%", fontSize = 11.sp, color = Color.Gray)
+                            }
+                        }
+                        
+                        Surface(
+                            color = Color(0xFFE3F2FD),
+                            shape = RoundedCornerShape(6.dp)
+                        ) {
+                            Text(
+                                text = "${item.tempValue}${item.unit}",
+                                color = PrimaryDarkBlue,
+                                fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold,
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                             )
