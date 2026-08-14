@@ -23,6 +23,9 @@ data class WeatherWarningItem(
     val name: String = "",
     val details: String = ""
 ) {
+    // 是否為預警八號
+    fun isTcPre8(): Boolean = code == "WTCPRE8"
+
     // 取得警告圖示 URL
     fun getIconUrl(): String? {
         val iconName = when (code) {
