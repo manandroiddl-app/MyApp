@@ -16,7 +16,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage // 👈 導入 Coil 圖片加載元件
+import coil.compose.AsyncImage
 import com.example.lifeapp.data.model.DistrictRainfall
 import com.example.lifeapp.data.model.DistrictTemperature
 import com.example.lifeapp.data.model.WeatherWarningItem
@@ -205,7 +205,7 @@ fun WeatherScreen(
                 }
             }
 
-            // 5. 九天天氣預報
+            // 5. 九天天氣預報 (全新四行結構 + 藍色襯底 Icon)
             if (uiState.nineDayForecast.isNotEmpty()) {
                 item {
                     Text(text = "📅 九天天氣預報", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = PrimaryDarkBlue)
@@ -216,86 +216,104 @@ fun WeatherScreen(
                         colors = CardDefaults.cardColors(containerColor = Color.White),
                         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
                     ) {
-                        Column(modifier = Modifier.padding(14.dp)) {
-                            // 標題列：Icon、日期、星期與氣溫範圍
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(14.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // 左側：4 行預報內容
+                            Column(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(end = 12.dp)
                             ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    // 🖼️ 1. 使用 Coil AsyncImage 渲染天氣圖示
-                                    if (item.iconCode > 0) {
-                                        AsyncImage(
-                                            model = "https://www.hko.gov.hk/images/HKOWxIconOutline/pic${item.iconCode}.png",
-                                            contentDescription = "Weather Icon",
-                                            modifier = Modifier
-                                                .size(32.dp)
-                                                .padding(end = 8.dp)
-                                        )
-                                    }
-
-                                    val formattedDate = if (item.forecastDate.length == 8) {
-                                        "${item.forecastDate.substring(4, 6)}月${item.forecastDate.substring(6, 8)}日"
-                                    } else item.forecastDate
-
-                                    Text(
-                                        text = "$formattedDate (${item.week})",
-                                        fontWeight = FontWeight.Bold,
-                                        color = PrimaryDarkBlue,
-                                        fontSize = 15.sp
-                                    )
-                                }
+                                // 行 1: 日期
+                                val formattedDate = if (item.forecastDate.length == 8) {
+                                    "${item.forecastDate.substring(4, 6)}月${item.forecastDate.substring(6, 8)}日"
+                                } else item.forecastDate
 
                                 Text(
-                                    text = "${item.forecastMintemp.value}°C - ${item.forecastMaxtemp.value}°C",
+                                    text = "$formattedDate (${item.week})",
                                     fontWeight = FontWeight.Bold,
                                     color = PrimaryDarkBlue,
                                     fontSize = 15.sp
                                 )
-                            }
 
-                            Spacer(modifier = Modifier.height(8.dp))
+                                Spacer(modifier = Modifier.height(4.dp))
 
-                            // 詳細天氣描述
-                            Text(
-                                text = item.forecastWeather,
-                                fontSize = 13.sp,
-                                lineHeight = 18.sp,
-                                color = Color.DarkGray
-                            )
-
-                            Spacer(modifier = Modifier.height(8.dp))
-
-                            // 🚩 風向風力
-                            if (item.wind.isNotBlank()) {
+                                // 行 2: 預報資料 (詳細天氣描述)
                                 Text(
-                                    text = "🚩 風力: ${item.wind}",
-                                    fontSize = 12.sp,
-                                    color = Color.DarkGray,
-                                    modifier = Modifier.padding(bottom = 4.dp)
+                                    text = item.forecastWeather,
+                                    fontSize = 13.sp,
+                                    lineHeight = 18.sp,
+                                    color = Color.DarkGray
                                 )
+
+                                Spacer(modifier = Modifier.height(6.dp))
+
+                                // 行 3: 溫度 濕度
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "🌡️ ${item.forecastMintemp.value}°C - ${item.forecastMaxtemp.value}°C",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = PrimaryDarkBlue
+                                    )
+                                    if (item.forecastRh.minrh > 0) {
+                                        Text(
+                                            text = "💧 ${item.forecastRh.minrh}% - ${item.forecastRh.maxrh}%",
+                                            fontSize = 12.sp,
+                                            color = Color.Gray
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(4.dp))
+
+                                // 行 4: 風力 降雨概率
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    if (item.wind.isNotBlank()) {
+                                        Text(
+                                            text = "🚩 ${item.wind}",
+                                            fontSize = 12.sp,
+                                            color = Color.DarkGray
+                                        )
+                                    }
+                                    if (item.psr.isNotBlank()) {
+                                        Text(
+                                            text = "🌧️ 降雨概率: ${item.psr}",
+                                            fontSize = 12.sp,
+                                            color = PrimaryDarkBlue,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
                             }
 
-                            // 💧 濕度範圍 & 🌧️ 降雨概率
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                if (item.forecastRh.minrh > 0) {
-                                    Text(
-                                        text = "💧 濕度: ${item.forecastRh.minrh}% - ${item.forecastRh.maxrh}%",
-                                        fontSize = 12.sp,
-                                        color = Color.Gray
-                                    )
-                                }
-                                if (item.psr.isNotBlank()) {
-                                    Text(
-                                        text = "🌧️ 降雨概率: ${item.psr}",
-                                        fontSize = 12.sp,
-                                        color = PrimaryDarkBlue,
-                                        fontWeight = FontWeight.Bold
+                            // 右側: 藍色襯底的 Icon 容器 (解決 GIF 透明度問題)
+                            if (item.iconCode > 0) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(52.dp)
+                                        .background(
+                                            color = Color(0xFFE0F2FE), // 淡藍色襯底
+                                            shape = RoundedCornerShape(10.dp)
+                                        )
+                                        .padding(6.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    AsyncImage(
+                                        model = "https://www.hko.gov.hk/images/HKOWxIconOutline/pic${item.iconCode}.png",
+                                        contentDescription = "Weather Icon",
+                                        modifier = Modifier.fillMaxSize()
                                     )
                                 }
                             }
