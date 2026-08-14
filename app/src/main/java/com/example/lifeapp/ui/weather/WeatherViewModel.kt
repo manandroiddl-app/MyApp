@@ -31,7 +31,6 @@ class WeatherViewModel @Inject constructor(
 
     fun loadWeatherData() {
         viewModelScope.launch {
-            // 背景自動刷新時不顯示全螢幕 Loading 指示器
             if (_uiState.value.updateTime.isEmpty()) {
                 _uiState.value = _uiState.value.copy(isLoading = true)
             }
@@ -40,12 +39,12 @@ class WeatherViewModel @Inject constructor(
         }
     }
 
-    // 每分鐘 (60 秒) 自動更新天氣數據
+    // 每分鐘 (60 秒) 背景自動刷新
     private fun startAutoRefresh() {
         autoRefreshJob?.cancel()
         autoRefreshJob = viewModelScope.launch {
             while (isActive) {
-                delay(60_000L) // 60秒
+                delay(60_000L)
                 loadWeatherData()
             }
         }
