@@ -62,7 +62,7 @@ fun WeatherScreen(
                 }
             }
 
-            // 2. 生效中警告 (使用 Icon + 點擊彈窗)
+            // 2. 生效中警告 (過濾 CANCEL，特化 WTCPRE8 預警樣式)
             val activeWarnings = uiState.warningSummary.filter { it.code != "CANCEL" }
             if (activeWarnings.isNotEmpty()) {
                 item {
@@ -80,12 +80,15 @@ fun WeatherScreen(
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         activeWarnings.forEach { warning ->
+                            val isPre8 = warning.isTcPre8()
+                            val cardBgColor = if (isPre8) Color(0xFFFFF3E0) else Color.White
+
                             Card(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(vertical = 4.dp)
                                     .clickable { selectedWarning = warning },
-                                colors = CardDefaults.cardColors(containerColor = Color.White)
+                                colors = CardDefaults.cardColors(containerColor = cardBgColor)
                             ) {
                                 Row(
                                     modifier = Modifier.padding(12.dp),
@@ -102,12 +105,32 @@ fun WeatherScreen(
                                     } else {
                                         Text(text = "🚨 ", fontSize = 18.sp)
                                     }
-                                    Text(
-                                        text = warning.name,
-                                        fontWeight = FontWeight.Bold,
-                                        color = PrimaryDarkBlue,
-                                        fontSize = 15.sp
-                                    )
+
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(
+                                                text = warning.name,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (isPre8) Color(0xFFE65100) else PrimaryDarkBlue,
+                                                fontSize = 15.sp
+                                            )
+                                            if (isPre8) {
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Surface(
+                                                    color = Color(0xFFFFE0B2),
+                                                    shape = RoundedCornerShape(4.dp)
+                                                ) {
+                                                    Text(
+                                                        text = "8號預警",
+                                                        color = Color(0xFFE65100),
+                                                        fontSize = 11.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -416,7 +439,7 @@ fun WeatherScreen(
         }
     }
 
-    // 全港分區氣溫 ModalBottomSheet (已移除濕度)
+    // 全港分區氣溫 ModalBottomSheet
     if (showTempSheet) {
         ModalBottomSheet(
             onDismissRequest = { showTempSheet = false },
@@ -497,7 +520,7 @@ fun RainfallSheetContent(
     }
 }
 
-// 全港分區氣溫 BottomSheet 內容 (已移除濕度顯示)
+// 全港分區氣溫 BottomSheet 內容
 @Composable
 fun TempSheetContent(
     tempList: List<DistrictTemperature>,
