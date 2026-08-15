@@ -361,7 +361,7 @@ fun WeatherScreen(
                                     }
                                 }
 
-                                // 風勢 (上)
+                                // 🚩 風勢 (放在上面)
                                 if (item.wind.isNotBlank()) {
                                     Spacer(modifier = Modifier.height(4.dp))
                                     Text(
@@ -371,7 +371,7 @@ fun WeatherScreen(
                                     )
                                 }
 
-                                // 降雨概率 (搬到風勢之下)
+                                // 🌧️ 降雨概率 (搬到風勢正下方)
                                 if (item.psr.isNotBlank()) {
                                     Spacer(modifier = Modifier.height(4.dp))
                                     Text(
