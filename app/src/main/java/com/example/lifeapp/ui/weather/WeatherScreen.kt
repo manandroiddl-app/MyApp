@@ -35,7 +35,7 @@ fun WeatherScreen(
     var showRainfallSheet by remember { mutableStateOf(false) }
     var showTempSheet by remember { mutableStateOf(false) }
 
-    // 全App防白屏：只有在「完全沒有數據且正在Loading」時才顯示全頁轉圈
+    // 全 App 防白屏機制：只有在「完全沒有數據（更新時間為空）且正在 Loading」時才顯示全頁轉圈
     val isInitialLoading = uiState.isLoading && uiState.updateTime.isEmpty()
 
     if (isInitialLoading) {
