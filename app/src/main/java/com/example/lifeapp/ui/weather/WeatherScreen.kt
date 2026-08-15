@@ -30,7 +30,7 @@ import com.example.lifeapp.ui.theme.TextDark
 fun WeatherScreen(
     viewModel: WeatherViewModel
 ) {
-    // 🛡️ 關鍵修復：改用 collectAsStateWithLifecycle 徹底解決切換 Tab/頁面時出現空白的問題
+    // 🛡️ 關鍵修復：使用生命週期感知訂閱，徹底解決切換 Tab/頁面時出現空白的問題
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     var selectedWarning by remember { mutableStateOf<WeatherWarningItem?>(null) }
@@ -68,7 +68,7 @@ fun WeatherScreen(
             }
 
             // 2. 生效中警告 (支援多條提示組合)
-            val activeWarnings = uiState.warningSummary.filter { it.code != "CANCEL" }
+            val activeWarnings = uiState.warningSummary.filter { warningItem -> warningItem.code != "CANCEL" }
             if (activeWarnings.isNotEmpty()) {
                 item {
                     Column(
@@ -217,11 +217,8 @@ fun WeatherScreen(
                             horizontalArrangement = Arrangement.SpaceAround,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            val avgHumidity = uiState.districtTemperatures
-                                .mapNotNull { it.humidityValue }
-                                .takeIf { it.isNotEmpty() }
-                                ?.average()
-                                ?.toInt()
+                            val validHumidities = uiState.districtTemperatures.mapNotNull { districtTemp -> districtTemp.humidityValue }
+                            val avgHumidity = if (validHumidities.isNotEmpty()) validHumidities.average().toInt() else null
 
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Text("💧 平均相對濕度", fontSize = 12.sp, color = Color.Gray)
@@ -237,7 +234,7 @@ fun WeatherScreen(
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Text("☀️ 紫外線指數", fontSize = 12.sp, color = Color.Gray)
                                 Spacer(modifier = Modifier.height(4.dp))
-                                val uvText = uiState.uvIndexInfo?.let { "${it.value} (${it.desc})" } ?: "無資料"
+                                val uvText = uiState.uvIndexInfo?.let { uv -> "${uv.value} (${uv.desc})" } ?: "無資料"
                                 Text(
                                     text = uvText,
                                     fontSize = 18.sp,
@@ -303,7 +300,7 @@ fun WeatherScreen(
                 item {
                     Text(text = "📅 九天天氣預報", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = PrimaryDarkBlue)
                 }
-                items(uiState.nineDayForecast) { item ->
+                items(uiState.nineDayForecast) { forecast ->
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -321,12 +318,12 @@ fun WeatherScreen(
                                     .weight(1f)
                                     .padding(end = 12.dp)
                             ) {
-                                val formattedDate = if (item.forecastDate.length == 8) {
-                                    "${item.forecastDate.substring(4, 6)}月${item.forecastDate.substring(6, 8)}日"
-                                } else item.forecastDate
+                                val formattedDate = if (forecast.forecastDate.length == 8) {
+                                    "${forecast.forecastDate.substring(4, 6)}月${forecast.forecastDate.substring(6, 8)}日"
+                                } else forecast.forecastDate
 
                                 Text(
-                                    text = "$formattedDate (${item.week})",
+                                    text = "$formattedDate (${forecast.week})",
                                     fontWeight = FontWeight.Bold,
                                     color = PrimaryDarkBlue,
                                     fontSize = 15.sp
@@ -335,7 +332,7 @@ fun WeatherScreen(
                                 Spacer(modifier = Modifier.height(4.dp))
 
                                 Text(
-                                    text = item.forecastWeather,
+                                    text = forecast.forecastWeather,
                                     fontSize = 13.sp,
                                     lineHeight = 18.sp,
                                     color = Color.DarkGray
@@ -349,14 +346,14 @@ fun WeatherScreen(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(
-                                        text = "🌡️ ${item.forecastMintemp.value}°C - ${item.forecastMaxtemp.value}°C",
+                                        text = "🌡️ ${forecast.forecastMintemp.value}°C - ${forecast.forecastMaxtemp.value}°C",
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = PrimaryDarkBlue
                                     )
-                                    if (item.forecastRh.minrh > 0) {
+                                    if (forecast.forecastRh.minrh > 0) {
                                         Text(
-                                            text = "💧 ${item.forecastRh.minrh}% - ${item.forecastRh.maxrh}%",
+                                            text = "💧 ${forecast.forecastRh.minrh}% - ${forecast.forecastRh.maxrh}%",
                                             fontSize = 12.sp,
                                             color = Color.Gray
                                         )
@@ -364,20 +361,20 @@ fun WeatherScreen(
                                 }
 
                                 // 🚩 風勢 (在上)
-                                if (item.wind.isNotBlank()) {
+                                if (forecast.wind.isNotBlank()) {
                                     Spacer(modifier = Modifier.height(4.dp))
                                     Text(
-                                        text = "🚩 ${item.wind}",
+                                        text = "🚩 ${forecast.wind}",
                                         fontSize = 12.sp,
                                         color = Color.DarkGray
                                     )
                                 }
 
                                 // 🌧️ 降雨概率 (在風勢正下方)
-                                if (item.psr.isNotBlank()) {
+                                if (forecast.psr.isNotBlank()) {
                                     Spacer(modifier = Modifier.height(4.dp))
                                     Text(
-                                        text = "🌧️ 降雨概率: ${item.psr}",
+                                        text = "🌧️ 降雨概率: ${forecast.psr}",
                                         fontSize = 12.sp,
                                         color = PrimaryDarkBlue,
                                         fontWeight = FontWeight.Bold
@@ -385,7 +382,7 @@ fun WeatherScreen(
                                 }
                             }
 
-                            if (item.iconCode > 0) {
+                            if (forecast.iconCode > 0) {
                                 Box(
                                     modifier = Modifier
                                         .size(52.dp)
@@ -397,7 +394,7 @@ fun WeatherScreen(
                                     contentAlignment = Alignment.Center
                                 ) {
                                     AsyncImage(
-                                        model = "https://www.hko.gov.hk/images/HKOWxIconOutline/pic${item.iconCode}.png",
+                                        model = "https://www.hko.gov.hk/images/HKOWxIconOutline/pic${forecast.iconCode}.png",
                                         contentDescription = "Weather Icon",
                                         modifier = Modifier.fillMaxSize()
                                     )
