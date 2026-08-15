@@ -31,11 +31,13 @@ class WeatherViewModel @Inject constructor(
 
     fun loadWeatherData() {
         viewModelScope.launch {
+            // 只有在最初全然無資料時才開啟全頁加載，後續更新保留舊資料不切換全頁 Loading
             if (_uiState.value.updateTime.isEmpty()) {
                 _uiState.value = _uiState.value.copy(isLoading = true)
             }
             val result = weatherRepository.fetchWeatherInfo()
-            _uiState.value = result
+            // 更新成功後，完整覆蓋 State，確保不殘留錯誤狀態
+            _uiState.value = result.copy(isLoading = false)
         }
     }
 
