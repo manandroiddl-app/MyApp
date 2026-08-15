@@ -13,9 +13,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.example.lifeapp.data.model.DistrictRainfall
@@ -30,14 +33,28 @@ import com.example.lifeapp.ui.theme.TextDark
 fun WeatherScreen(
     viewModel: WeatherViewModel
 ) {
-    // 🛡️ 關鍵修復：使用生命週期感知訂閱，徹底解決切換 Tab/頁面時出現空白的問題
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     var selectedWarning by remember { mutableStateOf<WeatherWarningItem?>(null) }
     var showRainfallSheet by remember { mutableStateOf(false) }
     var showTempSheet by remember { mutableStateOf(false) }
 
-    // 全 App 防白屏機制：只有在「完全沒有數據（更新時間為空）且正在 Loading」時才顯示全頁轉圈
+    // 🚀 關鍵核心：監聽 App 切回 Foreground (ON_RESUME) 事件
+    // 當使用者切換別的 App 過幾分鐘後切回來，即時在背景刷新 API，同時畫面上保持舊資料！
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                viewModel.loadWeatherData(isSilent = true) // 背景靜默更新
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
+    // 全 App 防白屏機制：只有在「完全沒有歷史數據（updateTime為空）且正在 Loading」時才顯示轉圈
     val isInitialLoading = uiState.isLoading && uiState.updateTime.isEmpty()
 
     if (isInitialLoading) {
