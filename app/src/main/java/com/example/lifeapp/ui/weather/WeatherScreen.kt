@@ -16,6 +16,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.example.lifeapp.data.model.DistrictRainfall
 import com.example.lifeapp.data.model.DistrictTemperature
@@ -29,7 +30,8 @@ import com.example.lifeapp.ui.theme.TextDark
 fun WeatherScreen(
     viewModel: WeatherViewModel
 ) {
-    val uiState by viewModel.uiState.collectAsState()
+    // 🛡️ 關鍵修復：改用 collectAsStateWithLifecycle 徹底解決切換 Tab/頁面時出現空白的問題
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     var selectedWarning by remember { mutableStateOf<WeatherWarningItem?>(null) }
     var showRainfallSheet by remember { mutableStateOf(false) }
@@ -361,7 +363,7 @@ fun WeatherScreen(
                                     }
                                 }
 
-                                // 🚩 風勢 (放在上面)
+                                // 🚩 風勢 (在上)
                                 if (item.wind.isNotBlank()) {
                                     Spacer(modifier = Modifier.height(4.dp))
                                     Text(
@@ -371,7 +373,7 @@ fun WeatherScreen(
                                     )
                                 }
 
-                                // 🌧️ 降雨概率 (搬到風勢正下方)
+                                // 🌧️ 降雨概率 (在風勢正下方)
                                 if (item.psr.isNotBlank()) {
                                     Spacer(modifier = Modifier.height(4.dp))
                                     Text(
