@@ -10,6 +10,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -20,8 +21,7 @@ class WeatherViewModel @Inject constructor(
 ) : ViewModel() {
 
     companion object {
-        // 全局記憶體快取 (In-Memory Cache)，避免 SavedStateHandle Parcelable 序列化崩潰問題
-        // 確保 App 鎖屏解鎖或切換 App 時 100% 不丟失數據且不崩潰
+        // 全局記憶體快取 (In-Memory Cache)
         private var memoryCache: WeatherUiState? = null
     }
 
@@ -38,17 +38,24 @@ class WeatherViewModel @Inject constructor(
 
     fun loadWeatherData() {
         viewModelScope.launch {
-            // 只有在完全沒有數據（快取與現有 State 都為空）時才顯示 Loading 轉圈
+            // 只有在完全沒有歷史數據（updateTime 為空）時，才顯示轉圈加載
             if (_uiState.value.updateTime.isEmpty()) {
-                _uiState.value = _uiState.value.copy(isLoading = true)
+                _uiState.update { it.copy(isLoading = true) }
             }
-            
-            val result = weatherRepository.fetchWeatherInfo()
-            val newState = result.copy(isLoading = false)
 
-            // 更新記憶體 State 及 Companion Object 快取
-            _uiState.value = newState
-            memoryCache = newState
+            val result = weatherRepository.fetchWeatherInfo()
+
+            // 🛡️ 核心修復防禦機制：
+            // 只有當 Fetch 到的結果帶有有效 updateTime 時才覆蓋舊數據！
+            // 避免 Unlock 或網絡斷連回傳空值時把既有數據洗掉導致白屏。
+            if (result.updateTime.isNotEmpty()) {
+                val newState = result.copy(isLoading = false)
+                _uiState.value = newState
+                memoryCache = newState
+            } else {
+                // 如果抓取失敗或空數據，僅關閉 loading 標記，嚴格保留原有 State/快取數據
+                _uiState.update { it.copy(isLoading = false) }
+            }
         }
     }
 
