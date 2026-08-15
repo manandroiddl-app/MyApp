@@ -35,7 +35,10 @@ fun WeatherScreen(
     var showRainfallSheet by remember { mutableStateOf(false) }
     var showTempSheet by remember { mutableStateOf(false) }
 
-    if (uiState.isLoading) {
+    // 全App防白屏：只有在「完全沒有數據且正在Loading」時才顯示全頁轉圈
+    val isInitialLoading = uiState.isLoading && uiState.updateTime.isEmpty()
+
+    if (isInitialLoading) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator(color = PrimaryDarkBlue)
         }
@@ -338,6 +341,7 @@ fun WeatherScreen(
 
                                 Spacer(modifier = Modifier.height(6.dp))
 
+                                // 氣溫與濕度
                                 Row(
                                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                                     verticalAlignment = Alignment.CenterVertically
@@ -357,27 +361,25 @@ fun WeatherScreen(
                                     }
                                 }
 
-                                Spacer(modifier = Modifier.height(4.dp))
+                                // 風勢 (上)
+                                if (item.wind.isNotBlank()) {
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = "🚩 ${item.wind}",
+                                        fontSize = 12.sp,
+                                        color = Color.DarkGray
+                                    )
+                                }
 
-                                Row(
-                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    if (item.wind.isNotBlank()) {
-                                        Text(
-                                            text = "🚩 ${item.wind}",
-                                            fontSize = 12.sp,
-                                            color = Color.DarkGray
-                                        )
-                                    }
-                                    if (item.psr.isNotBlank()) {
-                                        Text(
-                                            text = "🌧️ 降雨概率: ${item.psr}",
-                                            fontSize = 12.sp,
-                                            color = PrimaryDarkBlue,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    }
+                                // 降雨概率 (搬到風勢之下)
+                                if (item.psr.isNotBlank()) {
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = "🌧️ 降雨概率: ${item.psr}",
+                                        fontSize = 12.sp,
+                                        color = PrimaryDarkBlue,
+                                        fontWeight = FontWeight.Bold
+                                    )
                                 }
                             }
 
