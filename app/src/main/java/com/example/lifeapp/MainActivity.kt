@@ -17,6 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -82,7 +83,10 @@ fun MainAppLayout(
     trafficViewModel: TrafficViewModel = hiltViewModel(),
     busViewModel: BusViewModel = hiltViewModel()
 ) {
-    var currentScreen by remember { mutableStateOf(Screen.HUB) }
+    // 🛡️ 核心修復：使用 rememberSaveable 替代 remember
+    // 確保 Lock 機、解鎖、切換 App 時，頁面路由 (currentScreen) 100% 保存不被重置！
+    var currentScreen by rememberSaveable { mutableStateOf(Screen.HUB) }
+    
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val isConfigRefreshing by appConfigRepository.isRefreshing.collectAsState()
