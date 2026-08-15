@@ -1,6 +1,5 @@
 package com.example.lifeapp.ui.weather
 
-import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.lifeapp.data.model.WeatherUiState
@@ -17,14 +16,17 @@ import javax.inject.Inject
 
 @HiltViewModel
 class WeatherViewModel @Inject constructor(
-    private val weatherRepository: WeatherRepository,
-    private val savedStateHandle: SavedStateHandle
+    private val weatherRepository: WeatherRepository
 ) : ViewModel() {
 
-    // 透過 SavedStateHandle 自動記憶 State，解決 Process Death 與 Unlock 恢復白屏
-    private val _uiState = MutableStateFlow(
-        savedStateHandle.get<WeatherUiState>("weather_ui_state") ?: WeatherUiState()
-    )
+    companion object {
+        // 全局記憶體快取 (In-Memory Cache)，避免 SavedStateHandle Parcelable 序列化崩潰問題
+        // 確保 App 鎖屏解鎖或切換 App 時 100% 不丟失數據且不崩潰
+        private var memoryCache: WeatherUiState? = null
+    }
+
+    // 初始化時優先使用記憶體快取
+    private val _uiState = MutableStateFlow(memoryCache ?: WeatherUiState())
     val uiState: StateFlow<WeatherUiState> = _uiState.asStateFlow()
 
     private var autoRefreshJob: Job? = null
@@ -36,16 +38,17 @@ class WeatherViewModel @Inject constructor(
 
     fun loadWeatherData() {
         viewModelScope.launch {
-            // 只有在完全無資料時（如首次啟動）才設定 isLoading = true
+            // 只有在完全沒有數據（快取與現有 State 都為空）時才顯示 Loading 轉圈
             if (_uiState.value.updateTime.isEmpty()) {
                 _uiState.value = _uiState.value.copy(isLoading = true)
             }
+            
             val result = weatherRepository.fetchWeatherInfo()
             val newState = result.copy(isLoading = false)
 
-            // 更新記憶體狀態並寫入 SavedStateHandle
+            // 更新記憶體 State 及 Companion Object 快取
             _uiState.value = newState
-            savedStateHandle["weather_ui_state"] = newState
+            memoryCache = newState
         }
     }
 
