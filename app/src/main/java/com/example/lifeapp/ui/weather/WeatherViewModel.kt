@@ -21,11 +21,10 @@ class WeatherViewModel @Inject constructor(
 ) : ViewModel() {
 
     companion object {
-        // 全局記憶體快取 (In-Memory Cache)
+        // 全局記憶體快取：確保解鎖或背景切回時數據持續存在
         private var memoryCache: WeatherUiState? = null
     }
 
-    // 初始化時優先使用記憶體快取
     private val _uiState = MutableStateFlow(memoryCache ?: WeatherUiState())
     val uiState: StateFlow<WeatherUiState> = _uiState.asStateFlow()
 
@@ -38,28 +37,31 @@ class WeatherViewModel @Inject constructor(
 
     fun loadWeatherData() {
         viewModelScope.launch {
-            // 只有在完全沒有歷史數據（updateTime 為空）時，才顯示轉圈加載
+            // 只有在完全無歷史資料時才顯示 Initial Loading
             if (_uiState.value.updateTime.isEmpty()) {
                 _uiState.update { it.copy(isLoading = true) }
             }
 
-            val result = weatherRepository.fetchWeatherInfo()
+            try {
+                val result = weatherRepository.fetchWeatherInfo()
 
-            // 🛡️ 核心修復防禦機制：
-            // 只有當 Fetch 到的結果帶有有效 updateTime 時才覆蓋舊數據！
-            // 避免 Unlock 或網絡斷連回傳空值時把既有數據洗掉導致白屏。
-            if (result.updateTime.isNotEmpty()) {
-                val newState = result.copy(isLoading = false)
-                _uiState.value = newState
-                memoryCache = newState
-            } else {
-                // 如果抓取失敗或空數據，僅關閉 loading 標記，嚴格保留原有 State/快取數據
+                // 🛡️ 需求 2 核心防禦：只有當 API 成功回傳且帶有 updateTime 時才覆蓋
+                // 如果 Unlock 時網路未就緒導致 API 失敗/回傳空值，嚴格保留舊數據！
+                if (result.updateTime.isNotEmpty()) {
+                    val newState = result.copy(isLoading = false)
+                    _uiState.value = newState
+                    memoryCache = newState
+                } else {
+                    // API 回傳無效/空資料，僅關閉 loading 標記，舊資料完好保留
+                    _uiState.update { it.copy(isLoading = false) }
+                }
+            } catch (e: Exception) {
+                // 捕獲所有網絡斷連 Exception，確保清空資料的情況 0 發生
                 _uiState.update { it.copy(isLoading = false) }
             }
         }
     }
 
-    // 每分鐘 (60 秒) 背景自動刷新
     private fun startAutoRefresh() {
         autoRefreshJob?.cancel()
         autoRefreshJob = viewModelScope.launch {
