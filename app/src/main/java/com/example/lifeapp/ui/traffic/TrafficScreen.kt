@@ -32,7 +32,12 @@ fun TrafficScreen(viewModel: TrafficViewModel = hiltViewModel()) {
                 CircularProgressIndicator(color = PrimaryBlue)
             }
         } else if (uiState.errorMessage != null) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp),
+                contentAlignment = Alignment.Center
+            ) {
                 Text(text = uiState.errorMessage ?: "", color = WarningRed, fontSize = 14.sp)
             }
         } else {
@@ -41,12 +46,78 @@ fun TrafficScreen(viewModel: TrafficViewModel = hiltViewModel()) {
                     .fillMaxSize()
                     .padding(horizontal = 16.dp)
             ) {
+                // 1. 頁面頂部標題與更新時間
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 12.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("🚗 即時特別交通消息", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = PrimaryDarkBlue)
+                    Text(
+                        text = "🚗 即時特別交通消息",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = PrimaryDarkBlue
+                    )
+                    if (uiState.updateTime.isNotEmpty()) {
+                        Text(
+                            text = "更新時間: ${uiState.updateTime}",
+                            fontSize = 12.sp,
+                            color = Color.Gray
+                        )
+                    }
+                }
+
+                // 2. 特別交通消息列表渲染
+                if (uiState.trafficNews.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(bottom = 50.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "目前全港交通大致暢順，沒有特別交通消息",
+                            color = Color.Gray,
+                            fontSize = 14.sp
+                        )
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                        contentPadding = PaddingValues(bottom = 16.dp)
+                    ) {
+                        items(uiState.trafficNews) { item ->
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(containerColor = Color.White),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Column(modifier = Modifier.padding(14.dp)) {
+                                    item.referenceDate?.let { date ->
+                                        if (date.isNotBlank()) {
+                                            Text(
+                                                text = "⏱️ $date",
+                                                fontSize = 12.sp,
+                                                color = PrimaryDarkBlue,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                            Spacer(modifier = Modifier.height(6.dp))
+                                        }
+                                    }
+                                    Text(
+                                        text = item.chinText ?: "",
+                                        fontSize = 14.sp,
+                                        lineHeight = 20.sp,
+                                        color = TextDark
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
