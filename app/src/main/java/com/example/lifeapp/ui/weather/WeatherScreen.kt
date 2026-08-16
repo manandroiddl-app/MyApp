@@ -13,17 +13,15 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.example.lifeapp.data.model.DistrictRainfall
 import com.example.lifeapp.data.model.DistrictTemperature
 import com.example.lifeapp.data.model.WeatherWarningItem
+import com.example.lifeapp.ui.common.OnLifecycleResume
 import com.example.lifeapp.ui.theme.PrimaryDarkBlue
 import com.example.lifeapp.ui.theme.PrimaryLightBlue
 import com.example.lifeapp.ui.theme.TextDark
@@ -39,22 +37,18 @@ fun WeatherScreen(
     var showRainfallSheet by remember { mutableStateOf(false) }
     var showTempSheet by remember { mutableStateOf(false) }
 
-    // 🚀 關鍵核心：監聽 App 切回 Foreground (ON_RESUME) 事件
-    // 當使用者切換別的 App 過幾分鐘後切回來，即時在背景刷新 API，同時畫面上保持舊資料！
-    val lifecycleOwner = LocalLifecycleOwner.current
-    DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
-                viewModel.loadWeatherData(isSilent = true) // 背景靜默更新
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
+    // 🛡️ 套用 Common OnLifecycleResume，1 行搞定切前景靜默更新與 1 分鐘 Timer
+    OnLifecycleResume {
+        viewModel.loadWeatherData(isSilent = true)
+        viewModel.startAutoRefresh()
+    }
+
+    DisposableEffect(Unit) {
         onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
+            viewModel.stopAutoRefresh()
         }
     }
 
-    // 全 App 防白屏機制：只有在「完全沒有歷史數據（updateTime為空）且正在 Loading」時才顯示轉圈
     val isInitialLoading = uiState.isLoading && uiState.updateTime.isEmpty()
 
     if (isInitialLoading) {
@@ -84,7 +78,7 @@ fun WeatherScreen(
                 }
             }
 
-            // 2. 生效中警告 (支援多條提示組合)
+            // 2. 生效中警告
             val activeWarnings = uiState.warningSummary.filter { warningItem -> warningItem.code != "CANCEL" }
             if (activeWarnings.isNotEmpty()) {
                 item {
@@ -170,7 +164,7 @@ fun WeatherScreen(
                 }
             }
 
-            // 3. 分區氣象觀察 (雙按鈕 + 濕度/紫外線)
+            // 3. 分區氣象觀察
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -187,7 +181,6 @@ fun WeatherScreen(
 
                         Spacer(modifier = Modifier.height(12.dp))
 
-                        // 氣溫按鈕 & 雨量按鈕
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -225,7 +218,6 @@ fun WeatherScreen(
 
                         Spacer(modifier = Modifier.height(16.dp))
 
-                        // 相對濕度 & 紫外線指數
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -357,7 +349,6 @@ fun WeatherScreen(
 
                                 Spacer(modifier = Modifier.height(6.dp))
 
-                                // 氣溫與濕度
                                 Row(
                                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                                     verticalAlignment = Alignment.CenterVertically
@@ -377,7 +368,6 @@ fun WeatherScreen(
                                     }
                                 }
 
-                                // 🚩 風勢 (在上)
                                 if (forecast.wind.isNotBlank()) {
                                     Spacer(modifier = Modifier.height(4.dp))
                                     Text(
@@ -387,7 +377,6 @@ fun WeatherScreen(
                                     )
                                 }
 
-                                // 🌧️ 降雨概率 (在風勢正下方)
                                 if (forecast.psr.isNotBlank()) {
                                     Spacer(modifier = Modifier.height(4.dp))
                                     Text(
@@ -424,7 +413,6 @@ fun WeatherScreen(
         }
     }
 
-    // 生效中警告詳細彈窗 (支援逐條展示多條特別天氣提示)
     selectedWarning?.let { warning ->
         val scrollState = rememberScrollState()
         AlertDialog(
@@ -489,7 +477,6 @@ fun WeatherScreen(
         )
     }
 
-    // 分區雨量 ModalBottomSheet
     if (showRainfallSheet) {
         ModalBottomSheet(
             onDismissRequest = { showRainfallSheet = false },
@@ -502,7 +489,6 @@ fun WeatherScreen(
         }
     }
 
-    // 全港分區氣溫 ModalBottomSheet
     if (showTempSheet) {
         ModalBottomSheet(
             onDismissRequest = { showTempSheet = false },
@@ -583,7 +569,6 @@ fun RainfallSheetContent(
     }
 }
 
-// 全港分區氣溫 BottomSheet 內容
 @Composable
 fun TempSheetContent(
     tempList: List<DistrictTemperature>,
