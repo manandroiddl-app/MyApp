@@ -23,7 +23,9 @@ class TrafficRepository @Inject constructor(
             val responseBody = tdApiService.getSpecialTrafficNewsXml()
             val xmlString = responseBody.string()
 
-            // 2. 解析 XML Data (對齊運輸署 XSD 格式)
+            Log.d("TrafficRepo", "Received XML Length: ${xmlString.length}")
+
+            // 2. 解析 XML Data (增強對齊與容錯)
             val newsList = parseTrafficNewsXml(xmlString)
 
             val nowStr = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
@@ -32,7 +34,7 @@ class TrafficRepository @Inject constructor(
                 isLoading = false,
                 trafficNews = newsList,
                 updateTime = nowStr,
-                errorMessage = if (newsList.isEmpty()) "目前沒有特別交通消息" else null
+                errorMessage = if (newsList.isEmpty()) "目前全港交通暢順，沒有特別交通消息" else null
             )
         }.getOrElse { e ->
             Log.e("TrafficRepo", "Fetch traffic error", e)
@@ -44,7 +46,7 @@ class TrafficRepository @Inject constructor(
     }
 
     /**
-     * 使用 Android 內置輕量 XmlPullParser 解析運輸署 specialtrafficnews.xml
+     * 強化版 XmlPullParser：支援大小寫不敏感匹配與多種標籤名 (chinText / ChinText / msgText)
      */
     private fun parseTrafficNewsXml(xmlData: String): List<TrafficNewsItem> {
         val items = mutableListOf<TrafficNewsItem>()
@@ -58,30 +60,48 @@ class TrafficRepository @Inject constructor(
             var eventType = parser.eventType
             var currentChinText = ""
             var currentRefDate = ""
+            var currentTagName = ""
 
             while (eventType != XmlPullParser.END_DOCUMENT) {
-                val tagName = parser.name
                 when (eventType) {
                     XmlPullParser.START_TAG -> {
-                        if (tagName.equals("chinText", ignoreCase = true) || tagName.equals("msgText", ignoreCase = true)) {
-                            currentChinText = parser.nextText()
-                        } else if (tagName.equals("referenceDate", ignoreCase = true)) {
-                            currentRefDate = parser.nextText()
+                        currentTagName = parser.name
+                    }
+                    XmlPullParser.TEXT -> {
+                        val text = parser.text?.trim() ?: ""
+                        if (text.isNotEmpty()) {
+                            when {
+                                currentTagName.equals("chinText", ignoreCase = true) || 
+                                currentTagName.equals("msgText", ignoreCase = true) ||
+                                currentTagName.equals("chin_text", ignoreCase = true) -> {
+                                    currentChinText = text
+                                }
+                                currentTagName.equals("referenceDate", ignoreCase = true) ||
+                                currentTagName.equals("refDate", ignoreCase = true) -> {
+                                    currentRefDate = text
+                                }
+                            }
                         }
                     }
                     XmlPullParser.END_TAG -> {
-                        if (tagName.equals("message", ignoreCase = true)) {
+                        val endTag = parser.name
+                        // 當遇到每條消息的結尾標籤（message 或 item 或 Row）時組合物件
+                        if (endTag.equals("message", ignoreCase = true) || 
+                            endTag.equals("item", ignoreCase = true) ||
+                            endTag.equals("trafficnews", ignoreCase = true)) {
+                            
                             if (currentChinText.isNotBlank()) {
                                 items.add(
                                     TrafficNewsItem(
-                                        chinText = currentChinText.trim(),
-                                        referenceDate = currentRefDate.trim()
+                                        chinText = currentChinText,
+                                        referenceDate = currentRefDate
                                     )
                                 )
                             }
                             currentChinText = ""
                             currentRefDate = ""
                         }
+                        currentTagName = ""
                     }
                 }
                 eventType = parser.next()
@@ -90,6 +110,7 @@ class TrafficRepository @Inject constructor(
             Log.e("TrafficRepo", "XML Parse error", e)
         }
 
+        Log.d("TrafficRepo", "Parsed news count: ${items.size}")
         return items
     }
 }
