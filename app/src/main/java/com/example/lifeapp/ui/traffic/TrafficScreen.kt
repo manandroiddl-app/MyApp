@@ -17,6 +17,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.lifeapp.ui.common.FullPageLoading
 import com.example.lifeapp.ui.common.OnLifecycleResume
 import com.example.lifeapp.ui.theme.*
 
@@ -24,7 +25,6 @@ import com.example.lifeapp.ui.theme.*
 fun TrafficScreen(viewModel: TrafficViewModel = hiltViewModel()) {
     val uiState by viewModel.uiState.collectAsState()
 
-    // 🛡️ 套用 Common OnLifecycleResume 監聽
     OnLifecycleResume {
         viewModel.loadTrafficData(isSilent = true)
         viewModel.startAutoRefresh()
@@ -42,9 +42,8 @@ fun TrafficScreen(viewModel: TrafficViewModel = hiltViewModel()) {
             .background(BackgroundLight)
     ) {
         if (uiState.isLoading) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = PrimaryBlue)
-            }
+            // 🛡️ 套用 Common FullPageLoading
+            FullPageLoading(color = PrimaryBlue)
         } else if (uiState.errorMessage != null) {
             Box(
                 modifier = Modifier
