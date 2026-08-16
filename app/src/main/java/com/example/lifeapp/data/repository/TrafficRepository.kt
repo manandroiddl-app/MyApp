@@ -23,19 +23,20 @@ class TrafficRepository @Inject constructor(
             val responseBody = tdApiService.getSpecialTrafficNewsXml()
             val xmlString = responseBody.string()
 
-            Log.d("TrafficRepo", "Received Raw Content: $xmlString")
+            Log.d("TrafficRepo", "Received Raw Content Length: ${xmlString.length}")
 
             // 2. 優先使用 XmlPullParser 解析
             var newsList = parseTrafficNewsXml(xmlString)
 
-            // 3. 如果 XmlPullParser 未能解析成功，嘗試使用 Regex 強制提取 <chinText>
+            // 3. 若 XmlPullParser 未能解析成功，嘗試使用 Regex 強制提取
             if (newsList.isEmpty() && xmlString.contains("chinText", ignoreCase = true)) {
                 newsList = parseWithRegex(xmlString)
             }
 
-            val nowStr = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
+            // 🛡️ 時間格式對齊需求：yyyyMMdd HH:mm:ss
+            val nowStr = SimpleDateFormat("yyyyMMdd HH:mm:ss", Locale.getDefault()).format(Date())
 
-            // 🛡️ 防空白屏：若新聞列表為空，明確填入一條「全港交通暢順」通告，確保 100% 有內容展示！
+            // 防空白屏：若新聞列表為空，明確填入一條「全港交通暢順」通告
             val finalNewsList = if (newsList.isEmpty()) {
                 listOf(
                     TrafficNewsItem(
@@ -55,7 +56,7 @@ class TrafficRepository @Inject constructor(
             )
         }.getOrElse { e ->
             Log.e("TrafficRepo", "Fetch traffic error", e)
-            val nowStr = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
+            val nowStr = SimpleDateFormat("yyyyMMdd HH:mm:ss", Locale.getDefault()).format(Date())
             TrafficUiState(
                 isLoading = false,
                 trafficNews = listOf(
@@ -70,9 +71,6 @@ class TrafficRepository @Inject constructor(
         }
     }
 
-    /**
-     * XMLPullParser 標準解析
-     */
     private fun parseTrafficNewsXml(xmlData: String): List<TrafficNewsItem> {
         val items = mutableListOf<TrafficNewsItem>()
         if (xmlData.isBlank()) return items
@@ -133,9 +131,6 @@ class TrafficRepository @Inject constructor(
         return items
     }
 
-    /**
-     * Regex 備用提取器
-     */
     private fun parseWithRegex(xmlData: String): List<TrafficNewsItem> {
         val items = mutableListOf<TrafficNewsItem>()
         try {
