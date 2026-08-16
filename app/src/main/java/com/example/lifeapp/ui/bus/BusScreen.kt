@@ -21,6 +21,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.lifeapp.data.model.BusBookmarkEntity
 import com.example.lifeapp.data.model.KmbRoute
 import com.example.lifeapp.data.model.KmbStopDetail
+import com.example.lifeapp.ui.common.FullPageLoading
 import com.example.lifeapp.ui.common.OnLifecycleResume
 import com.example.lifeapp.ui.theme.*
 
@@ -29,7 +30,6 @@ import com.example.lifeapp.ui.theme.*
 fun BusScreen(viewModel: BusViewModel = hiltViewModel()) {
     var selectedTab by remember { mutableIntStateOf(0) }
 
-    // 🛡️ 套用 Common OnLifecycleResume 監聽
     OnLifecycleResume {
         viewModel.refreshBookmarkEtas()
         viewModel.startAutoRefresh()
@@ -94,9 +94,8 @@ fun BookmarkTabContent(viewModel: BusViewModel) {
         }
 
         if (state.isLoading && state.bookmarks.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = PrimaryBlue)
-            }
+            // 🛡️ 套用 Common FullPageLoading
+            FullPageLoading(color = PrimaryBlue)
         } else if (state.bookmarks.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text("未有收藏車站。請切換至底部「搜尋交通工具」加入收藏！", fontSize = 14.sp, color = TextGray)
@@ -184,9 +183,8 @@ fun SearchTabContent(viewModel: BusViewModel) {
         if (state.selectedRoute == null) {
             Column(modifier = Modifier.weight(1f)) {
                 if (state.isLoading && state.routeList.isEmpty()) {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = PrimaryBlue)
-                    }
+                    // 🛡️ 套用 Common FullPageLoading
+                    FullPageLoading(color = PrimaryBlue)
                 } else if (searchModeTab == 0) {
                     LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxSize()) {
                         items(state.filteredRoutes) { route ->
@@ -318,13 +316,8 @@ fun SearchTabContent(viewModel: BusViewModel) {
             Spacer(modifier = Modifier.height(12.dp))
 
             if (state.isLoading) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        CircularProgressIndicator(color = PrimaryBlue)
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text("正在獲取路線車站資料...", fontSize = 13.sp, color = TextGray)
-                    }
-                }
+                // 🛡️ 套用 Common FullPageLoading
+                FullPageLoading(color = PrimaryBlue)
             } else if (state.stopList.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text("未能取得該路線的車站清單，請重試。", fontSize = 14.sp, color = TextGray)
