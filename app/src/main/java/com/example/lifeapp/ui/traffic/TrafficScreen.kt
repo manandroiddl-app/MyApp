@@ -7,20 +7,49 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import com.example.lifeapp.ui.theme.*
 
 @Composable
 fun TrafficScreen(viewModel: TrafficViewModel = hiltViewModel()) {
     val uiState by viewModel.uiState.collectAsState()
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    // 🛡️ 核心修復：ON_RESUME 生命週期監聽與 1 分鐘輪詢 Timer 綁定
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> {
+                    // 切回前景或解鎖時：背景靜默更新並啟動每分鐘 Timer
+                    viewModel.loadTrafficData(isSilent = true)
+                    viewModel.startAutoRefresh()
+                }
+                Lifecycle.Event.ON_PAUSE -> {
+                    // 切到背景或離頁時：自動關閉 Timer 省電
+                    viewModel.stopAutoRefresh()
+                }
+                else -> {}
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            viewModel.stopAutoRefresh()
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -46,7 +75,7 @@ fun TrafficScreen(viewModel: TrafficViewModel = hiltViewModel()) {
                     .fillMaxSize()
                     .padding(horizontal = 16.dp)
             ) {
-                // 1. 頁面頂部標題與更新時間
+                // 1. 頁面頂部標題與更新時間 (格式: yyyyMMdd HH:mm:ss)
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -63,7 +92,7 @@ fun TrafficScreen(viewModel: TrafficViewModel = hiltViewModel()) {
                     if (uiState.updateTime.isNotEmpty()) {
                         Text(
                             text = "更新時間: ${uiState.updateTime}",
-                            fontSize = 12.sp,
+                            fontSize = 11.sp,
                             color = Color.Gray
                         )
                     }
