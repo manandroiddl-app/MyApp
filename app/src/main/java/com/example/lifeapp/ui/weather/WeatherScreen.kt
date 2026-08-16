@@ -21,6 +21,7 @@ import coil.compose.AsyncImage
 import com.example.lifeapp.data.model.DistrictRainfall
 import com.example.lifeapp.data.model.DistrictTemperature
 import com.example.lifeapp.data.model.WeatherWarningItem
+import com.example.lifeapp.ui.common.FullPageLoading
 import com.example.lifeapp.ui.common.OnLifecycleResume
 import com.example.lifeapp.ui.theme.PrimaryDarkBlue
 import com.example.lifeapp.ui.theme.PrimaryLightBlue
@@ -37,7 +38,6 @@ fun WeatherScreen(
     var showRainfallSheet by remember { mutableStateOf(false) }
     var showTempSheet by remember { mutableStateOf(false) }
 
-    // 🛡️ 套用 Common OnLifecycleResume，1 行搞定切前景靜默更新與 1 分鐘 Timer
     OnLifecycleResume {
         viewModel.loadWeatherData(isSilent = true)
         viewModel.startAutoRefresh()
@@ -52,9 +52,8 @@ fun WeatherScreen(
     val isInitialLoading = uiState.isLoading && uiState.updateTime.isEmpty()
 
     if (isInitialLoading) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator(color = PrimaryDarkBlue)
-        }
+        // 🛡️ 套用 Common FullPageLoading
+        FullPageLoading(color = PrimaryDarkBlue)
     } else {
         LazyColumn(
             modifier = Modifier
