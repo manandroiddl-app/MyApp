@@ -21,12 +21,25 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.lifeapp.data.model.BusBookmarkEntity
 import com.example.lifeapp.data.model.KmbRoute
 import com.example.lifeapp.data.model.KmbStopDetail
+import com.example.lifeapp.ui.common.OnLifecycleResume
 import com.example.lifeapp.ui.theme.*
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun BusScreen(viewModel: BusViewModel = hiltViewModel()) {
     var selectedTab by remember { mutableIntStateOf(0) }
+
+    // 🛡️ 套用 Common OnLifecycleResume 監聽
+    OnLifecycleResume {
+        viewModel.refreshBookmarkEtas()
+        viewModel.startAutoRefresh()
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            viewModel.stopAutoRefresh()
+        }
+    }
 
     Scaffold(
         bottomBar = {
@@ -169,7 +182,6 @@ fun SearchTabContent(viewModel: BusViewModel) {
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         if (state.selectedRoute == null) {
-            // 上方路線列表結果
             Column(modifier = Modifier.weight(1f)) {
                 if (state.isLoading && state.routeList.isEmpty()) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -227,7 +239,6 @@ fun SearchTabContent(viewModel: BusViewModel) {
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // 移至下方的輸入框
             OutlinedTextField(
                 value = state.searchQuery,
                 onValueChange = { viewModel.onSearchQueryChange(it) },
@@ -238,7 +249,6 @@ fun SearchTabContent(viewModel: BusViewModel) {
                 singleLine = true
             )
 
-            // 🌟 1a & 1b) 使用 FlowRow (自動多行分行排版) 完整展示所有可選的字母與數字 Chip
             if (nextChars.isNotEmpty() && searchModeTab == 0) {
                 Spacer(modifier = Modifier.height(6.dp))
                 FlowRow(
@@ -265,7 +275,6 @@ fun SearchTabContent(viewModel: BusViewModel) {
 
             Spacer(modifier = Modifier.height(6.dp))
 
-            // 最下方的標籤頁籤
             TabRow(selectedTabIndex = searchModeTab, containerColor = Color.Transparent) {
                 Tab(
                     selected = searchModeTab == 0,
@@ -279,7 +288,6 @@ fun SearchTabContent(viewModel: BusViewModel) {
                 )
             }
         } else {
-            // 已選擇路線：詳細車站列表
             val route = state.selectedRoute!!
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -331,7 +339,6 @@ fun SearchTabContent(viewModel: BusViewModel) {
                         val isBookmarked = bookmarkedIds.contains(bookmarkId)
                         val stopEtas = routeStopsEtaMap[detail.stopId] ?: emptyList()
                         
-                        // 🌟 2) 動態車費顯示 (由 seq 查找車資)
                         val seqInt = stop.seq.toIntOrNull() ?: 0
                         val fareVal = fareMap[seqInt]
 
@@ -349,7 +356,6 @@ fun SearchTabContent(viewModel: BusViewModel) {
                                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                                         Text("${stop.seq}. ${detail.nameTc}", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextDark)
                                         
-                                        // 🌟 2) 顯示金額 (例如：💰 $7.2)
                                         if (!fareVal.isNullOrEmpty()) {
                                             Spacer(modifier = Modifier.width(8.dp))
                                             Surface(
