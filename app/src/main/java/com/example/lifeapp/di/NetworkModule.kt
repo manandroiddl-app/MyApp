@@ -31,7 +31,7 @@ object NetworkModule {
     @Singleton
     fun provideRetrofit(okHttpClient: OkHttpClient): Retrofit {
         return Retrofit.Builder()
-            .baseUrl("https://data.weather.gov.hk/") // 預設 Base URL
+            .baseUrl("https://data.weather.gov.hk/") // 預設 Base URL (適用於天文台 API)
             .client(okHttpClient)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
