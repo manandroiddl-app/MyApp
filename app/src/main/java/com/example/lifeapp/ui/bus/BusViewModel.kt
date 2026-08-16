@@ -4,11 +4,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.lifeapp.data.model.*
 import com.example.lifeapp.data.repository.KmbRepository
+import com.example.lifeapp.ui.common.AutoRefreshDelegate
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -30,19 +29,29 @@ class BusViewModel @Inject constructor(
     private val _routeStopsEtaMap = MutableStateFlow<Map<String, List<String>>>(emptyMap())
     val routeStopsEtaMap: StateFlow<Map<String, List<String>>> = _routeStopsEtaMap.asStateFlow()
 
-    // 🌟 車站金額地圖 (seq -> "$X.X")
     private val _routeFareMap = MutableStateFlow<Map<Int, String>>(emptyMap())
     val routeFareMap: StateFlow<Map<Int, String>> = _routeFareMap.asStateFlow()
 
     private val _nextAvailableChars = MutableStateFlow<List<String>>(emptyList())
     val nextAvailableChars: StateFlow<List<String>> = _nextAvailableChars.asStateFlow()
 
-    private var autoRefreshJob: Job? = null
+    // 🛡️ 引入 Common 輪詢元件（預設 60 秒）
+    private val autoRefreshDelegate = AutoRefreshDelegate(viewModelScope) {
+        refreshBookmarkEtas()
+    }
 
     init {
         loadAllRoutes()
         observeBookmarks()
-        startAutoRefreshTimer()
+        startAutoRefresh()
+    }
+
+    fun startAutoRefresh() {
+        autoRefreshDelegate.start()
+    }
+
+    fun stopAutoRefresh() {
+        autoRefreshDelegate.stop()
     }
 
     private fun loadAllRoutes() {
@@ -82,7 +91,6 @@ class BusViewModel @Inject constructor(
         onSearchQueryChange(newQuery)
     }
 
-    // 🌟 1b) 取消數量限制，完整顯示該位數所有出現的字母與數字
     private fun updateNextAvailableChars(prefix: String, allRoutes: List<KmbRoute>) {
         val matchedRoutes = if (prefix.isEmpty()) {
             allRoutes
@@ -110,7 +118,6 @@ class BusViewModel @Inject constructor(
             val stops = repository.fetchRouteStopsWithDetail(route.route, route.bound, route.serviceType)
             _searchUiState.update { it.copy(isLoading = false, stopList = stops) }
 
-            // 🌟 載入車費與車站 ETA
             fetchRouteFares(route)
             fetchRouteStopsEtas(route, stops)
         }
@@ -202,18 +209,8 @@ class BusViewModel @Inject constructor(
         }
     }
 
-    private fun startAutoRefreshTimer() {
-        autoRefreshJob?.cancel()
-        autoRefreshJob = viewModelScope.launch {
-            while (true) {
-                delay(60000)
-                refreshBookmarkEtas()
-            }
-        }
-    }
-
     override fun onCleared() {
         super.onCleared()
-        autoRefreshJob?.cancel()
+        stopAutoRefresh()
     }
 }
