@@ -642,8 +642,9 @@ fun TempSheetContent(
                     ) {
                         Text("${item.placeTc} (${item.placeEn})", fontSize = 14.sp, color = TextDark)
                         
+                        // 🎯 移除 "體感" 字樣，僅顯示數值與單位 (例如: 31.8°C)
                         val displayText = if (isApparentTempMode && item.apparentTempValue != null) {
-                            "體感 ${item.apparentTempValue}${item.unit}"
+                            "${item.apparentTempValue}${item.unit}"
                         } else {
                             "${item.tempValue}${item.unit}"
                         }
