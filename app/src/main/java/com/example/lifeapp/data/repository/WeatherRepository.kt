@@ -96,7 +96,7 @@ class WeatherRepository @Inject constructor(
         "香港公園" to listOf("香港公園", "中西區", "灣仔", "跑馬地"),
         "筲箕灣" to listOf("筲箕灣", "東區"),
         "赤柱" to listOf("赤柱", "深水灣", "南區"),
-        "啟德跑道公園" to listOf("啟德跑道公園")
+        "啟德跑道公園" to listOf("啟德跑道公園", "啟德")
     )
 
     suspend fun fetchWeatherInfo(): WeatherUiState {
@@ -109,7 +109,7 @@ class WeatherRepository @Inject constructor(
             val rawSwt = runCatching { hkoApiService.getSpecialWeatherTipsRaw() }.getOrNull()
             val rawWindCsv = runCatching { hkoApiService.getRegionalWindCsv().string() }.getOrNull()
 
-            // 0. 解析風速 CSV
+            // 0. 解析風速 CSV (已對齊正確的 Column Index)
             val windSpeedMap = parseWindCsv(rawWindCsv)
 
             // 1. 警告內文對照
@@ -368,6 +368,11 @@ class WeatherRepository @Inject constructor(
 
     /**
      * 解析風速 CSV
+     * 欄位 0: 日期時間
+     * 欄位 1: 自動氣象站 (例如: 長洲)
+     * 欄位 2: 十分鐘平均風向
+     * 欄位 3: 十分鐘平均風速(公里/小時)
+     * 欄位 4: 十分鐘最高陣風風速
      */
     private fun parseWindCsv(csvContent: String?): Map<String, Double> {
         if (csvContent.isNullOrBlank()) return emptyMap()
@@ -378,10 +383,14 @@ class WeatherRepository @Inject constructor(
                 val line = lines[i].trim()
                 if (line.isEmpty()) continue
                 val cols = line.split(",").map { it.replace("\"", "").trim() }
-                if (cols.size >= 3) {
-                    val placeName = cols[0]
-                    val speed = cols[2].toDoubleOrNull() ?: 0.0
-                    resultMap[placeName] = speed
+                
+                // 確保包含至少 4 個欄位 (index 0 ~ 3)
+                if (cols.size >= 4) {
+                    val placeName = cols[1] // 自動氣象站 (例如: "長洲")
+                    val speed = cols[3].toDoubleOrNull() ?: 0.0 // 十分鐘平均風速(公里/小時)
+                    if (placeName.isNotBlank()) {
+                        resultMap[placeName] = speed
+                    }
                 }
             }
         } catch (e: Exception) {
