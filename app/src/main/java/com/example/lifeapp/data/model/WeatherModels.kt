@@ -14,6 +14,7 @@ data class WeatherUiState(
     val districtRainfall: List<DistrictRainfall> = emptyList(),
     val uvIndexInfo: UvIndexInfo? = null,
     val nineDayForecast: List<NineDayForecastItem> = emptyList(),
+    val isApparentTempMode: Boolean = false, // 🎯 體感溫度切換模式 (預設 false: 顯示普通氣溫)
     val errorMessage: String? = null
 )
 
@@ -63,6 +64,7 @@ data class DistrictTemperature(
     val placeTc: String = "",
     val placeEn: String = "",
     val tempValue: Int = 0,
+    val apparentTempValue: Double? = null, // 🎯 體感溫度計算結果
     val unit: String = "°C",
     val humidityValue: Int? = null
 )
