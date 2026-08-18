@@ -192,7 +192,7 @@ fun WeatherScreen(
                                 contentPadding = PaddingValues(vertical = 10.dp)
                             ) {
                                 Text(
-                                    text = "🌡️ 查看分區氣溫",
+                                    text = if (uiState.isApparentTempMode) "🌡️ 查看分區體感" else "🌡️ 查看分區氣溫",
                                     color = PrimaryDarkBlue,
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.Bold
@@ -495,6 +495,8 @@ fun WeatherScreen(
         ) {
             TempSheetContent(
                 tempList = uiState.districtTemperatures,
+                isApparentTempMode = uiState.isApparentTempMode,
+                onToggleMode = { viewModel.toggleTemperatureMode() },
                 onClose = { showTempSheet = false }
             )
         }
@@ -571,6 +573,8 @@ fun RainfallSheetContent(
 @Composable
 fun TempSheetContent(
     tempList: List<DistrictTemperature>,
+    isApparentTempMode: Boolean,
+    onToggleMode: () -> Unit,
     onClose: () -> Unit
 ) {
     Column(
@@ -583,12 +587,40 @@ fun TempSheetContent(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("🌡️ 全港分區即時氣溫", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = PrimaryDarkBlue)
+            val titleText = if (isApparentTempMode) "🌡️ 全港分區體感溫度" else "🌡️ 全港分區即時氣溫"
+            Text(titleText, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = PrimaryDarkBlue)
             TextButton(onClick = onClose) {
                 Text("關閉", color = Color.Gray)
             }
         }
-        Text("即時錄得之區域氣溫", fontSize = 12.sp, color = Color.Gray)
+        
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            val subTitleText = if (isApparentTempMode) "結合分區風速與濕度計算之體感" else "即時錄得之區域氣溫"
+            Text(subTitleText, fontSize = 12.sp, color = Color.Gray)
+
+            // 🎯 切換按鈕 (切換氣溫 / 體感溫度)
+            FilterChip(
+                selected = isApparentTempMode,
+                onClick = onToggleMode,
+                label = {
+                    Text(
+                        text = if (isApparentTempMode) "顯示實測氣溫" else "切換體感溫度",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = Color(0xFFFFE0B2),
+                    selectedLabelColor = Color(0xFFE65100),
+                    containerColor = Color(0xFFE3F2FD),
+                    labelColor = PrimaryDarkBlue
+                )
+            )
+        }
         
         Spacer(modifier = Modifier.height(12.dp))
 
@@ -610,13 +642,22 @@ fun TempSheetContent(
                     ) {
                         Text("${item.placeTc} (${item.placeEn})", fontSize = 14.sp, color = TextDark)
                         
+                        val displayText = if (isApparentTempMode && item.apparentTempValue != null) {
+                            "體感 ${item.apparentTempValue}${item.unit}"
+                        } else {
+                            "${item.tempValue}${item.unit}"
+                        }
+
+                        val badgeBg = if (isApparentTempMode) Color(0xFFFFF3E0) else Color(0xFFE3F2FD)
+                        val badgeText = if (isApparentTempMode) Color(0xFFE65100) else PrimaryDarkBlue
+
                         Surface(
-                            color = Color(0xFFE3F2FD),
+                            color = badgeBg,
                             shape = RoundedCornerShape(6.dp)
                         ) {
                             Text(
-                                text = "${item.tempValue}${item.unit}",
-                                color = PrimaryDarkBlue,
+                                text = displayText,
+                                color = badgeText,
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold,
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
