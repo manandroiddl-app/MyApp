@@ -62,7 +62,10 @@ class WeatherViewModel @Inject constructor(
                 val result = weatherRepository.fetchWeatherInfo()
 
                 if (result.updateTime.isNotEmpty()) {
-                    val newState = result.copy(isLoading = false)
+                    val newState = result.copy(
+                        isLoading = false,
+                        isApparentTempMode = _uiState.value.isApparentTempMode
+                    )
                     _uiState.value = newState
                     memoryCache = newState
                 } else {
@@ -71,6 +74,18 @@ class WeatherViewModel @Inject constructor(
             } catch (e: Exception) {
                 _uiState.update { it.copy(isLoading = false) }
             }
+        }
+    }
+
+    /**
+     * 🎯 切換分區顯示模式 (氣溫 <-> 體感溫度)
+     */
+    fun toggleTemperatureMode() {
+        _uiState.update { currentState ->
+            val updatedMode = !currentState.isApparentTempMode
+            val newState = currentState.copy(isApparentTempMode = updatedMode)
+            memoryCache = newState
+            newState
         }
     }
 
