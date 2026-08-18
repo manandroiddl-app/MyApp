@@ -1,6 +1,7 @@
 package com.example.lifeapp.data.api
 
 import com.google.gson.JsonElement
+import okhttp3.ResponseBody
 import retrofit2.http.GET
 import retrofit2.http.Query
 
@@ -46,4 +47,8 @@ interface HkoApiService {
         @Query("dataType") dataType: String = "fnd",
         @Query("lang") lang: String = "tc"
     ): JsonElement
+
+    // 7. 本港分區 10 分鐘平均風速 CSV
+    @GET("weatherAPI/hko_data/regional-weather/latest_10min_wind_uc.csv")
+    suspend fun getRegionalWindCsv(): ResponseBody
 }
