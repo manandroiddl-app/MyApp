@@ -8,6 +8,7 @@ import java.util.Date
 import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.math.exp
 
 @Singleton
 class WeatherRepository @Inject constructor(
@@ -73,6 +74,31 @@ class WeatherRepository @Inject constructor(
         "離島區" to "Islands District"
     )
 
+    // 測站風速地名比對映射表（處理 CSV 測站名稱與分區氣溫名稱不完全一致的情況）
+    private val windStationAliasMap = mapOf(
+        "沙田" to listOf("沙田"),
+        "大埔" to listOf("大埔"),
+        "西貢" to listOf("西貢"),
+        "屯門" to listOf("屯門"),
+        "將軍澳" to listOf("將軍澳"),
+        "青衣" to listOf("青衣"),
+        "赤鱲角" to listOf("赤鱲角"),
+        "長洲" to listOf("長洲"),
+        "流浮山" to listOf("流浮山"),
+        "黃竹坑" to listOf("黃竹坑"),
+        "坪洲" to listOf("坪洲"),
+        "打鼓嶺" to listOf("打鼓嶺"),
+        "昂坪" to listOf("昂坪"),
+        "石崗" to listOf("石崗"),
+        "大老山" to listOf("大老山"),
+        "大帽山" to listOf("大帽山"),
+        "京士柏" to listOf("京士柏", "九龍城", "黃大仙", "觀塘", "深水埗", "油尖旺"),
+        "香港公園" to listOf("香港公園", "中西區", "灣仔", "跑馬地"),
+        "筲箕灣" to listOf("筲箕灣", "東區"),
+        "赤柱" to listOf("赤柱", "深水灣", "南區"),
+        "啟德跑道公園" to listOf("啟德跑道公園")
+    )
+
     suspend fun fetchWeatherInfo(): WeatherUiState {
         return try {
             val rawRealtime = runCatching { hkoApiService.getRealtimeWeatherRaw() }.getOrNull()
@@ -81,6 +107,10 @@ class WeatherRepository @Inject constructor(
             val rawWarningSum = runCatching { hkoApiService.getWarningSummaryRaw() }.getOrNull()
             val rawWarningDetail = runCatching { hkoApiService.getWarningInfoRaw() }.getOrNull()
             val rawSwt = runCatching { hkoApiService.getSpecialWeatherTipsRaw() }.getOrNull()
+            val rawWindCsv = runCatching { hkoApiService.getRegionalWindCsv().string() }.getOrNull()
+
+            // 0. 解析風速 CSV
+            val windSpeedMap = parseWindCsv(rawWindCsv)
 
             // 1. 警告內文對照
             val detailsMap = mutableMapOf<String, String>()
@@ -186,7 +216,7 @@ class WeatherRepository @Inject constructor(
                     uvInfo = UvIndexInfo(value = "0", desc = "低 (夜間或未有數據)")
                 }
 
-                // 分區氣溫
+                // 分區氣溫 (包含體感溫度計算)
                 try {
                     if (realObj.has("temperature") && realObj.getAsJsonObject("temperature").has("data")) {
                         realObj.getAsJsonObject("temperature").getAsJsonArray("data").forEach { elem ->
@@ -197,11 +227,22 @@ class WeatherRepository @Inject constructor(
                                 val placeEn = nameMap[placeTc] ?: placeTc
 
                                 if (placeTc.isNotBlank()) {
+                                    // 尋找對應的風速資料 (km/h)
+                                    val windSpeedKmh = findWindSpeedForPlace(placeTc, windSpeedMap)
+                                    
+                                    // 計算體感溫度
+                                    val apparentTemp = calculateApparentTemperature(
+                                        temperature = tempVal.toDouble(),
+                                        relativeHumidity = (globalHumidity ?: 75).toDouble(),
+                                        windSpeedKmPerHour = windSpeedKmh
+                                    )
+
                                     districtList.add(
                                         DistrictTemperature(
                                             placeTc = placeTc,
                                             placeEn = placeEn,
                                             tempValue = tempVal,
+                                            apparentTempValue = apparentTemp,
                                             humidityValue = globalHumidity
                                         )
                                     )
@@ -323,5 +364,58 @@ class WeatherRepository @Inject constructor(
                 errorMessage = "加載天氣失敗: ${e.localizedMessage}"
             )
         }
+    }
+
+    /**
+     * 解析風速 CSV
+     */
+    private fun parseWindCsv(csvContent: String?): Map<String, Double> {
+        if (csvContent.isNullOrBlank()) return emptyMap()
+        val resultMap = mutableMapOf<String, Double>()
+        try {
+            val lines = csvContent.lines()
+            for (i in 1 until lines.size) {
+                val line = lines[i].trim()
+                if (line.isEmpty()) continue
+                val cols = line.split(",").map { it.replace("\"", "").trim() }
+                if (cols.size >= 3) {
+                    val placeName = cols[0]
+                    val speed = cols[2].toDoubleOrNull() ?: 0.0
+                    resultMap[placeName] = speed
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("WeatherRepo", "Parse wind csv error", e)
+        }
+        return resultMap
+    }
+
+    /**
+     * 為給定的分區名稱尋找匹配的風速 (km/h)
+     */
+    private fun findWindSpeedForPlace(placeTc: String, windSpeedMap: Map<String, Double>): Double {
+        if (windSpeedMap.containsKey(placeTc)) {
+            return windSpeedMap[placeTc] ?: 0.0
+        }
+        for ((station, aliases) in windStationAliasMap) {
+            if (aliases.contains(placeTc) && windSpeedMap.containsKey(station)) {
+                return windSpeedMap[station] ?: 0.0
+            }
+        }
+        return windSpeedMap.values.average().takeIf { !it.isNaN() } ?: 5.0
+    }
+
+    /**
+     * 計算體感溫度 (Steadman 澳洲體感溫度模型)
+     */
+    private fun calculateApparentTemperature(
+        temperature: Double,
+        relativeHumidity: Double,
+        windSpeedKmPerHour: Double
+    ): Double {
+        val windSpeedMS = windSpeedKmPerHour / 3.6
+        val e = (relativeHumidity / 100.0) * 6.105 * exp((17.27 * temperature) / (237.7 + temperature))
+        val apparentTemp = temperature + (0.33 * e) - (0.70 * windSpeedMS) - 4.00
+        return String.format(Locale.US, "%.1f", apparentTemp).toDouble()
     }
 }
