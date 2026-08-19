@@ -11,15 +11,12 @@ import com.google.gson.reflect.TypeToken
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/**
- * 空間位置檢索結果封裝 (Approach 2 結果)
- */
 data class SpatialLocationResult(
-    val matchedDistrict: String?,                // 所屬 18 區 (Point-in-Polygon 比對結果)
-    val matchedSubDistrict: String?,             // 推算之次區份
-    val nearestStreetName: String?,              // 最近街道名稱 (Point-to-Line 比對結果)
-    val distanceToStreetMeters: Double?,         // 距離該街道之距離 (米)
-    val nearbyLocations: List<LocationEntity>   // 周邊 500 米內之巴士站或地標
+    val matchedDistrict: String?,                
+    val matchedSubDistrict: String?,             
+    val nearestStreetName: String?,              
+    val distanceToStreetMeters: Double?,         
+    val nearbyLocations: List<LocationEntity>   
 )
 
 sealed class LocationSyncState {
@@ -75,8 +72,9 @@ class LocationRepository @Inject constructor(
             // 3. 同步 九巴全港站點
             val kmbResponse = locationApiService.getKmbStops()
             if (kmbResponse.isSuccessful) {
-                kmbResponse.body()?.data?.let { rawStops ->
-                    val kmbEntities = rawStops.mapNotNull { dto ->
+                val rawStops: List<KmbStopDto>? = kmbResponse.body()?.data
+                rawStops?.let { stops ->
+                    val kmbEntities = stops.mapNotNull { dto: KmbStopDto ->
                         val lat = dto.lat.toDoubleOrNull() ?: return@mapNotNull null
                         val lng = dto.lng.toDoubleOrNull() ?: return@mapNotNull null
                         val (region, district, subDistrict) = HongKongDistricts.inferHierarchy(dto.nameTc)
@@ -112,9 +110,6 @@ class LocationRepository @Inject constructor(
         }
     }
 
-    /**
-     * 🔍 Approach 1: 文字模糊搜尋 (名稱, 18區, 次區份, 關鍵字)
-     */
     suspend fun searchByName(query: String): List<LocationEntity> {
         if (query.isBlank()) return emptyList()
         return try {
@@ -125,16 +120,12 @@ class LocationRepository @Inject constructor(
         }
     }
 
-    /**
-     * 📍 Approach 2: 空間位置搜尋 (傳入用戶 GPS 座標, 反查 18區, 街道, 附近站點)
-     */
     suspend fun searchByCoordinates(lat: Double, lng: Double): SpatialLocationResult {
         return try {
             val hierarchies = locationDao.getAllDistrictHierarchies()
             var matchedDistrict: String? = null
             var matchedSubDistrict: String? = null
 
-            // Step 1: 利用 Point-in-Polygon 比對 18 區
             for (h in hierarchies) {
                 val polyGeoJson = h.districtPolygonGeoJson ?: continue
                 val polygon = parsePolygonCoords(polyGeoJson) ?: continue
@@ -145,7 +136,6 @@ class LocationRepository @Inject constructor(
                 }
             }
 
-            // Step 2: 利用 Point-to-Line 比對最近街道
             val streets = locationDao.getAllStreets()
             var nearestStreet: String? = null
             var minStreetDistance = Double.MAX_VALUE
@@ -160,7 +150,6 @@ class LocationRepository @Inject constructor(
                 }
             }
 
-            // Step 3: 找出周圍 500 米內所有站點
             val allLocations = locationDao.getAllLocations()
             val nearby = allLocations.filter {
                 GeoUtils.calculateHaversineDistanceMeters(lat, lng, it.lat, it.lng) <= 500.0
@@ -218,7 +207,7 @@ class LocationRepository @Inject constructor(
 
             val lineCoords = extractLineStringCoords(f.geometry?.rawCoordinates) ?: continue
             val midIndex = lineCoords.size / 2
-            val midPoint = lineCoords[midIndex] // (lng, lat)
+            val midPoint = lineCoords[midIndex]
 
             val (region, district, subDistrict) = HongKongDistricts.inferHierarchy(nameTc)
 
@@ -246,7 +235,6 @@ class LocationRepository @Inject constructor(
     private fun extractFirstPolygonCoords(raw: Any?): List<Pair<Double, Double>>? {
         if (raw == null) return null
         return try {
-            // Polygon: [[[lng, lat], ...]]
             val list = raw as? List<List<List<Double>>> ?: return null
             if (list.isEmpty()) return null
             list[0].mapNotNull { if (it.size >= 2) Pair(it[0], it[1]) else null }
@@ -259,7 +247,6 @@ class LocationRepository @Inject constructor(
     private fun extractLineStringCoords(raw: Any?): List<Pair<Double, Double>>? {
         if (raw == null) return null
         return try {
-            // LineString: [[lng, lat], ...]
             val list = raw as? List<List<Double>> ?: return null
             list.mapNotNull { if (it.size >= 2) Pair(it[0], it[1]) else null }
         } catch (e: Exception) {
