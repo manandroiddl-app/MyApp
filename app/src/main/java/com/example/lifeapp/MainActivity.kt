@@ -30,6 +30,8 @@ import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.lifeapp.data.repository.AppConfigRepository
+import com.example.lifeapp.data.repository.LocationRepository
+import com.example.lifeapp.data.repository.LocationSyncState
 import com.example.lifeapp.ui.bus.BusScreen
 import com.example.lifeapp.ui.bus.BusViewModel
 import com.example.lifeapp.ui.theme.*
@@ -54,9 +56,11 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var appConfigRepository: AppConfigRepository
 
+    @Inject
+    lateinit var locationRepository: LocationRepository
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        
         enableEdgeToEdge()
 
         setContent {
@@ -70,7 +74,10 @@ class MainActivity : ComponentActivity() {
             }
 
             LifeAppTheme {
-                MainAppLayout(appConfigRepository = appConfigRepository)
+                MainAppLayout(
+                    appConfigRepository = appConfigRepository,
+                    locationRepository = locationRepository
+                )
             }
         }
     }
@@ -79,19 +86,16 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MainAppLayout(
     appConfigRepository: AppConfigRepository,
+    locationRepository: LocationRepository,
     weatherViewModel: WeatherViewModel = hiltViewModel(),
     trafficViewModel: TrafficViewModel = hiltViewModel(),
     busViewModel: BusViewModel = hiltViewModel()
 ) {
-    // 🛡️ 核心修復：使用 rememberSaveable 替代 remember
-    // 確保 Lock 機、解鎖、切換 App 時，頁面路由 (currentScreen) 100% 保存不被重置！
     var currentScreen by rememberSaveable { mutableStateOf(Screen.HUB) }
-    
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val isConfigRefreshing by appConfigRepository.isRefreshing.collectAsState()
 
-    // 啟動時讀取遠端 GitHub Config
     LaunchedEffect(Unit) {
         appConfigRepository.loadRemoteConfig()
     }
@@ -138,7 +142,8 @@ fun MainAppLayout(
                 when (screen) {
                     Screen.HUB -> HubScreen(
                         onNavigate = { target -> currentScreen = target },
-                        appConfigRepository = appConfigRepository
+                        appConfigRepository = appConfigRepository,
+                        locationRepository = locationRepository
                     )
                     Screen.WEATHER -> WeatherScreen(viewModel = weatherViewModel)
                     Screen.TRAFFIC -> TrafficScreen(viewModel = trafficViewModel)
@@ -152,9 +157,21 @@ fun MainAppLayout(
 @Composable
 fun HubScreen(
     onNavigate: (Screen) -> Unit,
-    appConfigRepository: AppConfigRepository
+    appConfigRepository: AppConfigRepository,
+    locationRepository: LocationRepository
 ) {
     val config by appConfigRepository.appConfig.collectAsState()
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+
+    var locationCount by remember { mutableStateOf(0) }
+    var isSyncing by remember { mutableStateOf(false) }
+    var showConfirmDialog by remember { mutableStateOf(false) }
+
+    // 開頁時讀取目前 Room DB 地點數據筆數
+    LaunchedEffect(Unit) {
+        locationCount = locationRepository.getLocationCount()
+    }
 
     Column(
         modifier = Modifier
@@ -187,10 +204,60 @@ fun HubScreen(
             }
         }
 
+        // 2. 🎉 大目錄手動下載/更新全港地點數據卡片 (新增)
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 20.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = "🗺️ 全港地點與街道數據庫",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = PrimaryDarkBlue
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = if (locationCount == 0) "現時資料庫為空 (點擊下載)" else "已下載 $locationCount 筆街道及站點資料",
+                            fontSize = 12.sp,
+                            color = Color.Gray
+                        )
+                    }
+
+                    Button(
+                        onClick = { showConfirmDialog = true },
+                        enabled = !isSyncing,
+                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryDarkBlue),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        if (isSyncing) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                color = Color.White,
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Text(if (locationCount == 0) "下載數據" else "更新數據", fontSize = 12.sp)
+                        }
+                    }
+                }
+            }
+        }
+
         Text("生活大目錄", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = PrimaryDarkBlue)
         Text("請選擇你想要查看的即時資訊", fontSize = 14.sp, color = TextGray, modifier = Modifier.padding(bottom = 20.dp))
 
-        // 2. 動態渲染 GitHub 設定的選單卡片
+        // 3. 動態渲染選單卡片
         config.hubScreen.cards.filter { it.enabled }.forEach { card ->
             MenuCard(
                 title = card.title,
@@ -207,6 +274,44 @@ fun HubScreen(
             )
             Spacer(modifier = Modifier.height(12.dp))
         }
+    }
+
+    // 手動下載 Confirmation Dialog
+    if (showConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showConfirmDialog = false },
+            title = { Text("下載全港地點數據？") },
+            text = { Text("這將會經由網絡 (約 2-3 MB) 下載地政總署 CSDI 全港街道、18區分界與九巴站點，並存入本地 Room 資料庫，用於精準 18 區定位與地點搜尋。") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showConfirmDialog = false
+                        isSyncing = true
+                        scope.launch {
+                            val result = locationRepository.downloadAndSyncAllLocations()
+                            isSyncing = false
+                            when (result) {
+                                is LocationSyncState.Success -> {
+                                    locationCount = locationRepository.getLocationCount()
+                                    Toast.makeText(context, result.message, Toast.LENGTH_LONG).show()
+                                }
+                                is LocationSyncState.Error -> {
+                                    Toast.makeText(context, result.message, Toast.LENGTH_LONG).show()
+                                }
+                                else -> {}
+                            }
+                        }
+                    }
+                ) {
+                    Text("確認下載")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showConfirmDialog = false }) {
+                    Text("取消")
+                }
+            }
+        )
     }
 }
 
