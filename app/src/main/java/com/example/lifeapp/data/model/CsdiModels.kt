@@ -46,25 +46,25 @@ data class CsdiDistrictProperties(
 
 /**
  * 🗄️ 四層區域結構數據表 (district_hierarchy)
- * Region > District > Sub-District (層層帶 Optional 座標)
  */
 @Entity(tableName = "district_hierarchy")
 data class DistrictHierarchyEntity(
-    @PrimaryKey val id: String,                  // 例如: "SUB_DIST_MK" 或 "DIST_YMT"
-    val regionName: String,                      // 港島 / 九龍 / 新界
-    val regionLat: Double? = null,               // 大區中心點 (Optional)
+    @PrimaryKey val id: String,                  
+    val regionName: String,                      
+    val regionLat: Double? = null,               
     val regionLng: Double? = null,
-    val districtName: String,                    // 油尖旺區 / 黃大仙區 等
-    val districtLat: Double? = null,             // 18區中心點 (Centroid, Optional)
+    val districtName: String,                    
+    val districtLat: Double? = null,             
     val districtLng: Double? = null,
-    val districtPolygonGeoJson: String? = null,  // CSDI 18區 Polygon 幾何數據 (Optional)
-    val subDistrictName: String,                 // 旺角 / 尖沙咀 / 佐敦 等
-    val subDistrictLat: Double? = null,          // 次區份中心點 (Optional)
+    val districtPolygonGeoJson: String? = null,  
+    val subDistrictName: String,                 
+    val subDistrictLat: Double? = null,          
     val subDistrictLng: Double? = null
 )
 
 /**
  * 🗄️ 實體地點 / 街道 / 巴士站資料庫實體 (locations)
+ * 🛡️ 核心修復：欄位已確立為 regionName, districtName, subDistrictName
  */
 @Entity(tableName = "locations")
 data class LocationEntity(
@@ -72,12 +72,12 @@ data class LocationEntity(
     val nameTc: String,                          // 中文名稱
     val nameEn: String,                          // 英文名稱
     val type: String,                            // LocationType (STREET, BUS_STOP, MTR_STATION, LANDMARK)
-    val regionName: String,                      // 所屬大區 (L1)
-    val districtName: String,                    // 所屬 18 區 (L2)
-    val subDistrictName: String,                 // 所屬次區份 (L3)
+    val regionName: String,                      // 所屬大區 (L1) -> "regionName"
+    val districtName: String,                    // 所屬 18 區 (L2) -> "districtName"
+    val subDistrictName: String,                 // 所屬次區份 (L3) -> "subDistrictName"
     val lat: Double,                             // 精準/中心點緯度
     val lng: Double,                             // 精準/中心點經度
-    val polylineCoordsJson: String? = null,      // 若為 STREET，儲存 LineString 座標點陣列 JSON (Point-to-Line 算距離用)
-    val searchKeywords: String = "",             // 搜尋關鍵字 (逗號分隔)
-    val routes: String = ""                      // 行經路線 (逗號分隔)
+    val polylineCoordsJson: String? = null,      // 若為 STREET，儲存 LineString 座標點陣列 JSON
+    val searchKeywords: String = "",             // 搜尋關鍵字
+    val routes: String = ""                      // 行經路線
 )
