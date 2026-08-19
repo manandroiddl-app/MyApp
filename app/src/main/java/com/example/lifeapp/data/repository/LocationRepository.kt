@@ -45,33 +45,48 @@ class LocationRepository @Inject constructor(
      * 🚀 下載與同步 CSDI (18區分界 + 街道) 與九巴全港站點
      */
     suspend fun downloadAndSyncAllLocations(): LocationSyncState {
-        return try {
-            var totalCount = 0
+        var totalCount = 0
+        val errorMessages = mutableListOf<String>()
 
-            // 1. 同步 CSDI 18 區分界
+        // 1. 同步 CSDI 18 區分界
+        try {
             val districtResponse = locationApiService.getCsdiDistricts()
-            if (districtResponse.isSuccessful) {
+            if (districtResponse.isSuccessful && districtResponse.body() != null) {
                 districtResponse.body()?.features?.let { features ->
                     val hierarchies = parseCsdiDistricts(features)
                     locationDao.upsertDistrictHierarchies(hierarchies)
                     Log.d("LocationRepository", "Synced ${hierarchies.size} district hierarchies.")
                 }
+            } else {
+                errorMessages.add("CSDI 區界 API 回傳失敗 (${districtResponse.code()})")
             }
+        } catch (e: Exception) {
+            Log.e("LocationRepository", "CSDI District sync failed", e)
+            errorMessages.add("CSDI 區界解析失敗")
+        }
 
-            // 2. 同步 CSDI 街道中線
+        // 2. 同步 CSDI 街道中線
+        try {
             val roadResponse = locationApiService.getCsdiRoads()
-            if (roadResponse.isSuccessful) {
+            if (roadResponse.isSuccessful && roadResponse.body() != null) {
                 roadResponse.body()?.features?.let { features ->
                     val roadEntities = parseCsdiRoads(features)
                     locationDao.upsertLocations(roadEntities)
                     totalCount += roadEntities.size
                     Log.d("LocationRepository", "Synced ${roadEntities.size} CSDI roads.")
                 }
+            } else {
+                errorMessages.add("CSDI 街道 API 回傳失敗 (${roadResponse.code()})")
             }
+        } catch (e: Exception) {
+            Log.e("LocationRepository", "CSDI Road sync failed", e)
+            errorMessages.add("CSDI 街道解析失敗")
+        }
 
-            // 3. 同步 九巴全港站點
+        // 3. 同步 九巴全港站點
+        try {
             val kmbResponse = locationApiService.getKmbStops()
-            if (kmbResponse.isSuccessful) {
+            if (kmbResponse.isSuccessful && kmbResponse.body() != null) {
                 val rawStops: List<KmbStopDto>? = kmbResponse.body()?.data
                 rawStops?.let { stops ->
                     val kmbEntities = stops.mapNotNull { dto: KmbStopDto ->
@@ -97,16 +112,19 @@ class LocationRepository @Inject constructor(
                     totalCount += kmbEntities.size
                     Log.d("LocationRepository", "Synced ${kmbEntities.size} KMB stops.")
                 }
-            }
-
-            if (totalCount == 0) {
-                LocationSyncState.Error("未有成功下載任何數據")
             } else {
-                LocationSyncState.Success(totalCount, "成功同步 $totalCount 個地點、街道與站點！")
+                errorMessages.add("九巴站點 API 回傳失敗 (${kmbResponse.code()})")
             }
         } catch (e: Exception) {
-            Log.e("LocationRepository", "Error syncing data", e)
-            LocationSyncState.Error(e.localizedMessage ?: "下載開放數據時發生網絡錯誤")
+            Log.e("LocationRepository", "KMB Stop sync failed", e)
+            errorMessages.add("九巴站點解析失敗")
+        }
+
+        return if (totalCount > 0) {
+            LocationSyncState.Success(totalCount, "成功同步 $totalCount 個地點/站點！")
+        } else {
+            val detailMsg = if (errorMessages.isNotEmpty()) errorMessages.joinToString(", ") else "無法解析開放數據"
+            LocationSyncState.Error("下載失敗: $detailMsg")
         }
     }
 
