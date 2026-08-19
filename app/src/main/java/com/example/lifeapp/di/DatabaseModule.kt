@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import com.example.lifeapp.data.local.AppDatabase
 import com.example.lifeapp.data.local.BusBookmarkDao
+import com.example.lifeapp.data.local.LocationDao
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -28,5 +29,10 @@ object DatabaseModule {
     @Provides
     fun provideBusBookmarkDao(database: AppDatabase): BusBookmarkDao {
         return database.busBookmarkDao()
+    }
+
+    @Provides
+    fun provideLocationDao(database: AppDatabase): LocationDao {
+        return database.locationDao()
     }
 }
