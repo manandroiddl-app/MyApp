@@ -3,6 +3,7 @@ package com.example.lifeapp.di
 import com.example.lifeapp.data.api.AppConfigApiService
 import com.example.lifeapp.data.api.HkoApiService
 import com.example.lifeapp.data.api.KmbApiService
+import com.example.lifeapp.data.api.LocationApiService
 import com.example.lifeapp.data.api.TdApiService
 import dagger.Module
 import dagger.Provides
@@ -22,8 +23,8 @@ object NetworkModule {
     @Singleton
     fun provideOkHttpClient(): OkHttpClient {
         return OkHttpClient.Builder()
-            .connectTimeout(15, TimeUnit.SECONDS)
-            .readTimeout(15, TimeUnit.SECONDS)
+            .connectTimeout(30, TimeUnit.SECONDS) // CSDI GeoJSON 大檔，容許較長 Timeout
+            .readTimeout(30, TimeUnit.SECONDS)
             .build()
     }
 
@@ -63,5 +64,12 @@ object NetworkModule {
     @Singleton
     fun provideTdApiService(retrofit: Retrofit): TdApiService {
         return retrofit.create(TdApiService::class.java)
+    }
+
+    // 5. CSDI 地政總署 & 地點 API (新增)
+    @Provides
+    @Singleton
+    fun provideLocationApiService(retrofit: Retrofit): LocationApiService {
+        return retrofit.create(LocationApiService::class.java)
     }
 }
