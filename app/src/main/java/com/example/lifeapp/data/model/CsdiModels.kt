@@ -5,6 +5,44 @@ import androidx.room.PrimaryKey
 import com.google.gson.annotations.SerializedName
 
 /**
+ * Level 1: 大區 Enum
+ */
+enum class Region(val label: String) {
+    HONG_KONG("港島"),
+    KOWLOON("九龍"),
+    NEW_TERRITORIES("新界")
+}
+
+/**
+ * Level 4: 地點/站點類型 Enum
+ */
+enum class LocationType {
+    BUS_STOP,     // 巴士站
+    MTR_STATION,  // 鐵路站
+    LANDMARK,     // 地標 / 景點
+    BUILDING,     // 商場 / 屋苑
+    STREET        // 街道
+}
+
+/**
+ * 九巴 API 回傳之 DTO (Data Transfer Object)
+ */
+data class KmbStopResponseDto(
+    @SerializedName("type") val type: String?,
+    @SerializedName("version") val version: String?,
+    @SerializedName("generated_timestamp") val generatedTimestamp: String?,
+    @SerializedName("data") val data: List<KmbStopDto>?
+)
+
+data class KmbStopDto(
+    @SerializedName("stop") val stopId: String,
+    @SerializedName("name_tc") val nameTc: String,
+    @SerializedName("name_en") val nameEn: String,
+    @SerializedName("lat") val lat: String,
+    @SerializedName("long") val lng: String
+)
+
+/**
  * 通用 GeoJSON FeatureCollection 封裝
  */
 data class GeoJsonFeatureCollection<T>(
@@ -24,7 +62,7 @@ data class GeoJsonGeometry(
 )
 
 /**
- * 1. 地政總署 街道中線 (Road Centreline) Properties
+ * 地政總署 街道中線 (Road Centreline) Properties
  */
 data class CsdiRoadProperties(
     @SerializedName("OBJECTID") val objectId: Long,
@@ -35,7 +73,7 @@ data class CsdiRoadProperties(
 )
 
 /**
- * 2. 地政總署 18 區行政分界 (District Boundary) Properties
+ * 地政總署 18 區行政分界 (District Boundary) Properties
  */
 data class CsdiDistrictProperties(
     @SerializedName("OBJECTID") val objectId: Long,
@@ -64,20 +102,19 @@ data class DistrictHierarchyEntity(
 
 /**
  * 🗄️ 實體地點 / 街道 / 巴士站資料庫實體 (locations)
- * 🛡️ 核心修復：欄位已確立為 regionName, districtName, subDistrictName
  */
 @Entity(tableName = "locations")
 data class LocationEntity(
-    @PrimaryKey val id: String,                  // 唯一 ID (例如 "ROAD_CSDI_123" 或 "STOP_KMB_456")
-    val nameTc: String,                          // 中文名稱
-    val nameEn: String,                          // 英文名稱
-    val type: String,                            // LocationType (STREET, BUS_STOP, MTR_STATION, LANDMARK)
-    val regionName: String,                      // 所屬大區 (L1) -> "regionName"
-    val districtName: String,                    // 所屬 18 區 (L2) -> "districtName"
-    val subDistrictName: String,                 // 所屬次區份 (L3) -> "subDistrictName"
-    val lat: Double,                             // 精準/中心點緯度
-    val lng: Double,                             // 精準/中心點經度
-    val polylineCoordsJson: String? = null,      // 若為 STREET，儲存 LineString 座標點陣列 JSON
-    val searchKeywords: String = "",             // 搜尋關鍵字
-    val routes: String = ""                      // 行經路線
+    @PrimaryKey val id: String,                  
+    val nameTc: String,                          
+    val nameEn: String,                          
+    val type: String,                            
+    val regionName: String,                      
+    val districtName: String,                    
+    val subDistrictName: String,                 
+    val lat: Double,                             
+    val lng: Double,                             
+    val polylineCoordsJson: String? = null,      
+    val searchKeywords: String = "",             
+    val routes: String = ""                      
 )
