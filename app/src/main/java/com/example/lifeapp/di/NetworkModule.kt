@@ -1,5 +1,6 @@
 package com.example.lifeapp.di
 
+import com.example.lifeapp.data.api.AppConfigApiService
 import com.example.lifeapp.data.api.HkoApiService
 import com.example.lifeapp.data.api.KmbApiService
 import com.example.lifeapp.data.api.LocationApiService
@@ -24,7 +25,7 @@ object NetworkModule {
     @Singleton
     fun provideGson(): Gson {
         return GsonBuilder()
-            .setLenient() // 🛡️ 鬆散解析：防止 API 回傳非標准 JSON 或 HTML 導致 crash
+            .setLenient() // 🛡️ 鬆散解析：防止 API 回傳非標準 JSON 或 HTML 導致 crash
             .create()
     }
 
@@ -79,5 +80,16 @@ object NetworkModule {
             .addConverterFactory(GsonConverterFactory.create(gson))
             .build()
             .create(KmbApiService::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideAppConfigApiService(okHttpClient: OkHttpClient, gson: Gson): AppConfigApiService {
+        return Retrofit.Builder()
+            .baseUrl("https://raw.githubusercontent.com/")
+            .client(okHttpClient)
+            .addConverterFactory(GsonConverterFactory.create(gson))
+            .build()
+            .create(AppConfigApiService::class.java)
     }
 }
