@@ -23,7 +23,7 @@ import com.example.lifeapp.ui.theme.*
 
 @Composable
 fun TrafficScreen(viewModel: TrafficViewModel = hiltViewModel()) {
-    val uiState by viewModel.uiState.collectAsState()
+    val uiState by viewModel.enhancedUiState.collectAsState()
 
     OnLifecycleResume {
         viewModel.loadTrafficData(isSilent = true)
@@ -42,7 +42,6 @@ fun TrafficScreen(viewModel: TrafficViewModel = hiltViewModel()) {
             .background(BackgroundLight)
     ) {
         if (uiState.isLoading) {
-            // 🛡️ 套用 Common FullPageLoading
             FullPageLoading(color = PrimaryBlue)
         } else if (uiState.errorMessage != null) {
             Box(
@@ -81,7 +80,7 @@ fun TrafficScreen(viewModel: TrafficViewModel = hiltViewModel()) {
                     }
                 }
 
-                if (uiState.trafficNews.isEmpty()) {
+                if (uiState.taggedTrafficNews.isEmpty()) {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
@@ -100,7 +99,8 @@ fun TrafficScreen(viewModel: TrafficViewModel = hiltViewModel()) {
                         verticalArrangement = Arrangement.spacedBy(10.dp),
                         contentPadding = PaddingValues(bottom = 16.dp)
                     ) {
-                        items(uiState.trafficNews) { item ->
+                        items(uiState.taggedTrafficNews) { taggedItem ->
+                            val item = taggedItem.rawItem
                             Card(
                                 modifier = Modifier.fillMaxWidth(),
                                 colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -108,6 +108,28 @@ fun TrafficScreen(viewModel: TrafficViewModel = hiltViewModel()) {
                                 shape = RoundedCornerShape(12.dp)
                             ) {
                                 Column(modifier = Modifier.padding(14.dp)) {
+
+                                    // 🏷️ 18 區 Tag 晶片標籤 (新增)
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                        modifier = Modifier.padding(bottom = 8.dp)
+                                    ) {
+                                        taggedItem.districtTags.forEach { tag ->
+                                            Surface(
+                                                color = if (tag == "全港") Color(0xFFECEFF1) else PrimaryLightBlue,
+                                                shape = RoundedCornerShape(6.dp)
+                                            ) {
+                                                Text(
+                                                    text = "📍 $tag",
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = if (tag == "全港") Color.DarkGray else PrimaryDarkBlue,
+                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+
                                     item.referenceDate?.let { date ->
                                         if (date.isNotBlank()) {
                                             Text(
@@ -119,6 +141,7 @@ fun TrafficScreen(viewModel: TrafficViewModel = hiltViewModel()) {
                                             Spacer(modifier = Modifier.height(6.dp))
                                         }
                                     }
+
                                     Text(
                                         text = item.chinText ?: "",
                                         fontSize = 14.sp,
