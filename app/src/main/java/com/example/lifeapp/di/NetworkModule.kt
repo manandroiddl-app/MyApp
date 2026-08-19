@@ -1,9 +1,9 @@
 package com.example.lifeapp.di
 
-import com.example.lifeapp.data.api.BusApiService
+import com.example.lifeapp.data.api.HkoApiService
+import com.example.lifeapp.data.api.KmbApiService
 import com.example.lifeapp.data.api.LocationApiService
 import com.example.lifeapp.data.api.TdApiService
-import com.example.lifeapp.data.api.WeatherApiService
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import dagger.Module
@@ -11,10 +11,10 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import okhttp3.OkHttpClient
-import java.util.concurrent.TimeUnit
-import javax.inject.Singleton
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
+import java.util.concurrent.TimeUnit
+import javax.inject.Singleton
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -24,7 +24,7 @@ object NetworkModule {
     @Singleton
     fun provideGson(): Gson {
         return GsonBuilder()
-            .setLenient() // 🛡️ 關鍵：允許較鬆散/不完美的 JSON 解析
+            .setLenient() // 🛡️ 鬆散解析：防止 API 回傳非標准 JSON 或 HTML 導致 crash
             .create()
     }
 
@@ -41,7 +41,7 @@ object NetworkModule {
     @Singleton
     fun provideLocationApiService(okHttpClient: OkHttpClient, gson: Gson): LocationApiService {
         return Retrofit.Builder()
-            .baseUrl("https://api.csdi.gov.hk/") // CSDI Base URL
+            .baseUrl("https://api.csdi.gov.hk/")
             .client(okHttpClient)
             .addConverterFactory(GsonConverterFactory.create(gson))
             .build()
@@ -50,13 +50,13 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun provideWeatherApiService(okHttpClient: OkHttpClient, gson: Gson): WeatherApiService {
+    fun provideHkoApiService(okHttpClient: OkHttpClient, gson: Gson): HkoApiService {
         return Retrofit.Builder()
             .baseUrl("https://data.weather.gov.hk/")
             .client(okHttpClient)
             .addConverterFactory(GsonConverterFactory.create(gson))
             .build()
-            .create(WeatherApiService::class.java)
+            .create(HkoApiService::class.java)
     }
 
     @Provides
@@ -72,12 +72,12 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun provideBusApiService(okHttpClient: OkHttpClient, gson: Gson): BusApiService {
+    fun provideKmbApiService(okHttpClient: OkHttpClient, gson: Gson): KmbApiService {
         return Retrofit.Builder()
             .baseUrl("https://data.etabus.gov.hk/")
             .client(okHttpClient)
             .addConverterFactory(GsonConverterFactory.create(gson))
             .build()
-            .create(BusApiService::class.java)
+            .create(KmbApiService::class.java)
     }
 }
