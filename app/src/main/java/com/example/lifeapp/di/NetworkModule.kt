@@ -1,19 +1,20 @@
 package com.example.lifeapp.di
 
-import com.example.lifeapp.data.api.AppConfigApiService
-import com.example.lifeapp.data.api.HkoApiService
-import com.example.lifeapp.data.api.KmbApiService
+import com.example.lifeapp.data.api.BusApiService
 import com.example.lifeapp.data.api.LocationApiService
 import com.example.lifeapp.data.api.TdApiService
+import com.example.lifeapp.data.api.WeatherApiService
+import com.google.gson.Gson
+import com.google.gson.GsonBuilder
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import okhttp3.OkHttpClient
-import retrofit2.Retrofit
-import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
+import retrofit2.Retrofit
+import retrofit2.converter.gson.GsonConverterFactory
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -21,55 +22,62 @@ object NetworkModule {
 
     @Provides
     @Singleton
+    fun provideGson(): Gson {
+        return GsonBuilder()
+            .setLenient() // 🛡️ 關鍵：允許較鬆散/不完美的 JSON 解析
+            .create()
+    }
+
+    @Provides
+    @Singleton
     fun provideOkHttpClient(): OkHttpClient {
         return OkHttpClient.Builder()
-            .connectTimeout(30, TimeUnit.SECONDS) // CSDI GeoJSON 大檔，容許較長 Timeout
+            .connectTimeout(15, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
             .build()
     }
 
     @Provides
     @Singleton
-    fun provideRetrofit(okHttpClient: OkHttpClient): Retrofit {
+    fun provideLocationApiService(okHttpClient: OkHttpClient, gson: Gson): LocationApiService {
         return Retrofit.Builder()
-            .baseUrl("https://data.weather.gov.hk/") // 預設 Base URL (適用於天文台 API)
+            .baseUrl("https://api.csdi.gov.hk/") // CSDI Base URL
             .client(okHttpClient)
-            .addConverterFactory(GsonConverterFactory.create())
+            .addConverterFactory(GsonConverterFactory.create(gson))
             .build()
+            .create(LocationApiService::class.java)
     }
 
-    // 1. 香港天文台 API
     @Provides
     @Singleton
-    fun provideHkoApiService(retrofit: Retrofit): HkoApiService {
-        return retrofit.create(HkoApiService::class.java)
+    fun provideWeatherApiService(okHttpClient: OkHttpClient, gson: Gson): WeatherApiService {
+        return Retrofit.Builder()
+            .baseUrl("https://data.weather.gov.hk/")
+            .client(okHttpClient)
+            .addConverterFactory(GsonConverterFactory.create(gson))
+            .build()
+            .create(WeatherApiService::class.java)
     }
 
-    // 2. GitHub Remote Config API
     @Provides
     @Singleton
-    fun provideAppConfigApiService(retrofit: Retrofit): AppConfigApiService {
-        return retrofit.create(AppConfigApiService::class.java)
+    fun provideTdApiService(okHttpClient: OkHttpClient, gson: Gson): TdApiService {
+        return Retrofit.Builder()
+            .baseUrl("https://rt.data.gov.hk/")
+            .client(okHttpClient)
+            .addConverterFactory(GsonConverterFactory.create(gson))
+            .build()
+            .create(TdApiService::class.java)
     }
 
-    // 3. 九巴 KMB API
     @Provides
     @Singleton
-    fun provideKmbApiService(retrofit: Retrofit): KmbApiService {
-        return retrofit.create(KmbApiService::class.java)
-    }
-
-    // 4. 運輸署特別交通消息 TD API
-    @Provides
-    @Singleton
-    fun provideTdApiService(retrofit: Retrofit): TdApiService {
-        return retrofit.create(TdApiService::class.java)
-    }
-
-    // 5. CSDI 地政總署 & 地點 API (新增)
-    @Provides
-    @Singleton
-    fun provideLocationApiService(retrofit: Retrofit): LocationApiService {
-        return retrofit.create(LocationApiService::class.java)
+    fun provideBusApiService(okHttpClient: OkHttpClient, gson: Gson): BusApiService {
+        return Retrofit.Builder()
+            .baseUrl("https://data.etabus.gov.hk/")
+            .client(okHttpClient)
+            .addConverterFactory(GsonConverterFactory.create(gson))
+            .build()
+            .create(BusApiService::class.java)
     }
 }
