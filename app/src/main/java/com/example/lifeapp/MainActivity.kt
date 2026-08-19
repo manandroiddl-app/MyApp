@@ -39,6 +39,7 @@ import com.example.lifeapp.ui.traffic.TrafficScreen
 import com.example.lifeapp.ui.traffic.TrafficViewModel
 import com.example.lifeapp.ui.weather.WeatherScreen
 import com.example.lifeapp.ui.weather.WeatherViewModel
+import com.example.lifeapp.util.DatabaseExporter
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -204,11 +205,11 @@ fun HubScreen(
             }
         }
 
-        // 2. 🎉 大目錄手動下載/更新全港地點數據卡片 (新增)
+        // 2. 🎉 大目錄手動下載/更新全港地點數據卡片
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = 20.dp),
+                .padding(bottom = 12.dp),
             colors = CardDefaults.cardColors(containerColor = Color.White),
             elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
             shape = RoundedCornerShape(16.dp)
@@ -219,7 +220,7 @@ fun HubScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column {
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = "🗺️ 全港地點與街道數據庫",
                             fontSize = 16.sp,
@@ -233,6 +234,8 @@ fun HubScreen(
                             color = Color.Gray
                         )
                     }
+
+                    Spacer(modifier = Modifier.width(8.dp))
 
                     Button(
                         onClick = { showConfirmDialog = true },
@@ -252,6 +255,18 @@ fun HubScreen(
                     }
                 }
             }
+        }
+
+        // 🧪 測試專用：匯出 Room DB 按鈕
+        OutlinedButton(
+            onClick = { DatabaseExporter.exportDatabaseToExternalFiles(context) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 20.dp),
+            shape = RoundedCornerShape(10.dp),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = PrimaryDarkBlue)
+        ) {
+            Text("🧪 測試：匯出 Room DB 到 Android/data", fontSize = 13.sp, fontWeight = FontWeight.Bold)
         }
 
         Text("生活大目錄", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = PrimaryDarkBlue)
