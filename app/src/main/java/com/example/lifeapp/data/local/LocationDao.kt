@@ -19,7 +19,8 @@ interface LocationDao {
     suspend fun getLocationById(id: String): LocationEntity?
 
     /**
-     * Approach 1: 文字模糊搜尋 (名稱、分區、關鍵字、路線)
+     * 🛡️ 核心修復：確保 SQL 欄位名稱 (regionName, districtName, subDistrictName) 
+     * 與 LocationEntity 中的屬性定義 100% 一致！
      */
     @Query("""
         SELECT * FROM locations 
