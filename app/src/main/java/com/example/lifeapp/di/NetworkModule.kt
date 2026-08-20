@@ -2,7 +2,6 @@ package com.example.lifeapp.di
 
 import com.example.lifeapp.data.api.AppConfigApiService
 import com.example.lifeapp.data.api.HkoApiService
-import com.example.lifeapp.data.api.KmbApiService
 import com.example.lifeapp.data.api.TdApiService
 import dagger.Module
 import dagger.Provides
@@ -51,14 +50,7 @@ object NetworkModule {
         return retrofit.create(AppConfigApiService::class.java)
     }
 
-    // 3. 九巴 KMB API
-    @Provides
-    @Singleton
-    fun provideKmbApiService(retrofit: Retrofit): KmbApiService {
-        return retrofit.create(KmbApiService::class.java)
-    }
-
-    // 4. 運輸署特別交通消息 TD API
+    // 3. 運輸署特別交通消息 TD API
     @Provides
     @Singleton
     fun provideTdApiService(retrofit: Retrofit): TdApiService {
