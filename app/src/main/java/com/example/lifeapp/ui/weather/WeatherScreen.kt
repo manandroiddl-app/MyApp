@@ -52,7 +52,6 @@ fun WeatherScreen(
     val isInitialLoading = uiState.isLoading && uiState.updateTime.isEmpty()
 
     if (isInitialLoading) {
-        // 🛡️ 套用 Common FullPageLoading
         FullPageLoading(color = PrimaryDarkBlue)
     } else {
         LazyColumn(
@@ -61,7 +60,6 @@ fun WeatherScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // 1. 頂部最後更新時間
             item {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -77,7 +75,6 @@ fun WeatherScreen(
                 }
             }
 
-            // 2. 生效中警告
             val activeWarnings = uiState.warningSummary.filter { warningItem -> warningItem.code != "CANCEL" }
             if (activeWarnings.isNotEmpty()) {
                 item {
@@ -163,7 +160,6 @@ fun WeatherScreen(
                 }
             }
 
-            // 3. 分區氣象觀察
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -255,7 +251,6 @@ fun WeatherScreen(
                 }
             }
 
-            // 4. 今日天氣預報
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -303,7 +298,6 @@ fun WeatherScreen(
                 }
             }
 
-            // 5. 九天天氣預報
             if (uiState.nineDayForecast.isNotEmpty()) {
                 item {
                     Text(text = "📅 九天天氣預報", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = PrimaryDarkBlue)
@@ -602,7 +596,6 @@ fun TempSheetContent(
             val subTitleText = if (isApparentTempMode) "結合分區風速與濕度計算之體感" else "即時錄得之區域氣溫"
             Text(subTitleText, fontSize = 12.sp, color = Color.Gray)
 
-            // 🎯 切換按鈕 (切換氣溫 / 體感溫度)
             FilterChip(
                 selected = isApparentTempMode,
                 onClick = onToggleMode,
@@ -642,7 +635,6 @@ fun TempSheetContent(
                     ) {
                         Text("${item.placeTc} (${item.placeEn})", fontSize = 14.sp, color = TextDark)
                         
-                        // 🎯 移除 "體感" 字樣，僅顯示數值與單位 (例如: 31.8°C)
                         val displayText = if (isApparentTempMode && item.apparentTempValue != null) {
                             "${item.apparentTempValue}${item.unit}"
                         } else {
