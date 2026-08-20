@@ -29,12 +29,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.lifeapp.data.local.AppDatabase
 import com.example.lifeapp.data.repository.AppConfigRepository
 import com.example.lifeapp.ui.theme.*
 import com.example.lifeapp.ui.traffic.TrafficScreen
 import com.example.lifeapp.ui.traffic.TrafficViewModel
 import com.example.lifeapp.ui.weather.WeatherScreen
 import com.example.lifeapp.ui.weather.WeatherViewModel
+import com.example.lifeapp.util.DbExportHelper
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -50,6 +52,9 @@ class MainActivity : ComponentActivity() {
 
     @Inject
     lateinit var appConfigRepository: AppConfigRepository
+
+    @Inject
+    lateinit var appDatabase: AppDatabase // 🎯 注入 AppDatabase 供匯出使用
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -67,7 +72,10 @@ class MainActivity : ComponentActivity() {
             }
 
             LifeAppTheme {
-                MainAppLayout(appConfigRepository = appConfigRepository)
+                MainAppLayout(
+                    appConfigRepository = appConfigRepository,
+                    appDatabase = appDatabase
+                )
             }
         }
     }
@@ -76,6 +84,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MainAppLayout(
     appConfigRepository: AppConfigRepository,
+    appDatabase: AppDatabase,
     weatherViewModel: WeatherViewModel = hiltViewModel(),
     trafficViewModel: TrafficViewModel = hiltViewModel()
 ) {
@@ -127,7 +136,8 @@ fun MainAppLayout(
                 when (screen) {
                     Screen.HUB -> HubScreen(
                         onNavigate = { target -> currentScreen = target },
-                        appConfigRepository = appConfigRepository
+                        appConfigRepository = appConfigRepository,
+                        appDatabase = appDatabase
                     )
                     Screen.WEATHER -> WeatherScreen(viewModel = weatherViewModel)
                     Screen.TRAFFIC -> TrafficScreen(viewModel = trafficViewModel)
@@ -140,9 +150,13 @@ fun MainAppLayout(
 @Composable
 fun HubScreen(
     onNavigate: (Screen) -> Unit,
-    appConfigRepository: AppConfigRepository
+    appConfigRepository: AppConfigRepository,
+    appDatabase: AppDatabase
 ) {
     val config by appConfigRepository.appConfig.collectAsState()
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var isExporting by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -192,6 +206,40 @@ fun HubScreen(
             )
             Spacer(modifier = Modifier.height(12.dp))
         }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // ------------------ 🛠️ 臨時偵錯按鈕 ------------------
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF3E0))
+        ) {
+            Column(modifier = Modifier.padding(14.dp)) {
+                Text(
+                    text = "🛠️ 開發者偵錯工具",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                    color = Color(0xFFE65100)
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Button(
+                    onClick = {
+                        isExporting = true
+                        scope.launch {
+                            val result = DbExportHelper.exportDatabaseToExternalStorage(context, appDatabase)
+                            Toast.makeText(context, result, Toast.LENGTH_LONG).show()
+                            isExporting = false
+                        }
+                    },
+                    enabled = !isExporting,
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD84315)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(if (isExporting) "匯出中..." else "匯出 Room DB 到 Android/data/", fontSize = 13.sp)
+                }
+            }
+        }
+        // --------------------------------------------------------
     }
 }
 
