@@ -6,8 +6,7 @@ import com.example.lifeapp.data.model.WeatherCacheEntity
 
 @Database(
     entities = [
-        DummyEntity::class,
-        WeatherCacheEntity::class
+        WeatherCacheEntity::class // 🎯 已移除未定義的 DummyEntity
     ],
     version = 2,
     exportSchema = false
