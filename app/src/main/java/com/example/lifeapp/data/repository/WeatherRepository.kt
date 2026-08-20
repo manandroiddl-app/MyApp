@@ -2,7 +2,9 @@ package com.example.lifeapp.data.repository
 
 import android.util.Log
 import com.example.lifeapp.data.api.HkoApiService
+import com.example.lifeapp.data.local.WeatherDao
 import com.example.lifeapp.data.model.*
+import com.google.gson.Gson
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -12,8 +14,11 @@ import kotlin.math.exp
 
 @Singleton
 class WeatherRepository @Inject constructor(
-    private val hkoApiService: HkoApiService
+    private val hkoApiService: HkoApiService,
+    private val weatherDao: WeatherDao
 ) {
+    private val gson = Gson()
+
     private val nameMap = mapOf(
         "香港天文台" to "Hong Kong Observatory",
         "赤鱲角" to "Chek Lap Kok",
@@ -74,7 +79,6 @@ class WeatherRepository @Inject constructor(
         "離島區" to "Islands District"
     )
 
-    // 測站風速地名比對映射表（處理 CSV 測站名稱與分區氣溫名稱不完全一致的情況）
     private val windStationAliasMap = mapOf(
         "沙田" to listOf("沙田"),
         "大埔" to listOf("大埔"),
@@ -99,6 +103,19 @@ class WeatherRepository @Inject constructor(
         "啟德跑道公園" to listOf("啟德跑道公園", "啟德")
     )
 
+    // 🎯 讀取 Room 快取
+    suspend fun getWeatherCacheState(): WeatherUiState? {
+        return try {
+            val cacheEntity = weatherDao.getWeatherCache()
+            if (cacheEntity != null && cacheEntity.jsonContent.isNotBlank()) {
+                gson.fromJson(cacheEntity.jsonContent, WeatherUiState::class.java)
+            } else null
+        } catch (e: Exception) {
+            Log.e("WeatherRepo", "Read cache error", e)
+            null
+        }
+    }
+
     suspend fun fetchWeatherInfo(): WeatherUiState {
         return try {
             val rawRealtime = runCatching { hkoApiService.getRealtimeWeatherRaw() }.getOrNull()
@@ -109,10 +126,8 @@ class WeatherRepository @Inject constructor(
             val rawSwt = runCatching { hkoApiService.getSpecialWeatherTipsRaw() }.getOrNull()
             val rawWindCsv = runCatching { hkoApiService.getRegionalWindCsv().string() }.getOrNull()
 
-            // 0. 解析風速 CSV (已對齊正確的 Column Index)
             val windSpeedMap = parseWindCsv(rawWindCsv)
 
-            // 1. 警告內文對照
             val detailsMap = mutableMapOf<String, String>()
             if (rawWarningDetail?.isJsonObject == true && rawWarningDetail.asJsonObject.has("details")) {
                 try {
@@ -133,7 +148,6 @@ class WeatherRepository @Inject constructor(
 
             val warnings = mutableListOf<WeatherWarningItem>()
 
-            // 生效中警告 (warnsum)
             if (rawWarningSum?.isJsonObject == true) {
                 val warnObj = rawWarningSum.asJsonObject
                 warnObj.keySet().forEach { key ->
@@ -147,7 +161,6 @@ class WeatherRepository @Inject constructor(
                 }
             }
 
-            // 特別天氣提示 (swt) - 將多條提示組合為單一項目
             if (rawSwt?.isJsonObject == true && rawSwt.asJsonObject.has("swt")) {
                 try {
                     val swtList = mutableListOf<String>()
@@ -173,7 +186,6 @@ class WeatherRepository @Inject constructor(
                 } catch (e: Exception) { Log.e("WeatherRepo", "SWT parse error", e) }
             }
 
-            // 2. 即時天氣 / 分區氣溫 / 濕度 / UV 紫外線指數 / 雨量
             val districtList = mutableListOf<DistrictTemperature>()
             val rainfallList = mutableListOf<DistrictRainfall>()
             var globalHumidity: Int? = null
@@ -182,7 +194,6 @@ class WeatherRepository @Inject constructor(
             if (rawRealtime?.isJsonObject == true) {
                 val realObj = rawRealtime.asJsonObject
 
-                // 濕度解析
                 try {
                     if (realObj.has("humidity") && realObj.getAsJsonObject("humidity").has("data")) {
                         val humArr = realObj.getAsJsonObject("humidity").getAsJsonArray("data")
@@ -192,7 +203,6 @@ class WeatherRepository @Inject constructor(
                     }
                 } catch (e: Exception) { Log.e("WeatherRepo", "Humidity error", e) }
 
-                // 紫外線指數 (UV Index)
                 try {
                     if (realObj.has("uvindex") && realObj.getAsJsonObject("uvindex").has("data")) {
                         val uvData = realObj.getAsJsonObject("uvindex").get("data")
@@ -216,7 +226,6 @@ class WeatherRepository @Inject constructor(
                     uvInfo = UvIndexInfo(value = "0", desc = "低 (夜間或未有數據)")
                 }
 
-                // 分區氣溫 (包含體感溫度計算)
                 try {
                     if (realObj.has("temperature") && realObj.getAsJsonObject("temperature").has("data")) {
                         realObj.getAsJsonObject("temperature").getAsJsonArray("data").forEach { elem ->
@@ -227,10 +236,7 @@ class WeatherRepository @Inject constructor(
                                 val placeEn = nameMap[placeTc] ?: placeTc
 
                                 if (placeTc.isNotBlank()) {
-                                    // 尋找對應的風速資料 (km/h)
                                     val windSpeedKmh = findWindSpeedForPlace(placeTc, windSpeedMap)
-                                    
-                                    // 計算體感溫度
                                     val apparentTemp = calculateApparentTemperature(
                                         temperature = tempVal.toDouble(),
                                         relativeHumidity = (globalHumidity ?: 75).toDouble(),
@@ -252,7 +258,6 @@ class WeatherRepository @Inject constructor(
                     }
                 } catch (e: Exception) { Log.e("WeatherRepo", "Temp array error", e) }
 
-                // 分區雨量
                 try {
                     if (realObj.has("rainfall") && realObj.getAsJsonObject("rainfall").has("data")) {
                         realObj.getAsJsonObject("rainfall").getAsJsonArray("data").forEach { elem ->
@@ -282,7 +287,6 @@ class WeatherRepository @Inject constructor(
             val sortedDistricts = districtList.sortedBy { it.placeEn }
             val sortedRainfall = rainfallList.sortedBy { it.placeEn }
 
-            // 3. 本地天氣預報 (flw API) 完整解析
             var todayDesc = ""
             var generalSituation = ""
             var outlook = ""
@@ -298,7 +302,6 @@ class WeatherRepository @Inject constructor(
                 if (tObj.has("fireDangerWarning")) fireDangerWarning = tObj.get("fireDangerWarning").asString
             }
 
-            // 4. 九天天氣預報解析
             val forecastList = mutableListOf<NineDayForecastItem>()
             if (rawNineDay?.isJsonObject == true && rawNineDay.asJsonObject.has("weatherForecast")) {
                 try {
@@ -342,7 +345,7 @@ class WeatherRepository @Inject constructor(
 
             val formattedTime = SimpleDateFormat("yyyyMMdd HH:mm:ss", Locale.getDefault()).format(Date())
 
-            WeatherUiState(
+            val newState = WeatherUiState(
                 isLoading = false,
                 warningSummary = warnings,
                 districtTemperatures = sortedDistricts,
@@ -357,6 +360,13 @@ class WeatherRepository @Inject constructor(
                 updateTime = formattedTime,
                 errorMessage = null
             )
+
+            // 🎯 成功取得資料後非同步寫入 Room DB 快取
+            if (newState.updateTime.isNotEmpty()) {
+                saveWeatherStateToRoom(newState)
+            }
+
+            newState
         } catch (e: Exception) {
             Log.e("WeatherRepo", "Fatal Fetch Error", e)
             WeatherUiState(
@@ -366,14 +376,15 @@ class WeatherRepository @Inject constructor(
         }
     }
 
-    /**
-     * 解析風速 CSV
-     * 欄位 0: 日期時間
-     * 欄位 1: 自動氣象站 (例如: 長洲)
-     * 欄位 2: 十分鐘平均風向
-     * 欄位 3: 十分鐘平均風速(公里/小時)
-     * 欄位 4: 十分鐘最高陣風風速
-     */
+    private suspend fun saveWeatherStateToRoom(state: WeatherUiState) {
+        try {
+            val jsonStr = gson.toJson(state)
+            weatherDao.saveWeatherCache(WeatherCacheEntity(id = 1, jsonContent = jsonStr))
+        } catch (e: Exception) {
+            Log.e("WeatherRepo", "Save cache error", e)
+        }
+    }
+
     private fun parseWindCsv(csvContent: String?): Map<String, Double> {
         if (csvContent.isNullOrBlank()) return emptyMap()
         val resultMap = mutableMapOf<String, Double>()
@@ -384,10 +395,9 @@ class WeatherRepository @Inject constructor(
                 if (line.isEmpty()) continue
                 val cols = line.split(",").map { it.replace("\"", "").trim() }
                 
-                // 確保包含至少 4 個欄位 (index 0 ~ 3)
                 if (cols.size >= 4) {
-                    val placeName = cols[1] // 自動氣象站 (例如: "長洲")
-                    val speed = cols[3].toDoubleOrNull() ?: 0.0 // 十分鐘平均風速(公里/小時)
+                    val placeName = cols[1]
+                    val speed = cols[3].toDoubleOrNull() ?: 0.0
                     if (placeName.isNotBlank()) {
                         resultMap[placeName] = speed
                     }
@@ -399,9 +409,6 @@ class WeatherRepository @Inject constructor(
         return resultMap
     }
 
-    /**
-     * 為給定的分區名稱尋找匹配的風速 (km/h)
-     */
     private fun findWindSpeedForPlace(placeTc: String, windSpeedMap: Map<String, Double>): Double {
         if (windSpeedMap.containsKey(placeTc)) {
             return windSpeedMap[placeTc] ?: 0.0
@@ -414,9 +421,6 @@ class WeatherRepository @Inject constructor(
         return windSpeedMap.values.average().takeIf { !it.isNaN() } ?: 5.0
     }
 
-    /**
-     * 計算體感溫度 (Steadman 澳洲體感溫度模型)
-     */
     private fun calculateApparentTemperature(
         temperature: Double,
         relativeHumidity: Double,
