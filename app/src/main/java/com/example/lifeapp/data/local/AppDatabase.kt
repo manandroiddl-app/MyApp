@@ -2,9 +2,8 @@ package com.example.lifeapp.data.local
 
 import androidx.room.Database
 import androidx.room.RoomDatabase
-import com.example.lifeapp.data.model.BusBookmarkEntity
 
-@Database(entities = [BusBookmarkEntity::class], version = 1, exportSchema = false)
+@Database(entities = [], version = 1, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
-    abstract fun busBookmarkDao(): BusBookmarkDao
+    // 巴士清空後，暫無 DAO，留待地點搜尋 DAO 注入
 }
