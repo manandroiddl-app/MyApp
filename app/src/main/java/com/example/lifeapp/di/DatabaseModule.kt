@@ -3,7 +3,8 @@ package com.example.lifeapp.di
 import android.content.Context
 import androidx.room.Room
 import com.example.lifeapp.data.local.AppDatabase
-import com.example.lifeapp.data.local.WeatherDao
+import com.example.lifeapp.data.local.GenericCacheDao
+import com.google.gson.Gson
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -17,6 +18,10 @@ object DatabaseModule {
 
     @Provides
     @Singleton
+    fun provideGson(): Gson = Gson()
+
+    @Provides
+    @Singleton
     fun provideAppDatabase(@ApplicationContext context: Context): AppDatabase {
         return Room.databaseBuilder(
             context,
@@ -26,7 +31,7 @@ object DatabaseModule {
     }
 
     @Provides
-    fun provideWeatherDao(database: AppDatabase): WeatherDao {
-        return database.weatherDao()
+    fun provideGenericCacheDao(database: AppDatabase): GenericCacheDao {
+        return database.genericCacheDao()
     }
 }
