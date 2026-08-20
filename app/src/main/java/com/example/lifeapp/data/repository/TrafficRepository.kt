@@ -3,8 +3,10 @@ package com.example.lifeapp.data.repository
 import android.util.Log
 import android.util.Xml
 import com.example.lifeapp.data.api.TdApiService
+import com.example.lifeapp.data.local.GenericCacheDao
 import com.example.lifeapp.data.model.TrafficNewsItem
 import com.example.lifeapp.data.model.TrafficUiState
+import com.google.gson.Gson
 import org.xmlpull.v1.XmlPullParser
 import java.io.StringReader
 import java.text.SimpleDateFormat
@@ -15,8 +17,26 @@ import javax.inject.Singleton
 
 @Singleton
 class TrafficRepository @Inject constructor(
-    private val tdApiService: TdApiService
+    private val tdApiService: TdApiService,
+    genericCacheDao: GenericCacheDao,
+    gson: Gson
+) : BaseCacheRepository<TrafficUiState>(
+    genericCacheDao = genericCacheDao,
+    gson = gson,
+    cacheKey = "TRAFFIC_UI_CACHE",
+    clazz = TrafficUiState::class.java
 ) {
+
+    /**
+     * 🎯 0 秒讀取本地 Room 快取
+     */
+    suspend fun getTrafficCacheState(): TrafficUiState? {
+        return loadFromCache()
+    }
+
+    /**
+     * 🎯 從 API 抓取最新交通消息並靜默更新快取
+     */
     suspend fun fetchTrafficNews(): TrafficUiState {
         return runCatching {
             // 1. 從網絡取得 XML 原始內容
@@ -33,7 +53,7 @@ class TrafficRepository @Inject constructor(
                 newsList = parseWithRegex(xmlString)
             }
 
-            // 🛡️ 時間格式對齊需求：yyyyMMdd HH:mm:ss
+            // 時間格式對齊需求：yyyyMMdd HH:mm:ss
             val nowStr = SimpleDateFormat("yyyyMMdd HH:mm:ss", Locale.getDefault()).format(Date())
 
             // 防空白屏：若新聞列表為空，明確填入一條「全港交通暢順」通告
@@ -48,12 +68,19 @@ class TrafficRepository @Inject constructor(
                 newsList
             }
 
-            TrafficUiState(
+            val newState = TrafficUiState(
                 isLoading = false,
                 trafficNews = finalNewsList,
                 updateTime = nowStr,
                 errorMessage = null
             )
+
+            // 🎯 1 行寫入通用 Room 快取
+            if (newState.updateTime.isNotEmpty()) {
+                saveToCache(newState)
+            }
+
+            newState
         }.getOrElse { e ->
             Log.e("TrafficRepo", "Fetch traffic error", e)
             val nowStr = SimpleDateFormat("yyyyMMdd HH:mm:ss", Locale.getDefault()).format(Date())
