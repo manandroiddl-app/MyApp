@@ -30,22 +30,19 @@ import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.lifeapp.data.repository.AppConfigRepository
-import com.example.lifeapp.ui.bus.BusScreen
-import com.example.lifeapp.ui.bus.BusViewModel
 import com.example.lifeapp.ui.theme.*
 import com.example.lifeapp.ui.traffic.TrafficScreen
 import com.example.lifeapp.ui.traffic.TrafficViewModel
 import com.example.lifeapp.ui.weather.WeatherScreen
 import com.example.lifeapp.ui.weather.WeatherViewModel
-import dagger.hilt.android.AndroidEntryPoint
+import dagger.hilt.AndroidEntryPoint
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 enum class Screen(val title: String) {
     HUB("大目錄"),
     WEATHER("香港天氣"),
-    TRAFFIC("交通消息"),
-    BUS_ETA("交通工具到站時間")
+    TRAFFIC("交通消息")
 }
 
 @AndroidEntryPoint
@@ -80,18 +77,14 @@ class MainActivity : ComponentActivity() {
 fun MainAppLayout(
     appConfigRepository: AppConfigRepository,
     weatherViewModel: WeatherViewModel = hiltViewModel(),
-    trafficViewModel: TrafficViewModel = hiltViewModel(),
-    busViewModel: BusViewModel = hiltViewModel()
+    trafficViewModel: TrafficViewModel = hiltViewModel()
 ) {
-    // 🛡️ 核心修復：使用 rememberSaveable 替代 remember
-    // 確保 Lock 機、解鎖、切換 App 時，頁面路由 (currentScreen) 100% 保存不被重置！
     var currentScreen by rememberSaveable { mutableStateOf(Screen.HUB) }
     
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val isConfigRefreshing by appConfigRepository.isRefreshing.collectAsState()
 
-    // 啟動時讀取遠端 GitHub Config
     LaunchedEffect(Unit) {
         appConfigRepository.loadRemoteConfig()
     }
@@ -118,10 +111,6 @@ fun MainAppLayout(
                                 trafficViewModel.refresh()
                                 Toast.makeText(context, "已更新交通消息", Toast.LENGTH_SHORT).show()
                             }
-                            Screen.BUS_ETA -> {
-                                busViewModel.refreshBookmarkEtas()
-                                Toast.makeText(context, "已更新巴士到站時間", Toast.LENGTH_SHORT).show()
-                            }
                         }
                     }
                 }
@@ -142,7 +131,6 @@ fun MainAppLayout(
                     )
                     Screen.WEATHER -> WeatherScreen(viewModel = weatherViewModel)
                     Screen.TRAFFIC -> TrafficScreen(viewModel = trafficViewModel)
-                    Screen.BUS_ETA -> BusScreen(viewModel = busViewModel)
                 }
             }
         }
@@ -162,7 +150,6 @@ fun HubScreen(
             .padding(16.dp)
             .verticalScroll(rememberScrollState())
     ) {
-        // 1. 動態全域緊急告示板
         config.globalAnnouncement?.let { announcement ->
             if (announcement.enabled) {
                 Card(
@@ -190,7 +177,6 @@ fun HubScreen(
         Text("生活大目錄", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = PrimaryDarkBlue)
         Text("請選擇你想要查看的即時資訊", fontSize = 14.sp, color = TextGray, modifier = Modifier.padding(bottom = 20.dp))
 
-        // 2. 動態渲染 GitHub 設定的選單卡片
         config.hubScreen.cards.filter { it.enabled }.forEach { card ->
             MenuCard(
                 title = card.title,
@@ -201,7 +187,6 @@ fun HubScreen(
                     when (card.id) {
                         "weather" -> onNavigate(Screen.WEATHER)
                         "traffic" -> onNavigate(Screen.TRAFFIC)
-                        "bus" -> onNavigate(Screen.BUS_ETA)
                     }
                 }
             )
