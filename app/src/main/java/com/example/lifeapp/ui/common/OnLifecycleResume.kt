@@ -26,3 +26,24 @@ fun OnLifecycleResume(onResume: () -> Unit) {
         }
     }
 }
+
+/**
+ * 🎯 全站頁面通用的生命週期與輪詢處理器
+ */
+@Composable
+fun AutoRefreshLifecycleHandler(
+    onStartRefresh: () -> Unit,
+    onStopRefresh: () -> Unit,
+    onResumeFetch: () -> Unit
+) {
+    OnLifecycleResume {
+        onResumeFetch()
+        onStartRefresh()
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            onStopRefresh()
+        }
+    }
+}
