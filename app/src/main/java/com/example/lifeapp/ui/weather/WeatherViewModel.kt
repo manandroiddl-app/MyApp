@@ -34,14 +34,28 @@ class WeatherViewModel @Inject constructor(
             initialValue = memoryCache ?: WeatherUiState()
         )
 
-    // 🛡️ 引入 Common 輪詢元件（預設 60 秒）
     private val autoRefreshDelegate = AutoRefreshDelegate(viewModelScope) {
         loadWeatherData(isSilent = true)
     }
 
     init {
-        loadWeatherData()
+        // 🎯 啟動時先嘗試從 Room 加載歷史快取，實現 0 毫秒秒出
+        loadRoomCacheAndFetch()
         startAutoRefresh()
+    }
+
+    private fun loadRoomCacheAndFetch() {
+        viewModelScope.launch {
+            if (_uiState.value.updateTime.isEmpty()) {
+                val roomCache = weatherRepository.getWeatherCacheState()
+                if (roomCache != null) {
+                    _uiState.value = roomCache.copy(isLoading = false)
+                    memoryCache = roomCache
+                }
+            }
+            // 隨後觸發網路更新
+            loadWeatherData(isSilent = _uiState.value.updateTime.isNotEmpty())
+        }
     }
 
     fun startAutoRefresh() {
@@ -77,9 +91,6 @@ class WeatherViewModel @Inject constructor(
         }
     }
 
-    /**
-     * 🎯 切換分區顯示模式 (氣溫 <-> 體感溫度)
-     */
     fun toggleTemperatureMode() {
         _uiState.update { currentState ->
             val updatedMode = !currentState.isApparentTempMode
