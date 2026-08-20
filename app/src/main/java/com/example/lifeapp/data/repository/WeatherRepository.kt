@@ -2,7 +2,7 @@ package com.example.lifeapp.data.repository
 
 import android.util.Log
 import com.example.lifeapp.data.api.HkoApiService
-import com.example.lifeapp.data.local.WeatherDao
+import com.example.lifeapp.data.local.GenericCacheDao
 import com.example.lifeapp.data.model.*
 import com.google.gson.Gson
 import java.text.SimpleDateFormat
@@ -15,10 +15,14 @@ import kotlin.math.exp
 @Singleton
 class WeatherRepository @Inject constructor(
     private val hkoApiService: HkoApiService,
-    private val weatherDao: WeatherDao
+    genericCacheDao: GenericCacheDao,
+    gson: Gson
+) : BaseCacheRepository<WeatherUiState>(
+    genericCacheDao = genericCacheDao,
+    gson = gson,
+    cacheKey = "WEATHER_UI_CACHE",
+    clazz = WeatherUiState::class.java
 ) {
-    private val gson = Gson()
-
     private val nameMap = mapOf(
         "香港天文台" to "Hong Kong Observatory",
         "赤鱲角" to "Chek Lap Kok",
@@ -103,17 +107,8 @@ class WeatherRepository @Inject constructor(
         "啟德跑道公園" to listOf("啟德跑道公園", "啟德")
     )
 
-    // 🎯 讀取 Room 快取
     suspend fun getWeatherCacheState(): WeatherUiState? {
-        return try {
-            val cacheEntity = weatherDao.getWeatherCache()
-            if (cacheEntity != null && cacheEntity.jsonContent.isNotBlank()) {
-                gson.fromJson(cacheEntity.jsonContent, WeatherUiState::class.java)
-            } else null
-        } catch (e: Exception) {
-            Log.e("WeatherRepo", "Read cache error", e)
-            null
-        }
+        return loadFromCache()
     }
 
     suspend fun fetchWeatherInfo(): WeatherUiState {
@@ -361,9 +356,8 @@ class WeatherRepository @Inject constructor(
                 errorMessage = null
             )
 
-            // 🎯 成功取得資料後非同步寫入 Room DB 快取
             if (newState.updateTime.isNotEmpty()) {
-                saveWeatherStateToRoom(newState)
+                saveToCache(newState)
             }
 
             newState
@@ -373,15 +367,6 @@ class WeatherRepository @Inject constructor(
                 isLoading = false,
                 errorMessage = "加載天氣失敗: ${e.localizedMessage}"
             )
-        }
-    }
-
-    private suspend fun saveWeatherStateToRoom(state: WeatherUiState) {
-        try {
-            val jsonStr = gson.toJson(state)
-            weatherDao.saveWeatherCache(WeatherCacheEntity(id = 1, jsonContent = jsonStr))
-        } catch (e: Exception) {
-            Log.e("WeatherRepo", "Save cache error", e)
         }
     }
 
