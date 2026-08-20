@@ -1,5 +1,16 @@
 package com.example.lifeapp.data.model
 
+import androidx.room.Entity
+import androidx.room.PrimaryKey
+
+// 🎯 Room 天氣狀態持久化快取表
+@Entity(tableName = "weather_ui_cache")
+data class WeatherCacheEntity(
+    @PrimaryKey val id: Int = 1,
+    val jsonContent: String,
+    val lastUpdated: Long = System.currentTimeMillis()
+)
+
 // 1. UI 狀態模型
 data class WeatherUiState(
     val isLoading: Boolean = true,
