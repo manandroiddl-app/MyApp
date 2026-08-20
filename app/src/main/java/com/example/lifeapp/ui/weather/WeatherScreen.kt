@@ -21,8 +21,8 @@ import coil.compose.AsyncImage
 import com.example.lifeapp.data.model.DistrictRainfall
 import com.example.lifeapp.data.model.DistrictTemperature
 import com.example.lifeapp.data.model.WeatherWarningItem
+import com.example.lifeapp.ui.common.AutoRefreshLifecycleHandler
 import com.example.lifeapp.ui.common.FullPageLoading
-import com.example.lifeapp.ui.common.OnLifecycleResume
 import com.example.lifeapp.ui.theme.PrimaryDarkBlue
 import com.example.lifeapp.ui.theme.PrimaryLightBlue
 import com.example.lifeapp.ui.theme.TextDark
@@ -38,16 +38,12 @@ fun WeatherScreen(
     var showRainfallSheet by remember { mutableStateOf(false) }
     var showTempSheet by remember { mutableStateOf(false) }
 
-    OnLifecycleResume {
-        viewModel.loadWeatherData(isSilent = true)
-        viewModel.startAutoRefresh()
-    }
-
-    DisposableEffect(Unit) {
-        onDispose {
-            viewModel.stopAutoRefresh()
-        }
-    }
+    // 🎯 套用統一的 AutoRefreshLifecycleHandler
+    AutoRefreshLifecycleHandler(
+        onStartRefresh = { viewModel.startAutoRefresh() },
+        onStopRefresh = { viewModel.stopAutoRefresh() },
+        onResumeFetch = { viewModel.loadWeatherData(isSilent = true) }
+    )
 
     val isInitialLoading = uiState.isLoading && uiState.updateTime.isEmpty()
 
