@@ -7,8 +7,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -17,34 +15,33 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.lifeapp.ui.common.AutoRefreshLifecycleHandler
 import com.example.lifeapp.ui.common.FullPageLoading
-import com.example.lifeapp.ui.common.OnLifecycleResume
 import com.example.lifeapp.ui.theme.*
 
 @Composable
 fun TrafficScreen(viewModel: TrafficViewModel = hiltViewModel()) {
-    val uiState by viewModel.uiState.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    OnLifecycleResume {
-        viewModel.loadTrafficData(isSilent = true)
-        viewModel.startAutoRefresh()
-    }
+    // 🎯 套用全站統一生命週期處理器
+    AutoRefreshLifecycleHandler(
+        onStartRefresh = { viewModel.startAutoRefresh() },
+        onStopRefresh = { viewModel.stopAutoRefresh() },
+        onResumeFetch = { viewModel.loadTrafficData(isSilent = true) }
+    )
 
-    DisposableEffect(Unit) {
-        onDispose {
-            viewModel.stopAutoRefresh()
-        }
-    }
+    val isInitialLoading = uiState.isLoading && uiState.updateTime.isEmpty()
 
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(BackgroundLight)
     ) {
-        if (uiState.isLoading) {
-            // 🛡️ 套用 Common FullPageLoading
+        if (isInitialLoading) {
+            // 套用 Common FullPageLoading
             FullPageLoading(color = PrimaryBlue)
-        } else if (uiState.errorMessage != null) {
+        } else if (uiState.errorMessage != null && uiState.trafficNews.isEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
