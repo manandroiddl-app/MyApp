@@ -19,7 +19,7 @@ object DatabaseModule {
 
     @Provides
     @Singleton
-    fun provideGson(): Gson = Gson()[cite: 1]
+    fun provideGson(): Gson = Gson()
 
     @Provides
     @Singleton
@@ -28,15 +28,14 @@ object DatabaseModule {
             context,
             AppDatabase::class.java,
             "lifeapp_database"
-        ).fallbackToDestructiveMigration().build()[cite: 1]
+        ).fallbackToDestructiveMigration().build()
     }
 
     @Provides
     fun provideGenericCacheDao(database: AppDatabase): GenericCacheDao {
-        return database.genericCacheDao()[cite: 1]
+        return database.genericCacheDao()
     }
 
-    // 新增提供 TransitBookmarkDao
     @Provides
     fun provideTransitBookmarkDao(database: AppDatabase): TransitBookmarkDao {
         return database.transitBookmarkDao()
