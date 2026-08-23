@@ -1,9 +1,11 @@
+app/src/main/java/com/example/lifeapp/di/DatabaseModule.kt
 package com.example.lifeapp.di
 
 import android.content.Context
 import androidx.room.Room
 import com.example.lifeapp.data.local.AppDatabase
 import com.example.lifeapp.data.local.GenericCacheDao
+import com.example.lifeapp.data.local.dao.TransitBookmarkDao
 import com.google.gson.Gson
 import dagger.Module
 import dagger.Provides
@@ -18,7 +20,7 @@ object DatabaseModule {
 
     @Provides
     @Singleton
-    fun provideGson(): Gson = Gson()
+    fun provideGson(): Gson = Gson()[cite: 1]
 
     @Provides
     @Singleton
@@ -27,11 +29,17 @@ object DatabaseModule {
             context,
             AppDatabase::class.java,
             "lifeapp_database"
-        ).fallbackToDestructiveMigration().build()
+        ).fallbackToDestructiveMigration().build()[cite: 1]
     }
 
     @Provides
     fun provideGenericCacheDao(database: AppDatabase): GenericCacheDao {
-        return database.genericCacheDao()
+        return database.genericCacheDao()[cite: 1]
+    }
+
+    // 新增提供 TransitBookmarkDao
+    @Provides
+    fun provideTransitBookmarkDao(database: AppDatabase): TransitBookmarkDao {
+        return database.transitBookmarkDao()
     }
 }
