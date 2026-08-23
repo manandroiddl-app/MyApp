@@ -302,8 +302,9 @@ fun StopCardItem(
                                     }
                                     Spacer(modifier = Modifier.width(6.dp))
                                     
-                                    val targetDest = eta.destinationZh
-                                    val destName = if (targetDest.isNullOrEmpty()) "終點站" else targetDest
+                                    // 方案 A: 使用區域變數觸發 Kotlin 的 Smart Cast
+                                    val dest = eta.destinationZh
+                                    val destName = if (dest.isNullOrEmpty()) "終點站" else dest
                                     Text(text = "往 $destName", fontSize = 13.sp, color = TextDark)
                                 }
                                 
