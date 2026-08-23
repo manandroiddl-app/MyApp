@@ -1,7 +1,9 @@
 package com.example.lifeapp.data.repository
 
+import android.util.Log
 import com.example.lifeapp.data.api.BusApiService
 import com.example.lifeapp.data.local.GenericCacheDao
+import com.example.lifeapp.data.local.GenericCacheEntity
 import com.example.lifeapp.data.local.dao.TransitBookmarkDao
 import com.example.lifeapp.data.local.entity.TransitBookmarkEntity
 import com.example.lifeapp.data.model.OperatorCompany
@@ -22,16 +24,15 @@ import javax.inject.Singleton
 class BusRepository @Inject constructor(
     private val busApiService: BusApiService,
     private val bookmarkDao: TransitBookmarkDao,
-    cacheDao: GenericCacheDao,
-    gson: Gson
-) : BaseCacheRepository(cacheDao, gson) {
+    private val genericCacheDao: GenericCacheDao,
+    private val gson: Gson
+) {
 
-    suspend fun getAllRoutes(): List<TransitRoute> {
+    suspend fun getKmbRoutes(): List<TransitRoute> {
         val cacheKey = "kmb_all_routes"
-        val cached = getCache(cacheKey)
+        val cached = getCacheList<TransitRoute>(cacheKey)
         if (!cached.isNullOrEmpty()) {
-            val type = object : TypeToken<List<TransitRoute>>() {}.type
-            return gson.fromJson(cached, type)
+            return cached
         }
 
         return try {
@@ -50,22 +51,20 @@ class BusRepository @Inject constructor(
                     serviceType = dto.serviceType
                 )
             }
-            val type = object : TypeToken<List<TransitRoute>>() {}.type
-            saveCache(cacheKey, gson.toJson(routes, type), ttlMinutes = 1440)
+            saveCacheList(cacheKey, routes)
             routes
         } catch (e: Exception) {
             emptyList()
         }
     }
 
-    suspend fun getRouteStops(routeName: String, direction: String, serviceType: String): List<TransitStop> {
+    suspend fun getKmbRouteStops(routeName: String, direction: String, serviceType: String): List<TransitStop> {
         val dirParam = if (direction.equals("O", ignoreCase = true)) "outbound" else "inbound"
         val cacheKey = "kmb_stops_${routeName}_${dirParam}_$serviceType"
-        val cached = getCache(cacheKey)
+        val cached = getCacheList<TransitStop>(cacheKey)
         
         if (!cached.isNullOrEmpty()) {
-            val type = object : TypeToken<List<TransitStop>>() {}.type
-            return gson.fromJson(cached, type)
+            return cached
         }
 
         return try {
@@ -76,19 +75,18 @@ class BusRepository @Inject constructor(
                     nameZh = "載入中...",
                     nameEn = null,
                     sequence = dto.seq.toIntOrNull() ?: 0,
-                    lat = null,
-                    long = null
+                    latitude = null,
+                    longitude = null
                 )
             }
-            val type = object : TypeToken<List<TransitStop>>() {}.type
-            saveCache(cacheKey, gson.toJson(stops, type), ttlMinutes = 720)
+            saveCacheList(cacheKey, stops)
             stops
         } catch (e: Exception) {
             emptyList()
         }
     }
 
-    suspend fun getStopEta(stopId: String, routeName: String): List<TransitEta> {
+    suspend fun getKmbEta(stopId: String, routeName: String): List<TransitEta> {
         return try {
             val response = busApiService.getStopEta(stopId, routeName)
             val now = ZonedDateTime.now()
@@ -97,11 +95,10 @@ class BusRepository @Inject constructor(
                 TransitEta(
                     routeName = dto.route,
                     destinationZh = dto.destTc,
-                    destinationEn = dto.destEn,
-                    etaTime = dto.eta,
+                    etaTimestamp = dto.eta,
                     minutesLeft = minutesLeft,
                     remarkZh = dto.rmkTc,
-                    remarkEn = dto.rmkEn
+                    company = OperatorCompany.KMB
                 )
             }
         } catch (e: Exception) {
@@ -111,12 +108,44 @@ class BusRepository @Inject constructor(
 
     fun getAllBookmarks(): Flow<List<TransitBookmarkEntity>> = bookmarkDao.getAllBookmarks()
 
+    suspend fun addBookmark(bookmark: TransitBookmarkEntity) {
+        bookmarkDao.insertBookmark(bookmark)
+    }
+
+    suspend fun removeBookmark(bookmark: TransitBookmarkEntity) {
+        bookmarkDao.deleteBookmark(bookmark)
+    }
+
     suspend fun toggleBookmark(bookmark: TransitBookmarkEntity) {
         val existing = bookmarkDao.getBookmark(bookmark.id)
         if (existing != null) {
             bookmarkDao.deleteBookmark(bookmark)
         } else {
             bookmarkDao.insertBookmark(bookmark)
+        }
+    }
+
+    private suspend inline fun <reified T> getCacheList(key: String): List<T>? {
+        return try {
+            val entity = genericCacheDao.getCache(key)
+            if (entity != null && entity.jsonContent.isNotBlank()) {
+                val type = object : TypeToken<List<T>>() {}.type
+                gson.fromJson(entity.jsonContent, type)
+            } else null
+        } catch (e: Exception) {
+            Log.e("BusRepository", "Error reading cache for key: $key", e)
+            null
+        }
+    }
+
+    private suspend fun <T> saveCacheList(key: String, data: List<T>) {
+        try {
+            val jsonStr = gson.toJson(data)
+            genericCacheDao.saveCache(
+                GenericCacheEntity(cacheKey = key, jsonContent = jsonStr)
+            )
+        } catch (e: Exception) {
+            Log.e("BusRepository", "Error saving cache for key: $key", e)
         }
     }
 
