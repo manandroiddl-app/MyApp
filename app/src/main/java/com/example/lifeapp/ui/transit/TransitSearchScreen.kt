@@ -1,6 +1,5 @@
 package com.example.lifeapp.ui.transit
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -21,8 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.example.lifeapp.data.local.entity.TransitBookmarkEntity
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.lifeapp.data.model.TransitEta
 import com.example.lifeapp.data.model.TransitRoute
 import com.example.lifeapp.data.model.TransitStop
@@ -36,7 +34,6 @@ import java.util.Locale
 fun formatEtaDisplay(eta: TransitEta): String {
     val mins = eta.minutesLeft
 
-    // 嘗試解析 API 回傳的 ISO 時間戳記，若無法解析則以當前時間 + 剩餘分鐘數計算
     val formattedTime = if (!eta.etaTimestamp.isNullOrEmpty()) {
         try {
             val sdfInput = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.getDefault())
@@ -55,8 +52,9 @@ fun formatEtaDisplay(eta: TransitEta): String {
         } else ""
     }
 
+    // 修正修正 2：使用 .orEmpty() 處理 remarkZh 可能為 null 的情況
     val etaText = when {
-        mins == null -> eta.remarkZh.ifEmpty { "暫無班次" }
+        mins == null -> eta.remarkZh.orEmpty().ifEmpty { "暫無班次" }
         mins <= 0 -> "即將到達"
         else -> "${mins} 分鐘"
     }
@@ -68,9 +66,12 @@ fun formatEtaDisplay(eta: TransitEta): String {
     }
 }
 
+// 修正 1：為 viewModel 提供預設參數 = hiltViewModel()
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TransitSearchScreen(viewModel: TransitSearchViewModel) {
+fun TransitSearchScreen(
+    viewModel: TransitSearchViewModel = hiltViewModel()
+) {
     val uiState by viewModel.uiState.collectAsState()
 
     Scaffold(
@@ -134,7 +135,6 @@ fun SearchTabContent(
     viewModel: TransitSearchViewModel
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
-        // 搜尋欄
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
@@ -160,7 +160,6 @@ fun SearchTabContent(
             }
         }
 
-        // 動態 Chip 鍵盤 (數字列與字母列)
         Column(modifier = Modifier.padding(horizontal = 8.dp)) {
             LazyRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 items(uiState.numericChips) { num ->
@@ -184,7 +183,6 @@ fun SearchTabContent(
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
 
-        // 路線列表
         if (uiState.isLoadingRoutes) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()
@@ -237,7 +235,6 @@ fun RouteDetailContent(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            // 站序與名稱 (無折疊功能，無重複的方向資訊)
                             Text(
                                 text = "${stop.sequence}. ${stop.nameZh}",
                                 style = MaterialTheme.typography.titleMedium,
@@ -246,7 +243,6 @@ fun RouteDetailContent(
 
                             Spacer(modifier = Modifier.height(4.dp))
 
-                            // 顯示 ETA 分鐘 + 實時點 (HH:mm)
                             if (etaList.isEmpty()) {
                                 Text(
                                     text = "載入中或沒有預計班次",
@@ -310,7 +306,6 @@ fun BookmarkTabContent(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            // 路線號碼與目的地
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Surface(
                                     color = MaterialTheme.colorScheme.primaryContainer,
@@ -333,7 +328,6 @@ fun BookmarkTabContent(
 
                             Spacer(modifier = Modifier.height(4.dp))
 
-                            // 車站名稱
                             Text(
                                 text = bookmark.stopNameZh,
                                 style = MaterialTheme.typography.titleMedium,
@@ -342,7 +336,6 @@ fun BookmarkTabContent(
 
                             Spacer(modifier = Modifier.height(4.dp))
 
-                            // 顯示與詳細頁面一致的倒數與實時到達時間
                             if (etaList.isEmpty()) {
                                 Text(
                                     text = "載入中或沒有預計班次",
