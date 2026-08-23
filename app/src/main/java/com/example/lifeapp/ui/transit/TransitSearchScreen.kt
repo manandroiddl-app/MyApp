@@ -10,7 +10,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Backspace
-import androidx.compose.material.icons.filled.DirectionsBus
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.*
@@ -32,22 +31,13 @@ import com.example.lifeapp.ui.theme.*
 fun TransitSearchScreen(
     viewModel: TransitSearchViewModel = hiltViewModel()
 ) {
-    val searchQuery by viewModel.searchQuery.collectAsState()
-    val searchResults by viewModel.searchResults.collectAsState()
-    val selectedRoute by viewModel.selectedRoute.collectAsState()
-    val routeStops by viewModel.routeStops.collectAsState()
-    val selectedStop by viewModel.selectedStop.collectAsState()
-    val stopEtas by viewModel.stopEtas.collectAsState()
-    val isLoading by viewModel.isLoading.collectAsState()
-
-    val digits = listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "0")
-    val letters = listOf("A", "B", "C", "E", "K", "M", "N", "P", "R", "S", "T", "X")
+    val uiState by viewModel.uiState.collectAsState()
 
     Scaffold(
         containerColor = BackgroundLight,
         bottomBar = {
-            // 🎯 底部數字 / 英文 Quick Chip 鍵盤
-            if (selectedRoute == null) {
+            // 🎯 底部鍵盤（只限搜尋頁且未選中特定路線時顯示）
+            if (uiState.selectedRoute == null && uiState.currentTab == TransitTab.SEARCH) {
                 Surface(
                     color = Color.White,
                     shadowElevation = 8.dp,
@@ -59,27 +49,28 @@ fun TransitSearchScreen(
                             .navigationBarsPadding()
                             .padding(vertical = 10.dp, horizontal = 12.dp)
                     ) {
-                        // 第一行：數字 Chips (橫向滾動)
-                        LazyRow(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            items(digits) { digit ->
-                                SuggestionChip(
-                                    onClick = { viewModel.onQueryChange(searchQuery + digit) },
-                                    label = { Text(digit, fontWeight = FontWeight.Bold) },
-                                    colors = SuggestionChipDefaults.suggestionChipColors(
-                                        containerColor = PrimaryLightBlue,
-                                        labelColor = PrimaryDarkBlue
-                                    ),
-                                    border = null
-                                )
+                        // 第一行：數字 Chips (向橫 Scroll)
+                        if (uiState.numericChips.isNotEmpty()) {
+                            LazyRow(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                items(uiState.numericChips) { char ->
+                                    SuggestionChip(
+                                        onClick = { viewModel.onChipClicked(char) },
+                                        label = { Text(char.toString(), fontWeight = FontWeight.Bold) },
+                                        colors = SuggestionChipDefaults.suggestionChipColors(
+                                            containerColor = PrimaryLightBlue,
+                                            labelColor = PrimaryDarkBlue
+                                        ),
+                                        border = null
+                                    )
+                                }
                             }
+                            Spacer(modifier = Modifier.height(4.dp))
                         }
 
-                        Spacer(modifier = Modifier.height(4.dp))
-
-                        // 第二行：字母 Chips (橫向滾動) + 靠右退格鍵
+                        // 第二行：字母 Chips (向橫 Scroll) + 靠右退格按鈕
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically
@@ -88,11 +79,11 @@ fun TransitSearchScreen(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 modifier = Modifier.weight(1f)
                             ) {
-                                items(letters) { letter ->
+                                items(uiState.letterChips) { char ->
                                     FilterChip(
                                         selected = false,
-                                        onClick = { viewModel.onQueryChange(searchQuery + letter) },
-                                        label = { Text(letter, fontWeight = FontWeight.Bold) },
+                                        onClick = { viewModel.onChipClicked(char) },
+                                        label = { Text(char.toString(), fontWeight = FontWeight.Bold) },
                                         colors = FilterChipDefaults.filterChipColors(
                                             containerColor = Color(0xFFE8EAF6),
                                             labelColor = PrimaryDarkBlue
@@ -104,13 +95,9 @@ fun TransitSearchScreen(
 
                             Spacer(modifier = Modifier.width(8.dp))
 
-                            // 退格 Button (靠右)
+                            // 🎯 退格 Button (靠右邊放置)
                             IconButton(
-                                onClick = {
-                                    if (searchQuery.isNotEmpty()) {
-                                        viewModel.onQueryChange(searchQuery.dropLast(1))
-                                    }
-                                },
+                                onClick = { viewModel.onBackspaceClicked() },
                                 modifier = Modifier
                                     .size(36.dp)
                                     .background(Color(0xFFFFEBEE), RoundedCornerShape(10.dp))
@@ -134,18 +121,18 @@ fun TransitSearchScreen(
                 .padding(innerPadding)
                 .padding(16.dp)
         ) {
-            // 🎯 統一頁面標題樣式
+            // 🎯 統一頁面標題（藍色系與字級統一）
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                if (selectedRoute != null) {
-                    IconButton(onClick = { viewModel.clearSelection() }) {
+                if (uiState.selectedRoute != null) {
+                    IconButton(onClick = { viewModel.clearSelectedRoute() }) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "返回", tint = PrimaryDarkBlue)
                     }
                 }
                 Text(
-                    text = if (selectedRoute == null) "巴士 / 交通到站" else "路線 ${selectedRoute?.routeName}",
+                    text = if (uiState.selectedRoute == null) "巴士 / 交通到站" else "路線 ${uiState.selectedRoute?.routeName}",
                     fontSize = 24.sp,
                     fontWeight = FontWeight.Bold,
                     color = PrimaryDarkBlue
@@ -153,46 +140,72 @@ fun TransitSearchScreen(
             }
 
             Text(
-                text = if (selectedRoute == null) "請輸入路線編號以搜尋即時到站時間" else "${selectedRoute?.originZh} ➔ ${selectedRoute?.destinationZh}",
+                text = if (uiState.selectedRoute == null) "請輸入路線編號以搜尋即時到站時間" else "${uiState.selectedRoute?.originZh} ➔ ${uiState.selectedRoute?.destinationZh}",
                 fontSize = 14.sp,
                 color = TextGray,
                 modifier = Modifier.padding(bottom = 12.dp)
             )
 
-            if (selectedRoute == null) {
-                // 搜尋框
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = { viewModel.onQueryChange(it) },
-                    label = { Text("搜尋路線 (例如 1A, 102, 607X)") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = PrimaryDarkBlue,
-                        unfocusedBorderColor = Color.LightGray
+            // Tab 選擇列 (搜尋 / 書籤)
+            if (uiState.selectedRoute == null) {
+                TabRow(
+                    selectedTabIndex = uiState.currentTab.ordinal,
+                    containerColor = Color.Transparent,
+                    contentColor = PrimaryDarkBlue,
+                    modifier = Modifier.padding(bottom = 12.dp)
+                ) {
+                    Tab(
+                        selected = uiState.currentTab == TransitTab.SEARCH,
+                        onClick = { viewModel.selectTab(TransitTab.SEARCH) },
+                        text = { Text("路線搜尋", fontWeight = FontWeight.Bold) }
                     )
-                )
+                    Tab(
+                        selected = uiState.currentTab == TransitTab.BOOKMARK,
+                        onClick = { viewModel.selectTab(TransitTab.BOOKMARK) },
+                        text = { Text("我的收藏 (${uiState.bookmarks.size})", fontWeight = FontWeight.Bold) }
+                    )
+                }
+            }
 
-                Spacer(modifier = Modifier.height(12.dp))
+            if (uiState.selectedRoute == null) {
+                if (uiState.currentTab == TransitTab.SEARCH) {
+                    // 搜尋輸入框
+                    OutlinedTextField(
+                        value = uiState.searchQuery,
+                        onValueChange = { viewModel.onSearchQueryChanged(it) },
+                        label = { Text("搜尋路線 (例如 1A, 102, 607X)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = PrimaryDarkBlue,
+                            unfocusedBorderColor = Color.LightGray
+                        )
+                    )
 
-                if (isLoading) {
-                    Box(modifier = Modifier.fillMaxWidth().height(100.dp), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = PrimaryDarkBlue)
-                    }
-                } else {
-                    LazyColumn(
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        items(searchResults) { route ->
-                            RouteCardItem(route = route, onClick = { viewModel.selectRoute(route) })
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    if (uiState.isLoadingRoutes) {
+                        Box(modifier = Modifier.fillMaxWidth().height(100.dp), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(color = PrimaryDarkBlue)
+                        }
+                    } else {
+                        LazyColumn(
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            items(uiState.filteredRoutes) { route ->
+                                RouteCardItem(route = route, onClick = { viewModel.selectRoute(route) })
+                            }
                         }
                     }
+                } else {
+                    // 書籤分頁內容...
+                    Text("已收藏的車站列表", fontSize = 14.sp, color = TextGray)
                 }
             } else {
-                // 路線詳情：車站與 ETA 列表
-                if (isLoading && routeStops.isEmpty()) {
+                // Level 2 路線詳情 (車站與到站 ETA)
+                if (uiState.isLoadingStops) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator(color = PrimaryDarkBlue)
                     }
@@ -201,12 +214,16 @@ fun TransitSearchScreen(
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        items(routeStops) { stop ->
+                        items(uiState.routeStops) { stop ->
+                            val etas = uiState.selectedStopEtaMap[stop.stopId]
+                            val isBookmarked = uiState.bookmarkedStopIds.contains("KMB_${uiState.selectedRoute?.routeName}_${uiState.selectedRoute?.bound}_${uiState.selectedRoute?.serviceType}_${stop.stopId}")
+
                             StopCardItem(
                                 stop = stop,
-                                isSelected = selectedStop?.stopId == stop.stopId,
-                                etas = if (selectedStop?.stopId == stop.stopId) stopEtas else emptyList(),
-                                onClick = { viewModel.selectStop(stop) }
+                                etas = etas,
+                                isBookmarked = isBookmarked,
+                                onFetchEta = { viewModel.fetchStopEta(stop.stopId) },
+                                onToggleBookmark = { viewModel.toggleBookmark(stop) }
                             )
                         }
                     }
@@ -263,22 +280,33 @@ fun RouteCardItem(
 @Composable
 fun StopCardItem(
     stop: TransitStop,
-    isSelected: Boolean,
-    etas: List<TransitEta>,
-    onClick: () -> Unit
+    etas: List<TransitEta>?,
+    isBookmarked: Boolean,
+    onFetchEta: () -> Unit,
+    onToggleBookmark: () -> Unit
 ) {
+    var expanded by remember { mutableStateOf(etas != null) }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .clickable(onClick = onClick),
+            .clickable {
+                expanded = !expanded
+                if (expanded && etas == null) {
+                    onFetchEta()
+                }
+            },
         colors = CardDefaults.cardColors(
-            containerColor = if (isSelected) Color(0xFFE3F2FD) else Color.White
+            containerColor = if (expanded) Color(0xFFE3F2FD) else Color.White
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
                 Surface(
                     color = PrimaryDarkBlue,
                     shape = RoundedCornerShape(6.dp)
@@ -296,17 +324,27 @@ fun StopCardItem(
                     text = stop.nameZh,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
-                    color = TextDark
+                    color = TextDark,
+                    modifier = Modifier.weight(1f)
                 )
+                IconButton(onClick = onToggleBookmark) {
+                    Icon(
+                        imageVector = if (isBookmarked) Icons.Filled.Star else Icons.Outlined.StarBorder,
+                        contentDescription = "收藏",
+                        tint = if (isBookmarked) Color(0xFFFFB300) else TextGray
+                    )
+                }
             }
 
-            if (isSelected) {
-                Spacer(modifier = Modifier.height(10.dp))
+            if (expanded) {
+                Spacer(modifier = Modifier.height(6.dp))
                 Divider(color = Color.LightGray.copy(alpha = 0.5f))
                 Spacer(modifier = Modifier.height(8.dp))
 
-                if (etas.isEmpty()) {
+                if (etas == null) {
                     Text("載入 ETA 到站時間中...", fontSize = 13.sp, color = TextGray)
+                } else if (etas.isEmpty()) {
+                    Text("暫無即時到站班次", fontSize = 13.sp, color = TextGray)
                 } else {
                     etas.forEach { eta ->
                         Row(
