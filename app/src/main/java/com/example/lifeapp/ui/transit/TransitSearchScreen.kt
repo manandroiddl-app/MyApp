@@ -52,7 +52,6 @@ fun TransitSearchScreen(
                 .weight(1f)
                 .padding(horizontal = 16.dp)
         ) {
-            // 頂部列緊貼頂層
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
@@ -157,7 +156,6 @@ fun TransitSearchScreen(
             }
         }
 
-        // 底部數字/字母 Chip 鍵盤
         if (uiState.selectedRoute == null && uiState.currentTab == TransitTab.SEARCH) {
             Surface(
                 color = Color.White,
@@ -285,7 +283,6 @@ fun StopCardItem(
                 if (etas == null) {
                     Text("載入到站時間中...", fontSize = 12.sp, color = TextGray)
                 } else if (etas.isEmpty()) {
-                    // 🎯 修復 3：無資料時顯示「暫時無班次資料」
                     Text("暫時無班次資料", fontSize = 13.sp, color = TextGray, fontWeight = FontWeight.Medium)
                 } else {
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -304,10 +301,11 @@ fun StopCardItem(
                                         )
                                     }
                                     Spacer(modifier = Modifier.width(6.dp))
-                                    Text(text = "往 ${eta.destinationZh.ifEmpty { "終點站" }}", fontSize = 13.sp, color = TextDark)
+                                    
+                                    val destName = eta.destinationZh?.ifEmpty { "終點站" } ?: "終點站"
+                                    Text(text = "往 $destName", fontSize = 13.sp, color = TextDark)
                                 }
                                 
-                                // 🎯 修復 3：精確判斷 ETA 顯示文字（暫時無班次資料 vs 即將到站 vs X 分鐘）
                                 val mins = eta.minutesLeft
                                 val displayText: String
                                 val displayColor: Color
