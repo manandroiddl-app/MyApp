@@ -1,4 +1,3 @@
-app/src/main/java/com/example/lifeapp/data/local/dao/TransitBookmarkDao.kt
 package com.example.lifeapp.data.local.dao
 
 import androidx.room.Dao
