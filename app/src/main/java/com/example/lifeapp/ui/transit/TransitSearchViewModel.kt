@@ -198,13 +198,9 @@ class TransitSearchViewModel @Inject constructor(
                     route = route.routeName,
                     serviceType = route.serviceType ?: "1"
                 )
-                
-                val boundFilteredEtas = etaList.filter { eta ->
-                    eta.bound == route.bound
-                }
 
                 val currentMap = _uiState.value.selectedStopEtaMap.toMutableMap()
-                currentMap[stopId] = boundFilteredEtas
+                currentMap[stopId] = etaList
                 _uiState.value = _uiState.value.copy(selectedStopEtaMap = currentMap)
             } catch (_: Exception) {}
         }
