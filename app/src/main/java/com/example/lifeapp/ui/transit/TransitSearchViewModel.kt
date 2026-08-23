@@ -37,8 +37,7 @@ data class TransitUiState(
     val routeStops: List<TransitStop> = emptyList(),
     val isLoadingStops: Boolean = false,
     val selectedStopEtaMap: Map<String, List<TransitEta>> = emptyMap(),
-    val bookmarkedStopIds: Set<String> = emptySet(),
-    val expandedStopIds: Set<String> = emptySet()
+    val bookmarkedStopIds: Set<String> = emptySet()
 )
 
 @HiltViewModel
@@ -116,7 +115,6 @@ class TransitSearchViewModel @Inject constructor(
         updateFilteredRoutes(upperQuery)
     }
 
-    // 【修正 1】：全動態鍵盤邏輯，不再漏掉 N 線、A 線等字頭
     private fun updateFilteredRoutes(query: String) {
         val all = _uiState.value.allRoutes
         
@@ -126,7 +124,6 @@ class TransitSearchViewModel @Inject constructor(
             all.filter { it.routeName.contains(query, ignoreCase = true) }
         }
 
-        // 計算在目前 query 下，下一個可能的字元（數字或字母）
         val nextChars = filtered.mapNotNull { route ->
             val name = route.routeName.uppercase()
             val index = name.indexOf(query, ignoreCase = true)
@@ -135,7 +132,6 @@ class TransitSearchViewModel @Inject constructor(
             } else null
         }.distinct().sorted()
 
-        // query 為空時：動態搜集全港所有路線出現過的所有英文字母 (包括 N, A, E, B, X 等)
         val defaultLetters = if (query.isEmpty()) {
             all.flatMap { route ->
                 route.routeName.uppercase().filter { it.isLetter() }.toList()
@@ -166,8 +162,7 @@ class TransitSearchViewModel @Inject constructor(
                 selectedRoute = route,
                 isLoadingStops = true,
                 routeStops = emptyList(),
-                selectedStopEtaMap = emptyMap(),
-                expandedStopIds = emptySet()
+                selectedStopEtaMap = emptyMap()
             )
         }
 
@@ -179,17 +174,14 @@ class TransitSearchViewModel @Inject constructor(
                     serviceType = route.serviceType ?: "1"
                 )
 
-                val allStopIds = stops.map { it.stopId }.toSet()
-
                 _uiState.update { currentState ->
                     currentState.copy(
                         routeStops = stops,
-                        isLoadingStops = false,
-                        expandedStopIds = allStopIds
+                        isLoadingStops = false
                     )
                 }
 
-                allStopIds.forEach { fetchStopEta(it) }
+                stops.forEach { fetchStopEta(it.stopId) }
                 startEtaAutoRefreshLoop()
             } catch (e: Exception) {
                 _uiState.update { currentState -> currentState.copy(isLoadingStops = false) }
@@ -222,10 +214,6 @@ class TransitSearchViewModel @Inject constructor(
         )
 
         selectRoute(targetRoute)
-
-        _uiState.update { currentState ->
-            currentState.copy(expandedStopIds = setOf(bookmark.stopId))
-        }
     }
 
     fun clearSelectedRoute() {
@@ -234,24 +222,11 @@ class TransitSearchViewModel @Inject constructor(
             currentState.copy(
                 selectedRoute = null,
                 routeStops = emptyList(),
-                selectedStopEtaMap = emptyMap(),
-                expandedStopIds = emptySet()
+                selectedStopEtaMap = emptyMap()
             )
         }
     }
 
-    fun toggleStopExpand(stopId: String) {
-        val currentExpanded = _uiState.value.expandedStopIds.toMutableSet()
-        if (currentExpanded.contains(stopId)) {
-            currentExpanded.remove(stopId)
-        } else {
-            currentExpanded.add(stopId)
-            fetchStopEta(stopId)
-        }
-        _uiState.update { currentState -> currentState.copy(expandedStopIds = currentExpanded) }
-    }
-
-    // 【修正 2】：過濾 ETA，避免頭尾站出現相反方向/重複的班次
     fun fetchStopEta(stopId: String) {
         val route = _uiState.value.selectedRoute ?: return
         viewModelScope.launch {
@@ -262,7 +237,6 @@ class TransitSearchViewModel @Inject constructor(
                     serviceType = route.serviceType ?: "1"
                 )
 
-                // 根據當前路線的「目的地 (destinationZh)」來過濾，確保只顯示往該目的地的班次
                 val filteredEtaList = rawEtaList.filter { eta ->
                     route.destinationZh.isNullOrEmpty() || 
                     eta.destinationZh.isEmpty() || 
@@ -284,8 +258,8 @@ class TransitSearchViewModel @Inject constructor(
             while (isActive) {
                 delay(30_000L)
                 if (_uiState.value.selectedRoute != null) {
-                    _uiState.value.expandedStopIds.forEach { stopId ->
-                        fetchStopEta(stopId)
+                    _uiState.value.routeStops.forEach { stop ->
+                        fetchStopEta(stop.stopId)
                     }
                 }
             }
