@@ -8,12 +8,12 @@ import com.example.lifeapp.data.local.entity.TransitBookmarkEntity
 @Database(
     entities = [
         GenericCacheEntity::class,
-        TransitBookmarkEntity::class // 新增 TransitBookmarkEntity[cite: 3]
+        TransitBookmarkEntity::class
     ],
-    version = 4,                      // 升級版本號至 4[cite: 3]
+    version = 4,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
-    abstract fun genericCacheDao(): GenericCacheDao[cite: 3]
-    abstract fun transitBookmarkDao(): TransitBookmarkDao // 新增 TransitBookmarkDao Provider
+    abstract fun genericCacheDao(): GenericCacheDao
+    abstract fun transitBookmarkDao(): TransitBookmarkDao
 }
