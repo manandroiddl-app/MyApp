@@ -1,4 +1,3 @@
-app/src/main/java/com/example/lifeapp/ui/transit/TransitSearchViewModel.kt
 package com.example.lifeapp.ui.transit
 
 import androidx.lifecycle.ViewModel
