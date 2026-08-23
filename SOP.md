@@ -46,4 +46,11 @@
 
 主動請求最新 Source Code：我會第一時間主動向你要求分享最新版本的原始碼（例如 Zip 檔或相關檔案的 Full Code），確保每次改動都是 100% 精準建立在 真正最新的版本 On Top 上。
 
+後加:
+零盲猜（Zero Assumptions）：凡涉及父類別（Base Class）、Data Model、DAO、API Interface 嘅連動，只要未見到最新全文，第一時間列清單向你要 Code，絕不上演「猜心遊戲」。
+
+靜態型別嚴格對齊（Type-Safe Verification）：收到檔案後，逐個欄位名（Field Name）、方法簽名（Method Signature）、泛型（Generics）同 Dependency Injection（Hilt/Dagger）進行跨檔案比對，確保 100% 同步。
+
+編譯級審查（Compilation-Level Review）：輸出代碼前，在腦海中模擬 Kotlin Compiler run 一次全流程，確保無任何 Unresolved Reference、Type Mismatch 或 Parameter Missing 才會交貨。
+
 避免 Version Divergence (版本分支脫節)：防止因為版本錯配而產生「覆蓋了已完成功能」或「需要花大量時間改 Bug」的情況。
