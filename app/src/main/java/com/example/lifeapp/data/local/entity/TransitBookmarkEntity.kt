@@ -1,4 +1,3 @@
-app/src/main/java/com/example/lifeapp/data/local/entity/TransitBookmarkEntity.kt
 package com.example.lifeapp.data.local.entity
 
 import androidx.room.Entity
