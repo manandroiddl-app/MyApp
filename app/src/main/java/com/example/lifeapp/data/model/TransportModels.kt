@@ -1,4 +1,3 @@
-app/src/main/java/com/example/lifeapp/data/model/TransportModels.kt
 package com.example.lifeapp.data.model
 
 import com.google.gson.annotations.SerializedName
