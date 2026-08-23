@@ -1,4 +1,3 @@
-app/src/main/java/com/example/lifeapp/data/repository/BusRepository.kt
 package com.example.lifeapp.data.repository
 
 import com.example.lifeapp.data.api.BusApiService
