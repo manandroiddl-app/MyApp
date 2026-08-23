@@ -47,16 +47,11 @@ class TransitSearchViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(TransitUiState())
     val uiState: StateFlow<TransitUiState> = _uiState.asStateFlow()
 
-    private val _currentTimeMs = MutableStateFlow(System.currentTimeMillis())
-    val currentTimeMs: StateFlow<Long> = _currentTimeMs.asStateFlow()
-
     private var etaAutoRefreshJob: Job? = null
-    private var tickerJob: Job? = null
 
     init {
         loadAllRoutes()
         observeBookmarks()
-        startTicker()
     }
 
     fun onResumeRefresh() {
@@ -65,16 +60,6 @@ class TransitSearchViewModel @Inject constructor(
 
     fun onPauseStopRefresh() {
         stopEtaAutoRefreshLoop()
-    }
-
-    private fun startTicker() {
-        tickerJob?.cancel()
-        tickerJob = viewModelScope.launch {
-            while (isActive) {
-                delay(1000L)
-                _currentTimeMs.value = System.currentTimeMillis()
-            }
-        }
     }
 
     private fun loadAllRoutes() {
@@ -116,10 +101,6 @@ class TransitSearchViewModel @Inject constructor(
         }
     }
 
-    fun onClearSearch() {
-        onSearchQueryChanged("")
-    }
-
     fun onSearchQueryChanged(query: String) {
         val upperQuery = query.uppercase()
         updateFilteredRoutes(upperQuery)
@@ -128,21 +109,24 @@ class TransitSearchViewModel @Inject constructor(
     private fun updateFilteredRoutes(query: String) {
         val all = _uiState.value.allRoutes
         
-        // 🎯 修復 3b：移除 .distinctBy { it.routeName }，完整保留雙向 (Bound O/I) 路線
+        // 🎯 修復 1：使用 contains 進行模糊比對（打 "3" 出 E33, E33P, 3B 等）
         val filtered = if (query.isEmpty()) {
             all
         } else {
-            all.filter { it.routeName.startsWith(query, ignoreCase = true) }
+            all.filter { it.routeName.contains(query, ignoreCase = true) }
         }
 
         val nextChars = all.mapNotNull { route ->
             val name = route.routeName.uppercase()
-            if (name.startsWith(query, ignoreCase = true) && name.length > query.length) name[query.length] else null
+            val index = name.indexOf(query, ignoreCase = true)
+            if (index != -1 && index + query.length < name.length) {
+                name[index + query.length]
+            } else null
         }.distinct().sorted()
 
         val (nums, letters) = if (query.isEmpty()) {
             val defaultNums = listOf('1', '2', '3', '4', '5', '6', '7', '8', '9', '0')
-            val defaultLetters = all.mapNotNull { it.routeName.firstOrNull { c -> c.isLetter() }?.uppercaseChar() }.distinct().sorted()
+            val defaultLetters = listOf('A', 'B', 'C', 'E', 'K', 'M', 'N', 'R', 'S', 'T', 'X')
             Pair(defaultNums, defaultLetters)
         } else {
             Pair(nextChars.filter { it.isDigit() }, nextChars.filter { it.isLetter() })
@@ -172,7 +156,6 @@ class TransitSearchViewModel @Inject constructor(
                 serviceType = route.serviceType ?: "1"
             )
 
-            // 🎯 修復 2：全部車站預設 100% 展開
             val allStopIds = stops.map { it.stopId }.toSet()
 
             _uiState.value = _uiState.value.copy(
@@ -181,9 +164,8 @@ class TransitSearchViewModel @Inject constructor(
                 expandedStopIds = allStopIds
             )
 
-            // 一次過發起所有車站 ETA 的 Fetch
+            // 全站自動發起 ETA 請求
             allStopIds.forEach { fetchStopEta(it) }
-
             startEtaAutoRefreshLoop()
         }
     }
@@ -218,8 +200,14 @@ class TransitSearchViewModel @Inject constructor(
                     route = route.routeName,
                     serviceType = route.serviceType ?: "1"
                 )
+                
+                // 🎯 修復 2：嚴格過濾方向 (dir == route.bound)，解決去程混雜回程 ETA 問題
+                val boundFilteredEtas = etaList.filter { eta ->
+                    eta.dir == route.bound
+                }
+
                 val currentMap = _uiState.value.selectedStopEtaMap.toMutableMap()
-                currentMap[stopId] = etaList.filter { (it.minutesLeft ?: 0) >= 0 }
+                currentMap[stopId] = boundFilteredEtas
                 _uiState.value = _uiState.value.copy(selectedStopEtaMap = currentMap)
             } catch (_: Exception) {}
         }
@@ -229,7 +217,7 @@ class TransitSearchViewModel @Inject constructor(
         stopEtaAutoRefreshLoop()
         etaAutoRefreshJob = viewModelScope.launch {
             while (isActive) {
-                delay(30_000L) // 30 秒自動靜默刷新
+                delay(30_000L)
                 if (_uiState.value.selectedRoute != null) {
                     _uiState.value.expandedStopIds.forEach { stopId ->
                         fetchStopEta(stopId)
@@ -272,6 +260,5 @@ class TransitSearchViewModel @Inject constructor(
     override fun onCleared() {
         super.onCleared()
         stopEtaAutoRefreshLoop()
-        tickerJob?.cancel()
     }
 }
