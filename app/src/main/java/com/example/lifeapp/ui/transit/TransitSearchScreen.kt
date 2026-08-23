@@ -1,4 +1,3 @@
-app/src/main/java/com/example/lifeapp/ui/transit/TransitSearchScreen.kt
 package com.example.lifeapp.ui.transit
 
 import androidx.compose.animation.AnimatedVisibility
