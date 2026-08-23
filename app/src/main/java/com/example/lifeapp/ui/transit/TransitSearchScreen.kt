@@ -302,7 +302,8 @@ fun StopCardItem(
                                     }
                                     Spacer(modifier = Modifier.width(6.dp))
                                     
-                                    val destName = eta.destinationZh?.ifEmpty { "終點站" } ?: "終點站"
+                                    val targetDest = eta.destinationZh
+                                    val destName = if (targetDest.isNullOrEmpty()) "終點站" else targetDest
                                     Text(text = "往 $destName", fontSize = 13.sp, color = TextDark)
                                 }
                                 
