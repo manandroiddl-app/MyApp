@@ -1,191 +1,162 @@
 package com.example.lifeapp.data.repository
 
-import android.util.Log
-import com.example.lifeapp.data.api.BusApiService
-import com.example.lifeapp.data.local.GenericCacheDao
-import com.example.lifeapp.data.local.GenericCacheEntity
 import com.example.lifeapp.data.local.dao.TransitBookmarkDao
 import com.example.lifeapp.data.local.entity.TransitBookmarkEntity
-import com.example.lifeapp.data.model.*
-import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
+import com.example.lifeapp.data.model.TransitEta
+import com.example.lifeapp.data.model.TransitRoute
+import com.example.lifeapp.data.model.TransitStop
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
-import java.time.ZonedDateTime
-import java.time.format.DateTimeFormatter
-import java.time.temporal.ChronoUnit
+import kotlinx.coroutines.withContext
+import org.json.JSONArray
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class BusRepository @Inject constructor(
-    private val busApiService: BusApiService,
-    private val bookmarkDao: TransitBookmarkDao,
-    private val genericCacheDao: GenericCacheDao,
-    private val gson: Gson
+    private val bookmarkDao: TransitBookmarkDao
 ) {
+    // 車站名稱記憶體快取 (Stop ID -> 繁體中文站名)
+    private val stopNameCache = ConcurrentHashMap<String, String>()
 
-    suspend fun getKmbRoutes(): List<TransitRoute> {
-        val cacheKey = "kmb_all_routes"
-        val cached = getCacheList<TransitRoute>(cacheKey)
-        if (!cached.isNullOrEmpty()) {
-            return cached
-        }
-
-        return try {
-            val response = busApiService.getKmbRoutes()
-            val routes = response.data?.map { dto ->
-                TransitRoute(
-                    routeId = "${dto.route}-${dto.bound ?: ""}-${dto.serviceType ?: ""}",
-                    routeName = dto.route,
-                    transitType = TransitType.BUS,
-                    company = OperatorCompany.KMB,
-                    originZh = dto.origTc ?: "",
-                    originEn = dto.origEn,
-                    destinationZh = dto.destTc ?: "",
-                    destinationEn = dto.destEn,
-                    bound = dto.bound,
-                    serviceType = dto.serviceType
-                )
-            } ?: emptyList()
-
-            if (routes.isNotEmpty()) {
-                saveCacheList(cacheKey, routes)
-            }
-            routes
-        } catch (e: Exception) {
-            Log.e("BusRepository", "Error fetching KMB routes", e)
-            emptyList()
-        }
-    }
-
-    // 🎯修復「載入中...」：使用 async 並行查詢每個 stopId 的中文站名
-    suspend fun getKmbRouteStops(route: String, bound: String, serviceType: String): List<TransitStop> = coroutineScope {
-        val dirParam = if (bound.equals("O", ignoreCase = true)) "outbound" else "inbound"
-        val cacheKey = "kmb_stops_${route}_${dirParam}_$serviceType"
-        val cached = getCacheList<TransitStop>(cacheKey)
-        
-        if (!cached.isNullOrEmpty()) {
-            return@coroutineScope cached
-        }
-
+    suspend fun getKmbRoutes(): List<TransitRoute> = withContext(Dispatchers.IO) {
+        val url = URL("https://data.etabus.gov.hk/v1/transport/kmb/route")
+        val connection = url.openConnection() as HttpURLConnection
         try {
-            val response = busApiService.getKmbRouteStops(route, dirParam, serviceType)
-            val dtoList = response.data ?: emptyList()
-
-            val deferredStops = dtoList.map { dto ->
-                async {
-                    val detail = getStopDetail(dto.stopId)
-                    TransitStop(
-                        stopId = dto.stopId,
-                        sequence = dto.sequence,
-                        nameZh = detail?.nameTc ?: "車站 ${dto.sequence}",
-                        nameEn = detail?.nameEn,
-                        latitude = detail?.lat?.toDoubleOrNull() ?: 0.0,
-                        longitude = detail?.long?.toDoubleOrNull() ?: 0.0
+            val jsonStr = connection.inputStream.bufferedReader().use { it.readText() }
+            val dataArray = JSONObject(jsonStr).getJSONArray("data")
+            val list = mutableListOf<TransitRoute>()
+            
+            for (i in 0 until dataArray.length()) {
+                val obj = dataArray.getJSONObject(i)
+                list.add(
+                    TransitRoute(
+                        routeName = obj.optString("route"),
+                        bound = obj.optString("bound"),
+                        serviceType = obj.optString("service_type"),
+                        originZh = obj.optString("orig_tc"),
+                        destinationZh = obj.optString("dest_tc")
                     )
-                }
-            }
-
-            val stops = deferredStops.awaitAll()
-
-            if (stops.isNotEmpty()) {
-                saveCacheList(cacheKey, stops)
-            }
-            stops
-        } catch (e: Exception) {
-            Log.e("BusRepository", "Error fetching route stops for $route", e)
-            emptyList()
-        }
-    }
-
-    private suspend fun getStopDetail(stopId: String): KmbStopDetailDto? {
-        val cacheKey = "kmb_stop_detail_$stopId"
-        val cached = getCacheObject<KmbStopDetailDto>(cacheKey)
-        if (cached != null) return cached
-
-        return try {
-            val res = busApiService.getKmbStopDetail(stopId)
-            res.data?.also {
-                saveCacheObject(cacheKey, it)
-            }
-        } catch (e: Exception) {
-            null
-        }
-    }
-
-    suspend fun getKmbEta(stopId: String, route: String, serviceType: String): List<TransitEta> {
-        return try {
-            val response = busApiService.getKmbEta(stopId, route, serviceType)
-            val now = ZonedDateTime.now()
-            response.data?.map { dto ->
-                val minutesLeft = calculateMinutesLeft(dto.etaTimestamp, now)
-                TransitEta(
-                    routeName = dto.route ?: route,
-                    company = OperatorCompany.KMB,
-                    destinationZh = dto.destTc ?: "",
-                    etaTimestamp = dto.etaTimestamp,
-                    remarkZh = dto.remarkTc,
-                    minutesLeft = minutesLeft
                 )
-            } ?: emptyList()
+            }
+            list
         } catch (e: Exception) {
-            Log.e("BusRepository", "Error fetching ETA for stop $stopId", e)
             emptyList()
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    suspend fun getKmbRouteStops(route: String, bound: String, serviceType: String): List<TransitStop> = withContext(Dispatchers.IO) {
+        val boundParam = if (bound == "O") "outbound" else "inbound"
+        val url = URL("https://data.etabus.gov.hk/v1/transport/kmb/route-stop/$route/$boundParam/$serviceType")
+        val connection = url.openConnection() as HttpURLConnection
+        try {
+            val jsonStr = connection.inputStream.bufferedReader().use { it.readText() }
+            val dataArray = JSONObject(jsonStr).getJSONArray("data")
+            val rawStops = mutableListOf<Pair<String, Int>>() // Pair(stopId, seq)
+
+            for (i in 0 until dataArray.length()) {
+                val obj = dataArray.getJSONObject(i)
+                rawStops.add(Pair(obj.optString("stop"), obj.optInt("seq")))
+            }
+
+            // 🎯 修復 4：並行 Fetch 缺失的中文站名，徹底消除「載入中...」
+            val missingStopIds = rawStops.map { it.first }.filter { !stopNameCache.containsKey(it) }.distinct()
+            if (missingStopIds.isNotEmpty()) {
+                missingStopIds.map { stopId ->
+                    async {
+                        val name = fetchStopNameFromApi(stopId)
+                        if (name.isNotEmpty()) {
+                            stopNameCache[stopId] = name
+                        }
+                    }
+                }.awaitAll()
+            }
+
+            // 組裝帶有繁體中文站名的 TransitStop 列表
+            rawStops.map { (stopId, seq) ->
+                TransitStop(
+                    stopId = stopId,
+                    sequence = seq,
+                    nameZh = stopNameCache[stopId] ?: "車站 $seq"
+                )
+            }
+        } catch (e: Exception) {
+            emptyList()
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    private fun fetchStopNameFromApi(stopId: String): String {
+        return try {
+            val url = URL("https://data.etabus.gov.hk/v1/transport/kmb/stop/$stopId")
+            val conn = url.openConnection() as HttpURLConnection
+            val jsonStr = conn.inputStream.bufferedReader().use { it.readText() }
+            conn.disconnect()
+            val dataObj = JSONObject(jsonStr).getJSONObject("data")
+            dataObj.optString("name_tc")
+        } catch (e: Exception) {
+            ""
+        }
+    }
+
+    suspend fun getKmbEta(stopId: String, route: String, serviceType: String): List<TransitEta> = withContext(Dispatchers.IO) {
+        val url = URL("https://data.etabus.gov.hk/v1/transport/kmb/eta/$stopId/$route/$serviceType")
+        val connection = url.openConnection() as HttpURLConnection
+        try {
+            val jsonStr = connection.inputStream.bufferedReader().use { it.readText() }
+            val dataArray = JSONObject(jsonStr).getJSONArray("data")
+            val list = mutableListOf<TransitEta>()
+            val sdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.getDefault())
+            val nowMs = System.currentTimeMillis()
+
+            for (i in 0 until dataArray.length()) {
+                val obj = dataArray.getJSONObject(i)
+                val etaTimeStr = obj.optString("eta", "")
+                val dir = obj.optString("dir", "")
+                val destTc = obj.optString("dest_tc", "")
+
+                var minsLeft: Int? = null
+                if (etaTimeStr.isNotEmpty() && etaTimeStr != "null") {
+                    try {
+                        val date = sdf.parse(etaTimeStr)
+                        if (date != null) {
+                            val diffMs = date.time - nowMs
+                            minsLeft = (diffMs / 60000).toInt()
+                        }
+                    } catch (_: Exception) {}
+                }
+
+                list.add(
+                    TransitEta(
+                        dir = dir,
+                        serviceType = obj.optString("service_type", "1"),
+                        destinationZh = destTc,
+                        etaTimestamp = if (etaTimeStr == "null") "" else etaTimeStr,
+                        minutesLeft = minsLeft
+                    )
+                )
+            }
+            list
+        } catch (e: Exception) {
+            emptyList()
+        } finally {
+            connection.disconnect()
         }
     }
 
     fun getAllBookmarks(): Flow<List<TransitBookmarkEntity>> = bookmarkDao.getAllBookmarks()
-
-    suspend fun addBookmark(bookmark: TransitBookmarkEntity) {
-        bookmarkDao.insertBookmark(bookmark)
-    }
-
-    suspend fun removeBookmark(bookmarkId: String) {
-        bookmarkDao.deleteBookmarkById(bookmarkId)
-    }
-
-    private suspend inline fun <reified T> getCacheList(key: String): List<T>? {
-        return try {
-            val entity = genericCacheDao.getCache(key)
-            if (entity != null && entity.jsonContent.isNotBlank()) {
-                val type = object : TypeToken<List<T>>() {}.type
-                gson.fromJson<List<T>>(entity.jsonContent, type)
-            } else null
-        } catch (e: Exception) { null }
-    }
-
-    private suspend fun <T> saveCacheList(key: String, data: List<T>) {
-        try {
-            val jsonStr = gson.toJson(data)
-            genericCacheDao.saveCache(GenericCacheEntity(cacheKey = key, jsonContent = jsonStr))
-        } catch (e: Exception) { }
-    }
-
-    private suspend inline fun <reified T> getCacheObject(key: String): T? {
-        return try {
-            val entity = genericCacheDao.getCache(key)
-            if (entity != null && entity.jsonContent.isNotBlank()) {
-                gson.fromJson(entity.jsonContent, T::class.java)
-            } else null
-        } catch (e: Exception) { null }
-    }
-
-    private suspend fun <T> saveCacheObject(key: String, data: T) {
-        try {
-            val jsonStr = gson.toJson(data)
-            genericCacheDao.saveCache(GenericCacheEntity(cacheKey = key, jsonContent = jsonStr))
-        } catch (e: Exception) { }
-    }
-
-    private fun calculateMinutesLeft(etaStr: String?, now: ZonedDateTime): Int? {
-        if (etaStr.isNullOrEmpty()) return null
-        return try {
-            val etaTime = ZonedDateTime.parse(etaStr, DateTimeFormatter.ISO_OFFSET_DATE_TIME)
-            val diff = ChronoUnit.MINUTES.between(now, etaTime).toInt()
-            if (diff < 0) 0 else diff
-        } catch (e: Exception) { null }
-    }
+    suspend fun addBookmark(entity: TransitBookmarkEntity) = bookmarkDao.insertBookmark(entity)
+    suspend fun removeBookmark(bookmarkId: String) = bookmarkDao.deleteBookmarkById(bookmarkId)
 }
