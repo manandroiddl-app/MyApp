@@ -7,6 +7,7 @@ import com.example.lifeapp.data.model.OperatorCompany
 import com.example.lifeapp.data.model.TransitEta
 import com.example.lifeapp.data.model.TransitRoute
 import com.example.lifeapp.data.model.TransitStop
+import com.example.lifeapp.data.model.TransitType
 import com.example.lifeapp.data.repository.BusRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
@@ -132,7 +133,6 @@ class TransitSearchViewModel @Inject constructor(
             } else null
         }.distinct().sorted()
 
-        // 【修正問題 2】當 query 為空時，動態提取所有路線名稱最後出現的字母（解決 F、X 等字母漏掉問題）
         val defaultLetters = if (query.isEmpty()) {
             all.mapNotNull { route ->
                 Regex("[A-Za-z]+$").find(route.routeName)?.value?.uppercase()?.firstOrNull()
@@ -194,7 +194,6 @@ class TransitSearchViewModel @Inject constructor(
         }
     }
 
-    // 【修正問題 3】點擊 Bookmark 項目跳轉到該路線
     fun selectBookmarkRoute(bookmark: TransitBookmarkEntity) {
         val operatorCompany = try {
             OperatorCompany.valueOf(bookmark.company)
@@ -207,12 +206,16 @@ class TransitSearchViewModel @Inject constructor(
                     route.bound == bookmark.bound &&
                     route.serviceType == bookmark.serviceType
         } ?: TransitRoute(
-            company = operatorCompany,
+            routeId = "KMB_${bookmark.routeName}_${bookmark.bound}_${bookmark.serviceType}",
             routeName = bookmark.routeName,
+            transitType = TransitType.BUS,
+            company = operatorCompany,
             bound = bookmark.bound,
             serviceType = bookmark.serviceType,
             originZh = bookmark.originZh,
-            destinationZh = bookmark.destinationZh
+            originEn = null,
+            destinationZh = bookmark.destinationZh,
+            destinationEn = null
         )
 
         selectRoute(targetRoute)
@@ -291,22 +294,17 @@ class TransitSearchViewModel @Inject constructor(
             if (_uiState.value.bookmarkedStopIds.contains(bookmarkId)) {
                 busRepository.removeBookmark(bookmarkId)
             } else {
-                // 【編譯修正】完整傳入 TransitBookmarkEntity 需要的所有必要欄位
+                // 精確匹配 TransitBookmarkEntity 結構
                 val entity = TransitBookmarkEntity(
                     bookmarkId = bookmarkId,
-                    routeId = "${route.routeName}_${route.bound}_${route.serviceType}",
                     routeName = route.routeName,
                     company = OperatorCompany.KMB.name,
-                    transitType = "BUS",
                     bound = route.bound ?: "O",
                     serviceType = route.serviceType ?: "1",
                     originZh = route.originZh ?: "",
-                    originEn = route.originEn ?: "",
                     destinationZh = route.destinationZh ?: "",
-                    destinationEn = route.destinationEn ?: "",
                     stopId = stop.stopId,
                     stopNameZh = stop.nameZh ?: "",
-                    stopNameEn = stop.nameEn ?: "",
                     sequence = stop.sequence
                 )
                 busRepository.addBookmark(entity)
