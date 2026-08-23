@@ -1,4 +1,3 @@
-app/src/main/java/com/example/lifeapp/data/api/BusApiService.kt
 package com.example.lifeapp.data.api
 
 import com.example.lifeapp.data.model.KmbEtaResponse
