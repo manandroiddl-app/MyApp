@@ -109,7 +109,6 @@ class TransitSearchViewModel @Inject constructor(
     private fun updateFilteredRoutes(query: String) {
         val all = _uiState.value.allRoutes
         
-        // 🎯 修復 1：使用 contains 進行模糊比對（打 "3" 出 E33, E33P, 3B 等）
         val filtered = if (query.isEmpty()) {
             all
         } else {
@@ -164,7 +163,6 @@ class TransitSearchViewModel @Inject constructor(
                 expandedStopIds = allStopIds
             )
 
-            // 全站自動發起 ETA 請求
             allStopIds.forEach { fetchStopEta(it) }
             startEtaAutoRefreshLoop()
         }
@@ -201,7 +199,6 @@ class TransitSearchViewModel @Inject constructor(
                     serviceType = route.serviceType ?: "1"
                 )
                 
-                // 🎯 修復 2：嚴格過濾方向 (dir == route.bound)，解決去程混雜回程 ETA 問題
                 val boundFilteredEtas = etaList.filter { eta ->
                     eta.dir == route.bound
                 }
