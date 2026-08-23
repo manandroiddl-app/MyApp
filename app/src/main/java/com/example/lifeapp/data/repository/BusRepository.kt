@@ -2,6 +2,7 @@ package com.example.lifeapp.data.repository
 
 import com.example.lifeapp.data.local.dao.TransitBookmarkDao
 import com.example.lifeapp.data.local.entity.TransitBookmarkEntity
+import com.example.lifeapp.data.model.OperatorCompany
 import com.example.lifeapp.data.model.TransitEta
 import com.example.lifeapp.data.model.TransitRoute
 import com.example.lifeapp.data.model.TransitStop
@@ -10,12 +11,10 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
-import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 import java.text.SimpleDateFormat
-import java.util.Date
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
@@ -38,13 +37,22 @@ class BusRepository @Inject constructor(
             
             for (i in 0 until dataArray.length()) {
                 val obj = dataArray.getJSONObject(i)
+                val routeName = obj.optString("route")
+                val bound = obj.optString("bound")
+                val serviceType = obj.optString("service_type", "1")
+                
                 list.add(
                     TransitRoute(
-                        routeName = obj.optString("route"),
-                        bound = obj.optString("bound"),
-                        serviceType = obj.optString("service_type"),
+                        routeId = "KMB_${routeName}_${bound}_${serviceType}",
+                        routeName = routeName,
+                        transitType = "BUS",
+                        company = OperatorCompany.KMB,
+                        bound = bound,
+                        serviceType = serviceType,
                         originZh = obj.optString("orig_tc"),
-                        destinationZh = obj.optString("dest_tc")
+                        originEn = obj.optString("orig_en"),
+                        destinationZh = obj.optString("dest_tc"),
+                        destinationEn = obj.optString("dest_en")
                     )
                 )
             }
@@ -63,14 +71,14 @@ class BusRepository @Inject constructor(
         try {
             val jsonStr = connection.inputStream.bufferedReader().use { it.readText() }
             val dataArray = JSONObject(jsonStr).getJSONArray("data")
-            val rawStops = mutableListOf<Pair<String, Int>>() // Pair(stopId, seq)
+            val rawStops = mutableListOf<Pair<String, Int>>()
 
             for (i in 0 until dataArray.length()) {
                 val obj = dataArray.getJSONObject(i)
                 rawStops.add(Pair(obj.optString("stop"), obj.optInt("seq")))
             }
 
-            // 🎯 修復 4：並行 Fetch 缺失的中文站名，徹底消除「載入中...」
+            // 併發 Fetch 缺失的中文站名，徹底消除「載入中...」
             val missingStopIds = rawStops.map { it.first }.filter { !stopNameCache.containsKey(it) }.distinct()
             if (missingStopIds.isNotEmpty()) {
                 missingStopIds.map { stopId ->
@@ -83,12 +91,14 @@ class BusRepository @Inject constructor(
                 }.awaitAll()
             }
 
-            // 組裝帶有繁體中文站名的 TransitStop 列表
             rawStops.map { (stopId, seq) ->
                 TransitStop(
                     stopId = stopId,
                     sequence = seq,
-                    nameZh = stopNameCache[stopId] ?: "車站 $seq"
+                    nameZh = stopNameCache[stopId] ?: "車站 $seq",
+                    nameEn = "",
+                    latitude = 0.0,
+                    longitude = 0.0
                 )
             }
         } catch (e: Exception) {
@@ -126,6 +136,8 @@ class BusRepository @Inject constructor(
                 val etaTimeStr = obj.optString("eta", "")
                 val dir = obj.optString("dir", "")
                 val destTc = obj.optString("dest_tc", "")
+                val rName = obj.optString("route", route)
+                val rkZh = obj.optString("rmk_tc", "")
 
                 var minsLeft: Int? = null
                 if (etaTimeStr.isNotEmpty() && etaTimeStr != "null") {
@@ -140,11 +152,14 @@ class BusRepository @Inject constructor(
 
                 list.add(
                     TransitEta(
+                        routeName = rName,
+                        company = OperatorCompany.KMB,
                         dir = dir,
                         serviceType = obj.optString("service_type", "1"),
                         destinationZh = destTc,
                         etaTimestamp = if (etaTimeStr == "null") "" else etaTimeStr,
-                        minutesLeft = minsLeft
+                        minutesLeft = minsLeft,
+                        remarkZh = rkZh
                     )
                 )
             }
