@@ -25,7 +25,8 @@ enum class TransitTab {
 data class TransitUiState(
     val currentTab: TransitTab = TransitTab.SEARCH,
     val searchQuery: String = "",
-    val availableChips: List<Char> = emptyList(), // 動態 Chip 鍵盤可用字元
+    val numericChips: List<Char> = emptyList(), // 第一行：數字 Chip 鍵盤
+    val letterChips: List<Char> = emptyList(),  // 第二行：字母 Chip 鍵盤
     val allRoutes: List<TransitRoute> = emptyList(),
     val filteredRoutes: List<TransitRoute> = emptyList(),
     val bookmarks: List<TransitBookmarkEntity> = emptyList(),
@@ -66,7 +67,6 @@ class TransitSearchViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoadingRoutes = true)
             val routes = busRepository.getKmbRoutes()
-            val sortedRoutes = routes.distinctBy { it.routeName }.sortedBy { it.routeName }
             
             _uiState.value = _uiState.value.copy(
                 allRoutes = routes,
@@ -127,7 +127,7 @@ class TransitSearchViewModel @Inject constructor(
                 .distinctBy { it.routeName }
         }
 
-        // 計算下一個可用的 Chip 字元 (例: 輸入 "2" 後，找出所有開頭為 "2" 的路線第 2 個字元)
+        // 計算下一個可用的 Chip 字元
         val nextChars = all.mapNotNull { route ->
             val name = route.routeName.uppercase()
             if (name.startsWith(query, ignoreCase = true) && name.length > query.length) {
@@ -135,17 +135,24 @@ class TransitSearchViewModel @Inject constructor(
             } else null
         }.distinct().sorted()
 
-        // 如果全新搜尋，提供 0-9 與常見開頭字元
-        val finalChips = if (query.isEmpty()) {
-            listOf('1', '2', '3', '4', '5', '6', '7', '8', '9', '0', 'A', 'B', 'C', 'E', 'K', 'N', 'P', 'R', 'S', 'T', 'W', 'X')
+        val (nums, letters) = if (query.isEmpty()) {
+            // 空白時：預設 0-9 與 所有出現過的英文字母字頭
+            val defaultNums = listOf('1', '2', '3', '4', '5', '6', '7', '8', '9', '0')
+            val defaultLetters = all.mapNotNull { route ->
+                route.routeName.firstOrNull { it.isLetter() }?.uppercaseChar()
+            }.distinct().sorted()
+            
+            Pair(defaultNums, defaultLetters)
         } else {
-            nextChars
+            // 輸入中：把下一個可能的字元拆分成數字與字母
+            Pair(nextChars.filter { it.isDigit() }, nextChars.filter { it.isLetter() })
         }
 
         _uiState.value = _uiState.value.copy(
             searchQuery = query,
             filteredRoutes = filtered,
-            availableChips = finalChips
+            numericChips = nums,
+            letterChips = letters
         )
     }
 
@@ -171,7 +178,7 @@ class TransitSearchViewModel @Inject constructor(
                 routeStops = stops,
                 isLoadingStops = false
             )
-            // 自動預載首三個站的 ETA
+            // 自動預載首 5 個站的 ETA
             stops.take(5).forEach { stop ->
                 fetchStopEta(stop.stopId)
             }
