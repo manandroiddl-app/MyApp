@@ -54,7 +54,6 @@ fun TransitSearchScreen(
                 .weight(1f)
                 .padding(horizontal = 16.dp)
         ) {
-            // 頂部標題列
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
@@ -134,7 +133,7 @@ fun TransitSearchScreen(
                         }
                     }
                 } else {
-                    // 【問題 3 修復】「我的收藏」分頁清單渲染與點擊跳轉
+                    // 【修正問題 3】我的收藏 UI 清單
                     if (uiState.bookmarks.isEmpty()) {
                         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                             Text("目前沒有已收藏的車站", fontSize = 14.sp, color = TextGray)
@@ -152,7 +151,6 @@ fun TransitSearchScreen(
                     }
                 }
             } else {
-                // 車站詳細列表頁
                 if (uiState.isLoadingStops) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator(color = PrimaryDarkBlue)
@@ -169,7 +167,6 @@ fun TransitSearchScreen(
                             StopCardItem(
                                 stop = stop,
                                 etas = etas,
-                                currentBound = currentRoute?.bound.orEmpty(), // 傳入目前路由方向
                                 isExpanded = isExpanded,
                                 isBookmarked = isBookmarked,
                                 onToggleExpand = { viewModel.toggleStopExpand(stop.stopId) },
@@ -181,7 +178,6 @@ fun TransitSearchScreen(
             }
         }
 
-        // 底部 Chip 鍵盤
         if (uiState.selectedRoute == null && uiState.currentTab == TransitTab.SEARCH) {
             Surface(
                 color = Color.White,
@@ -265,7 +261,6 @@ fun RouteCardItem(route: TransitRoute, onClick: () -> Unit) {
 fun StopCardItem(
     stop: TransitStop,
     etas: List<TransitEta>?,
-    currentBound: String,
     isExpanded: Boolean,
     isBookmarked: Boolean,
     onToggleExpand: () -> Unit,
@@ -308,18 +303,16 @@ fun StopCardItem(
                 Divider(color = Color.LightGray.copy(alpha = 0.4f))
                 Spacer(modifier = Modifier.height(6.dp))
 
-                // 【問題 1 修正】過濾 ETA 列表，僅顯示符合當前 direction/bound 的班次，防止頭尾站混入反方向資料
-                val filteredEtas = etas?.filter { eta ->
-                    eta.dir.isNullOrEmpty() || eta.dir.equals(currentBound, ignoreCase = true)
-                }
+                // 【修正問題 1】因 TransitEta 已由 Repository/API 回傳該車站班次，過濾沒有有效時間的資料
+                val validEtas = etas?.filter { !it.etaTimestamp.isNullOrEmpty() }
 
-                if (filteredEtas == null) {
+                if (etas == null) {
                     Text("載入到站時間中...", fontSize = 12.sp, color = TextGray)
-                } else if (filteredEtas.isEmpty()) {
+                } else if (validEtas.isNullOrEmpty()) {
                     Text("暫時無班次資料", fontSize = 13.sp, color = TextGray, fontWeight = FontWeight.Medium)
                 } else {
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        filteredEtas.take(3).forEachIndexed { index, eta ->
+                        validEtas.take(3).forEachIndexed { index, eta ->
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -343,7 +336,7 @@ fun StopCardItem(
                                 val displayText: String
                                 val displayColor: Color
 
-                                if (eta.etaTimestamp.orEmpty().isEmpty() || mins == null) {
+                                if (mins == null) {
                                     displayText = "暫時無班次資料"
                                     displayColor = TextGray
                                 } else if (mins <= 1) {
