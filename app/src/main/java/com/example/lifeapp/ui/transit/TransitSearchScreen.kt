@@ -1,55 +1,20 @@
 package com.example.lifeapp.ui.transit
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Bookmark
-import androidx.compose.material.icons.filled.BookmarkBorder
-import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Backspace
 import androidx.compose.material.icons.filled.DirectionsBus
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.AssistChipDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.StarBorder
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -58,182 +23,193 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.example.lifeapp.data.local.entity.TransitBookmarkEntity
 import com.example.lifeapp.data.model.TransitEta
 import com.example.lifeapp.data.model.TransitRoute
 import com.example.lifeapp.data.model.TransitStop
-import com.example.lifeapp.ui.common.OnLifecycleResume
+import com.example.lifeapp.ui.theme.*
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TransitSearchScreen(
-    viewModel: TransitSearchViewModel = hiltViewModel(),
-    onBackClick: (() -> Unit)? = null
+    viewModel: TransitSearchViewModel = hiltViewModel()
 ) {
-    val state by viewModel.uiState.collectAsState()
+    val searchQuery by viewModel.searchQuery.collectAsState()
+    val searchResults by viewModel.searchResults.collectAsState()
+    val selectedRoute by viewModel.selectedRoute.collectAsState()
+    val routeStops by viewModel.routeStops.collectAsState()
+    val selectedStop by viewModel.selectedStop.collectAsState()
+    val stopEtas by viewModel.stopEtas.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
 
-    OnLifecycleResume {
-        viewModel.onResumeRefresh()
-    }
+    val digits = listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "0")
+    val letters = listOf("A", "B", "C", "E", "K", "M", "N", "P", "R", "S", "T", "X")
 
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = if (state.selectedRoute != null) "路線 ${state.selectedRoute?.routeName}" else "交通到站資訊",
-                        fontWeight = FontWeight.Bold
-                    )
-                },
-                navigationIcon = {
-                    if (state.selectedRoute != null) {
-                        IconButton(onClick = { viewModel.clearSelectedRoute() }) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回搜尋")
+        containerColor = BackgroundLight,
+        bottomBar = {
+            // 🎯 底部數字 / 英文 Quick Chip 鍵盤
+            if (selectedRoute == null) {
+                Surface(
+                    color = Color.White,
+                    shadowElevation = 8.dp,
+                    shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .navigationBarsPadding()
+                            .padding(vertical = 10.dp, horizontal = 12.dp)
+                    ) {
+                        // 第一行：數字 Chips (橫向滾動)
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            items(digits) { digit ->
+                                SuggestionChip(
+                                    onClick = { viewModel.onQueryChange(searchQuery + digit) },
+                                    label = { Text(digit, fontWeight = FontWeight.Bold) },
+                                    colors = SuggestionChipDefaults.suggestionChipColors(
+                                        containerColor = PrimaryLightBlue,
+                                        labelColor = PrimaryDarkBlue
+                                    ),
+                                    border = null
+                                )
+                            }
                         }
-                    } else if (onBackClick != null) {
-                        IconButton(onClick = onBackClick) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        // 第二行：字母 Chips (橫向滾動) + 靠右退格鍵
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            LazyRow(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                items(letters) { letter ->
+                                    FilterChip(
+                                        selected = false,
+                                        onClick = { viewModel.onQueryChange(searchQuery + letter) },
+                                        label = { Text(letter, fontWeight = FontWeight.Bold) },
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            containerColor = Color(0xFFE8EAF6),
+                                            labelColor = PrimaryDarkBlue
+                                        ),
+                                        border = null
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.width(8.dp))
+
+                            // 退格 Button (靠右)
+                            IconButton(
+                                onClick = {
+                                    if (searchQuery.isNotEmpty()) {
+                                        viewModel.onQueryChange(searchQuery.dropLast(1))
+                                    }
+                                },
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .background(Color(0xFFFFEBEE), RoundedCornerShape(10.dp))
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Backspace,
+                                    contentDescription = "退格",
+                                    tint = Color.Red,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
                         }
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant
-                )
-            )
+                }
+            }
         }
-    ) { paddingValues ->
-        Box(
+    ) { innerPadding ->
+        Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
+                .padding(innerPadding)
+                .padding(16.dp)
         ) {
-            if (state.selectedRoute != null) {
-                RouteDetailSubScreen(
-                    route = state.selectedRoute!!,
-                    stops = state.routeStops,
-                    isLoading = state.isLoadingStops,
-                    etaMap = state.selectedStopEtaMap,
-                    bookmarkedIds = state.bookmarkedStopIds,
-                    onStopClick = { viewModel.fetchStopEta(it.stopId) },
-                    onBookmarkToggle = { viewModel.toggleBookmark(it) }
+            // 🎯 統一頁面標題樣式
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                if (selectedRoute != null) {
+                    IconButton(onClick = { viewModel.clearSelection() }) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "返回", tint = PrimaryDarkBlue)
+                    }
+                }
+                Text(
+                    text = if (selectedRoute == null) "巴士 / 交通到站" else "路線 ${selectedRoute?.routeName}",
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = PrimaryDarkBlue
                 )
-            } else {
-                Column(modifier = Modifier.fillMaxSize()) {
-                    TabRow(selectedTabIndex = state.currentTab.ordinal) {
-                        Tab(
-                            selected = state.currentTab == TransitTab.SEARCH,
-                            onClick = { viewModel.selectTab(TransitTab.SEARCH) },
-                            text = { Text("路線搜尋") },
-                            icon = { Icon(Icons.Filled.Search, contentDescription = null) }
-                        )
-                        Tab(
-                            selected = state.currentTab == TransitTab.BOOKMARK,
-                            onClick = { viewModel.selectTab(TransitTab.BOOKMARK) },
-                            text = { Text("已收藏 (${state.bookmarks.size})") },
-                            icon = { Icon(Icons.Filled.Bookmark, contentDescription = null) }
-                        )
-                    }
-
-                    when (state.currentTab) {
-                        TransitTab.SEARCH -> SearchTabContent(
-                            state = state,
-                            onQueryChange = viewModel::onSearchQueryChanged,
-                            onClear = viewModel::onClearSearch,
-                            onChipClick = viewModel::onChipClicked,
-                            onBackspace = viewModel::onBackspaceClicked,
-                            onRouteSelect = viewModel::selectRoute
-                        )
-                        TransitTab.BOOKMARK -> BookmarkTabContent(
-                            bookmarks = state.bookmarks,
-                            onSelectBookmark = { bookmark ->
-                                val route = state.allRoutes.find { 
-                                    it.routeName == bookmark.routeName && it.bound == bookmark.bound 
-                                } ?: TransitRoute(
-                                    routeId = "${bookmark.routeName}-${bookmark.bound}-${bookmark.serviceType}",
-                                    routeName = bookmark.routeName,
-                                    transitType = com.example.lifeapp.data.model.TransitType.BUS,
-                                    company = com.example.lifeapp.data.model.OperatorCompany.KMB,
-                                    originZh = bookmark.originZh,
-                                    originEn = null,
-                                    destinationZh = bookmark.destinationZh,
-                                    destinationEn = null,
-                                    bound = bookmark.bound,
-                                    serviceType = bookmark.serviceType
-                                )
-                                viewModel.selectRoute(route)
-                            }
-                        )
-                    }
-                }
             }
-        }
-    }
-}
 
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun SearchTabContent(
-    state: TransitUiState,
-    onQueryChange: (String) -> Unit,
-    onClear: () -> Unit,
-    onChipClick: (Char) -> Unit,
-    onBackspace: () -> Unit,
-    onRouteSelect: (TransitRoute) -> Unit
-) {
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        OutlinedTextField(
-            value = state.searchQuery,
-            onValueChange = onQueryChange,
-            modifier = Modifier.fillMaxWidth(),
-            placeholder = { Text("輸入或點擊 Chip 搜尋路線 (例: 1A, 271)") },
-            leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
-            trailingIcon = {
-                if (state.searchQuery.isNotEmpty()) {
-                    IconButton(onClick = onClear) {
-                        Icon(Icons.Filled.Clear, contentDescription = "清除")
-                    }
-                }
-            },
-            singleLine = true
-        )
+            Text(
+                text = if (selectedRoute == null) "請輸入路線編號以搜尋即時到站時間" else "${selectedRoute?.originZh} ➔ ${selectedRoute?.destinationZh}",
+                fontSize = 14.sp,
+                color = TextGray,
+                modifier = Modifier.padding(bottom = 12.dp)
+            )
 
-        Spacer(modifier = Modifier.height(12.dp))
-
-        Text("快速搜尋鍵盤", style = MaterialTheme.typography.labelMedium, color = Color.Gray)
-        Spacer(modifier = Modifier.height(6.dp))
-        
-        FlowRow(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            state.availableChips.forEach { char ->
-                AssistChip(
-                    onClick = { onChipClick(char) },
-                    label = { Text(char.toString(), fontWeight = FontWeight.Bold) },
-                    colors = AssistChipDefaults.assistChipColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer
+            if (selectedRoute == null) {
+                // 搜尋框
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { viewModel.onQueryChange(it) },
+                    label = { Text("搜尋路線 (例如 1A, 102, 607X)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = PrimaryDarkBlue,
+                        unfocusedBorderColor = Color.LightGray
                     )
                 )
-            }
-            if (state.searchQuery.isNotEmpty()) {
-                AssistChip(
-                    onClick = onBackspace,
-                    label = { Text("⌫ 退格", color = Color.Red, fontWeight = FontWeight.Bold) }
-                )
-            }
-        }
 
-        Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
-        if (state.isLoadingRoutes) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
-            }
-        } else {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(state.filteredRoutes) { route ->
-                    RouteItemCard(route = route, onClick = { onRouteSelect(route) })
+                if (isLoading) {
+                    Box(modifier = Modifier.fillMaxWidth().height(100.dp), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = PrimaryDarkBlue)
+                    }
+                } else {
+                    LazyColumn(
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        items(searchResults) { route ->
+                            RouteCardItem(route = route, onClick = { viewModel.selectRoute(route) })
+                        }
+                    }
+                }
+            } else {
+                // 路線詳情：車站與 ETA 列表
+                if (isLoading && routeStops.isEmpty()) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = PrimaryDarkBlue)
+                    }
+                } else {
+                    LazyColumn(
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        items(routeStops) { stop ->
+                            StopCardItem(
+                                stop = stop,
+                                isSelected = selectedStop?.stopId == stop.stopId,
+                                etas = if (selectedStop?.stopId == stop.stopId) stopEtas else emptyList(),
+                                onClick = { viewModel.selectStop(stop) }
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -241,230 +217,121 @@ private fun SearchTabContent(
 }
 
 @Composable
-private fun RouteItemCard(route: TransitRoute, onClick: () -> Unit) {
+fun RouteCardItem(
+    route: TransitRoute,
+    onClick: () -> Unit
+) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onClick() },
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Row(
-            modifier = Modifier
-                .padding(16.dp)
-                .fillMaxWidth(),
+            modifier = Modifier.padding(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
                 modifier = Modifier
-                    .size(48.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primary),
+                    .size(44.dp)
+                    .background(PrimaryLightBlue, RoundedCornerShape(10.dp)),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = route.routeName,
-                    color = Color.White,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp
+                    fontSize = 16.sp,
+                    color = PrimaryDarkBlue
                 )
             }
-            Spacer(modifier = Modifier.width(16.dp))
-            Column {
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = "${route.originZh} ➔ ${route.destinationZh}",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = TextDark
                 )
-                Text(
-                    text = "${route.company.name} 九巴",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color.Gray
-                )
+                Text(text = "九巴 KMB", fontSize = 12.sp, color = TextGray)
             }
         }
     }
 }
 
 @Composable
-private fun RouteDetailSubScreen(
-    route: TransitRoute,
-    stops: List<TransitStop>,
-    isLoading: Boolean,
-    etaMap: Map<String, List<TransitEta>>,
-    bookmarkedIds: Set<String>,
-    onStopClick: (TransitStop) -> Unit,
-    onBookmarkToggle: (TransitStop) -> Unit
-) {
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    text = "路線 ${route.routeName}",
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = "往 ${route.destinationZh}",
-                    style = MaterialTheme.typography.titleMedium
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        if (isLoading) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
-            }
-        } else {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(stops) { stop ->
-                    val bookmarkId = "KMB_${route.routeName}_${route.bound}_${route.serviceType}_${stop.stopId}"
-                    val isBookmarked = bookmarkedIds.contains(bookmarkId)
-                    val etas = etaMap[stop.stopId]
-
-                    StopItemCard(
-                        stop = stop,
-                        etas = etas,
-                        isBookmarked = isBookmarked,
-                        onClick = { onStopClick(stop) },
-                        onBookmarkClick = { onBookmarkToggle(stop) }
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun StopItemCard(
+fun StopCardItem(
     stop: TransitStop,
-    etas: List<TransitEta>?,
-    isBookmarked: Boolean,
-    onClick: () -> Unit,
-    onBookmarkClick: () -> Unit
+    isSelected: Boolean,
+    etas: List<TransitEta>,
+    onClick: () -> Unit
 ) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onClick() },
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isSelected) Color(0xFFE3F2FD) else Color.White
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "${stop.sequence}.",
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.width(28.dp)
-                    )
-                    Text(
-                        text = stop.nameZh,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-                IconButton(onClick = onBookmarkClick) {
-                    Icon(
-                        imageVector = if (isBookmarked) Icons.Filled.Bookmark else Icons.Filled.BookmarkBorder,
-                        contentDescription = "收藏車站",
-                        tint = if (isBookmarked) MaterialTheme.colorScheme.primary else Color.Gray
-                    )
-                }
-            }
-
-            if (etas != null) {
-                Spacer(modifier = Modifier.height(8.dp))
-                if (etas.isEmpty()) {
-                    Text("暫無即時班次資料", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
-                } else {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        etas.take(3).forEach { eta ->
-                            val minutesText = when (val mins = eta.minutesLeft) {
-                                null -> "--"
-                                0 -> "即將到達"
-                                else -> "${mins} 分鐘"
-                            }
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(MaterialTheme.colorScheme.secondaryContainer)
-                                    .padding(horizontal = 8.dp, vertical = 4.dp)
-                            ) {
-                                Text(
-                                    text = minutesText,
-                                    style = MaterialTheme.typography.labelMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (eta.minutesLeft == 0) Color.Red else MaterialTheme.colorScheme.onSecondaryContainer
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun BookmarkTabContent(
-    bookmarks: List<TransitBookmarkEntity>,
-    onSelectBookmark: (TransitBookmarkEntity) -> Unit
-) {
-    if (bookmarks.isEmpty()) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("尚未收藏任何車站，請在路線詳情頁點擊 🔖 收藏", color = Color.Gray)
-        }
-    } else {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            items(bookmarks) { bookmark ->
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onSelectBookmark(bookmark) },
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Surface(
+                    color = PrimaryDarkBlue,
+                    shape = RoundedCornerShape(6.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.padding(16.dp).fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = bookmark.routeName,
-                                    style = MaterialTheme.typography.titleLarge,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = "往 ${bookmark.destinationZh}",
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "${stop.sequence}",
+                        color = Color.White,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(10.dp))
+                Text(
+                    text = stop.nameZh,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = TextDark
+                )
+            }
+
+            if (isSelected) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Divider(color = Color.LightGray.copy(alpha = 0.5f))
+                Spacer(modifier = Modifier.height(8.dp))
+
+                if (etas.isEmpty()) {
+                    Text("載入 ETA 到站時間中...", fontSize = 13.sp, color = TextGray)
+                } else {
+                    etas.forEach { eta ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             Text(
-                                text = "車站：${bookmark.stopNameZh}",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold
+                                text = "往 ${eta.destinationZh}",
+                                fontSize = 13.sp,
+                                color = TextDark
+                            )
+                            Text(
+                                text = when {
+                                    eta.minutesLeft == null -> "無即時班次"
+                                    eta.minutesLeft <= 0 -> "即將到站"
+                                    else -> "${eta.minutesLeft} 分鐘"
+                                },
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if ((eta.minutesLeft ?: 99) <= 3) Color.Red else PrimaryDarkBlue
                             )
                         }
-                        Icon(Icons.Filled.DirectionsBus, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                     }
                 }
             }
