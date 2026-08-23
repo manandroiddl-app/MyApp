@@ -10,6 +10,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Backspace
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.*
@@ -52,11 +53,12 @@ fun TransitSearchScreen(
                 .weight(1f)
                 .padding(horizontal = 16.dp)
         ) {
+            // 頂部導覽列
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 2.dp)
+                    .padding(top = 8.dp, bottom = 4.dp)
             ) {
                 if (uiState.selectedRoute != null) {
                     IconButton(
@@ -68,7 +70,7 @@ fun TransitSearchScreen(
                     Spacer(modifier = Modifier.width(4.dp))
                 }
                 Text(
-                    text = if (uiState.selectedRoute == null) "巴士 / 交通到站" else "路線 ${uiState.selectedRoute?.routeName}",
+                    text = if (uiState.selectedRoute == null) "巴士 / 交通到站" else "路線 ${uiState.selectedRoute?.routeName.orEmpty()}",
                     fontSize = 22.sp,
                     fontWeight = FontWeight.Bold,
                     color = PrimaryDarkBlue
@@ -76,12 +78,16 @@ fun TransitSearchScreen(
             }
 
             Text(
-                text = if (uiState.selectedRoute == null) "請輸入路線編號以搜尋即時到站時間" else "${uiState.selectedRoute?.originZh.orEmpty()} ➔ ${uiState.selectedRoute?.destinationZh.orEmpty()}",
+                text = if (uiState.selectedRoute == null) 
+                    "請輸入路線編號以搜尋即時到站時間" 
+                else 
+                    "${uiState.selectedRoute?.originZh.orEmpty()} ➔ ${uiState.selectedRoute?.destinationZh.orEmpty()}",
                 fontSize = 12.sp,
                 color = TextGray,
                 modifier = Modifier.padding(bottom = 6.dp)
             )
 
+            // 第一層：搜尋與我的收藏 Tabs
             if (uiState.selectedRoute == null) {
                 TabRow(
                     selectedTabIndex = uiState.currentTab.ordinal,
@@ -105,7 +111,7 @@ fun TransitSearchScreen(
                     OutlinedTextField(
                         value = uiState.searchQuery,
                         onValueChange = { viewModel.onSearchQueryChanged(it) },
-                        label = { Text("搜尋路線 (例如 1A, E33, 102)") },
+                        label = { Text("搜尋路線 (例如 1A, 2F, E33, 102)") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
@@ -128,9 +134,25 @@ fun TransitSearchScreen(
                         }
                     }
                 } else {
-                    Text("已收藏的車站列表", fontSize = 14.sp, color = TextGray)
+                    // 問題 3 修復：我的收藏頁面列表渲染
+                    if (uiState.bookmarks.isEmpty()) {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Text("目前沒有已收藏的車站", fontSize = 14.sp, color = TextGray)
+                        }
+                    } else {
+                        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxSize()) {
+                            items(uiState.bookmarks) { bookmark ->
+                                BookmarkItem(
+                                    bookmark = bookmark,
+                                    onDelete = { viewModel.removeBookmarkByKey(bookmark.bookmarkKey) },
+                                    onClick = { viewModel.selectBookmarkRoute(bookmark) }
+                                )
+                            }
+                        }
+                    }
                 }
             } else {
+                // 第二層：詳細路線車站列表
                 if (uiState.isLoadingStops) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator(color = PrimaryDarkBlue)
@@ -140,11 +162,14 @@ fun TransitSearchScreen(
                         items(uiState.routeStops) { stop ->
                             val etas = uiState.selectedStopEtaMap[stop.stopId]
                             val isExpanded = uiState.expandedStopIds.contains(stop.stopId)
-                            val isBookmarked = uiState.bookmarkedStopIds.contains("KMB_${uiState.selectedRoute?.routeName}_${uiState.selectedRoute?.bound}_${uiState.selectedRoute?.serviceType}_${stop.stopId}")
+                            val currentRoute = uiState.selectedRoute
+                            val bookmarkKey = "KMB_${currentRoute?.routeName}_${currentRoute?.bound}_${currentRoute?.serviceType}_${stop.stopId}"
+                            val isBookmarked = uiState.bookmarkedStopIds.contains(bookmarkKey)
 
                             StopCardItem(
                                 stop = stop,
                                 etas = etas,
+                                currentBound = currentRoute?.bound.orEmpty(), // 傳入目前選擇的方向進行 ETA 過濾
                                 isExpanded = isExpanded,
                                 isBookmarked = isBookmarked,
                                 onToggleExpand = { viewModel.toggleStopExpand(stop.stopId) },
@@ -156,6 +181,7 @@ fun TransitSearchScreen(
             }
         }
 
+        // 底部動態 Chip 按鈕（數字與英文字母選單）
         if (uiState.selectedRoute == null && uiState.currentTab == TransitTab.SEARCH) {
             Surface(
                 color = Color.White,
@@ -171,7 +197,7 @@ fun TransitSearchScreen(
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                             items(uiState.numericChips) { char ->
                                 SuggestionChip(
-                                    onClick = { viewModel.onChipClicked(char) },
+                                    onClick = { viewModel.onChipClicked(char.toString()) },
                                     label = { Text(char.toString(), fontWeight = FontWeight.Bold, fontSize = 15.sp) },
                                     colors = SuggestionChipDefaults.suggestionChipColors(
                                         containerColor = PrimaryLightBlue,
@@ -184,12 +210,13 @@ fun TransitSearchScreen(
                         Spacer(modifier = Modifier.height(2.dp))
                     }
                     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        // 問題 2 修復：動態顯示所有出現過的字母 Chip（如 F, K, X 等）
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.weight(1f)) {
-                            items(uiState.letterChips) { char ->
+                            items(uiState.letterChips) { letter ->
                                 FilterChip(
                                     selected = false,
-                                    onClick = { viewModel.onChipClicked(char) },
-                                    label = { Text(char.toString(), fontWeight = FontWeight.Bold, fontSize = 15.sp) },
+                                    onClick = { viewModel.onChipClicked(letter) },
+                                    label = { Text(letter, fontWeight = FontWeight.Bold, fontSize = 15.sp) },
                                     colors = FilterChipDefaults.filterChipColors(
                                         containerColor = Color(0xFFE8EAF6),
                                         labelColor = PrimaryDarkBlue
@@ -228,7 +255,7 @@ fun RouteCardItem(route: TransitRoute, onClick: () -> Unit) {
             }
             Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text("${route.originZh} ➔ ${route.destinationZh}", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                Text("${route.originZh.orEmpty()} ➔ ${route.destinationZh.orEmpty()}", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextDark)
                 Text("九巴 KMB ${if (route.bound == "O") "(去程)" else if (route.bound == "I") "(回程)" else ""}", fontSize = 12.sp, color = TextGray)
             }
         }
@@ -239,6 +266,7 @@ fun RouteCardItem(route: TransitRoute, onClick: () -> Unit) {
 fun StopCardItem(
     stop: TransitStop,
     etas: List<TransitEta>?,
+    currentBound: String,
     isExpanded: Boolean,
     isBookmarked: Boolean,
     onToggleExpand: () -> Unit,
@@ -259,7 +287,6 @@ fun StopCardItem(
                 }
                 Spacer(modifier = Modifier.width(10.dp))
                 
-                // 使用 .orEmpty() 將 String? 轉為 String 再進行 ifEmpty 判斷，徹底避免 nullable 錯誤
                 val stopName = stop.nameZh.orEmpty().ifEmpty { "車站 ${stop.sequence}" }
                 Text(
                     text = stopName,
@@ -282,13 +309,18 @@ fun StopCardItem(
                 Divider(color = Color.LightGray.copy(alpha = 0.4f))
                 Spacer(modifier = Modifier.height(6.dp))
 
-                if (etas == null) {
+                // 問題 1 修復：根據 currentBound (方向) 過濾 ETA 列表，防止頭尾站顯示雙向 ETA
+                val filteredEtas = etas?.filter { eta ->
+                    eta.dir.isNullOrEmpty() || eta.dir.orEmpty().equals(currentBound, ignoreCase = true)
+                }
+
+                if (filteredEtas == null) {
                     Text("載入到站時間中...", fontSize = 12.sp, color = TextGray)
-                } else if (etas.isEmpty()) {
+                } else if (filteredEtas.isEmpty()) {
                     Text("暫時無班次資料", fontSize = 13.sp, color = TextGray, fontWeight = FontWeight.Medium)
                 } else {
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        etas.take(3).forEachIndexed { index, eta ->
+                        filteredEtas.take(3).forEachIndexed { index, eta ->
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -333,6 +365,40 @@ fun StopCardItem(
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+// 問題 3 修復：收藏項目 UI 元件
+@Composable
+fun BookmarkItem(
+    bookmark: BookmarkUiModel,
+    onDelete: () -> Unit,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable(onClick = onClick),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier.size(40.dp).background(PrimaryLightBlue, RoundedCornerShape(8.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(bookmark.routeName, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = PrimaryDarkBlue)
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(bookmark.stopNameZh, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                Text("路線 ${bookmark.routeName} (${if (bookmark.bound == "O") "去程" else "回程"})", fontSize = 12.sp, color = TextGray)
+            }
+            IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
+                Icon(Icons.Default.Delete, contentDescription = "刪除收藏", tint = Color.Gray)
             }
         }
     }
