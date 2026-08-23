@@ -75,7 +75,7 @@ class TransitSearchViewModel @Inject constructor(
                     )
                 }
                 updateFilteredRoutes(_uiState.value.searchQuery)
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 _uiState.update { it.copy(isLoadingRoutes = false) }
             }
         }
@@ -91,6 +91,8 @@ class TransitSearchViewModel @Inject constructor(
                         bookmarkedStopIds = bookmarkedIds
                     )
                 }
+                // 當書籤更新時同步獲取書籤車站的 ETA
+                bookmarkList.forEach { fetchBookmarkEta(it) }
             }
         }
     }
@@ -183,7 +185,7 @@ class TransitSearchViewModel @Inject constructor(
 
                 stops.forEach { fetchStopEta(it.stopId) }
                 startEtaAutoRefreshLoop()
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 _uiState.update { currentState -> currentState.copy(isLoadingStops = false) }
             }
         }
@@ -252,14 +254,41 @@ class TransitSearchViewModel @Inject constructor(
         }
     }
 
+    private fun fetchBookmarkEta(bookmark: TransitBookmarkEntity) {
+        viewModelScope.launch {
+            try {
+                val rawEtaList = busRepository.getKmbEta(
+                    stopId = bookmark.stopId,
+                    route = bookmark.routeName,
+                    serviceType = bookmark.serviceType
+                )
+
+                val filteredEtaList = rawEtaList.filter { eta ->
+                    bookmark.destinationZh.isEmpty() || eta.destinationZh == bookmark.destinationZh
+                }
+
+                _uiState.update { currentState ->
+                    val currentMap = currentState.selectedStopEtaMap.toMutableMap()
+                    currentMap[bookmark.stopId] = if (filteredEtaList.isNotEmpty()) filteredEtaList else rawEtaList
+                    currentState.copy(selectedStopEtaMap = currentMap)
+                }
+            } catch (_: Exception) {}
+        }
+    }
+
     private fun startEtaAutoRefreshLoop() {
         stopEtaAutoRefreshLoop()
         etaAutoRefreshJob = viewModelScope.launch {
             while (isActive) {
                 delay(30_000L)
-                if (_uiState.value.selectedRoute != null) {
-                    _uiState.value.routeStops.forEach { stop ->
+                val state = _uiState.value
+                if (state.selectedRoute != null) {
+                    state.routeStops.forEach { stop ->
                         fetchStopEta(stop.stopId)
+                    }
+                } else if (state.currentTab == TransitTab.BOOKMARK) {
+                    state.bookmarks.forEach { bookmark ->
+                        fetchBookmarkEta(bookmark)
                     }
                 }
             }
