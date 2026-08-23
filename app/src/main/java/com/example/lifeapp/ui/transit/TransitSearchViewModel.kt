@@ -200,7 +200,7 @@ class TransitSearchViewModel @Inject constructor(
                 )
                 
                 val boundFilteredEtas = etaList.filter { eta ->
-                    eta.dir == route.bound
+                    eta.bound == route.bound
                 }
 
                 val currentMap = _uiState.value.selectedStopEtaMap.toMutableMap()
