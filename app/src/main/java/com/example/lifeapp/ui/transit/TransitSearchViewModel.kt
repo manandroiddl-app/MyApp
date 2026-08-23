@@ -9,10 +9,13 @@ import com.example.lifeapp.data.model.TransitRoute
 import com.example.lifeapp.data.model.TransitStop
 import com.example.lifeapp.data.repository.BusRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -36,7 +39,7 @@ data class TransitUiState(
     val selectedRoute: TransitRoute? = null,
     val routeStops: List<TransitStop> = emptyList(),
     val isLoadingStops: Boolean = false,
-    val selectedStopEtaMap: Map<String, List<TransitEta>> = emptyMap(), // key: stopId
+    val selectedStopEtaMap: Map<String, List<TransitEta>> = emptyMap(), // key: stopId -> value: 全部 ETA 班次
     val bookmarkedStopIds: Set<String> = emptySet()
 )
 
@@ -48,6 +51,9 @@ class TransitSearchViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(TransitUiState())
     val uiState: StateFlow<TransitUiState> = _uiState.asStateFlow()
 
+    // 🎯 30 秒自動刷新 ETA 的 Coroutine Job
+    private var etaAutoRefreshJob: Job? = null
+
     init {
         loadAllRoutes()
         observeBookmarks()
@@ -58,9 +64,16 @@ class TransitSearchViewModel @Inject constructor(
      */
     fun onResumeRefresh() {
         if (_uiState.value.selectedRoute != null) {
-            // 如果在 Level 2 站頁，更新車站 ETA
             refreshCurrentStopsEta()
+            startEtaAutoRefreshLoop()
         }
+    }
+
+    /**
+     * 當 App 進入背景或離開頁面時停止 30 秒 Timer
+     */
+    fun onPauseStopRefresh() {
+        stopEtaAutoRefreshLoop()
     }
 
     private fun loadAllRoutes() {
@@ -182,10 +195,14 @@ class TransitSearchViewModel @Inject constructor(
             stops.take(5).forEach { stop ->
                 fetchStopEta(stop.stopId)
             }
+
+            // 🎯 啟動 30 秒自動刷新迴圈
+            startEtaAutoRefreshLoop()
         }
     }
 
     fun clearSelectedRoute() {
+        stopEtaAutoRefreshLoop()
         _uiState.value = _uiState.value.copy(
             selectedRoute = null,
             routeStops = emptyList(),
@@ -219,6 +236,24 @@ class TransitSearchViewModel @Inject constructor(
         }
     }
 
+    // 🎯 每 30 秒自動靜默刷新 Timer
+    private fun startEtaAutoRefreshLoop() {
+        stopEtaAutoRefreshLoop()
+        etaAutoRefreshJob = viewModelScope.launch {
+            while (isActive) {
+                delay(30_000L) // 30 秒
+                if (_uiState.value.selectedRoute != null) {
+                    refreshCurrentStopsEta()
+                }
+            }
+        }
+    }
+
+    private fun stopEtaAutoRefreshLoop() {
+        etaAutoRefreshJob?.cancel()
+        etaAutoRefreshJob = null
+    }
+
     fun toggleBookmark(stop: TransitStop) {
         val route = _uiState.value.selectedRoute ?: return
         val bookmarkId = "KMB_${route.routeName}_${route.bound}_${route.serviceType}_${stop.stopId}"
@@ -242,5 +277,10 @@ class TransitSearchViewModel @Inject constructor(
                 busRepository.addBookmark(entity)
             }
         }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        stopEtaAutoRefreshLoop()
     }
 }
