@@ -30,7 +30,6 @@ import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.DirectionsBus
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
@@ -73,7 +72,6 @@ fun TransitSearchScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
 
-    // 監聽 App 解鎖/切回前景，自動背景靜默刷新 ETA
     OnLifecycleResume {
         viewModel.onResumeRefresh()
     }
@@ -110,7 +108,6 @@ fun TransitSearchScreen(
                 .padding(paddingValues)
         ) {
             if (state.selectedRoute != null) {
-                // Level 2: 車站與即時 ETA 詳情子頁面
                 RouteDetailSubScreen(
                     route = state.selectedRoute!!,
                     stops = state.routeStops,
@@ -121,7 +118,6 @@ fun TransitSearchScreen(
                     onBookmarkToggle = { viewModel.toggleBookmark(it) }
                 )
             } else {
-                // Level 1: 路線搜尋與 Bookmark 分頁
                 Column(modifier = Modifier.fillMaxSize()) {
                     TabRow(selectedTabIndex = state.currentTab.ordinal) {
                         Tab(
@@ -185,7 +181,6 @@ private fun SearchTabContent(
     onRouteSelect: (TransitRoute) -> Unit
 ) {
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        // 搜尋文字輸入框
         OutlinedTextField(
             value = state.searchQuery,
             onValueChange = onQueryChange,
@@ -204,7 +199,6 @@ private fun SearchTabContent(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // 動態 Chip 鍵盤區
         Text("快速搜尋鍵盤", style = MaterialTheme.typography.labelMedium, color = Color.Gray)
         Spacer(modifier = Modifier.height(6.dp))
         
@@ -232,7 +226,6 @@ private fun SearchTabContent(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // 路線列表結果
         if (state.isLoadingRoutes) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()
@@ -303,7 +296,6 @@ private fun RouteDetailSubScreen(
     onBookmarkToggle: (TransitStop) -> Unit
 ) {
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        // 路線標頭資訊卡片
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
@@ -389,7 +381,6 @@ private fun StopItemCard(
                 }
             }
 
-            // ETA 預計到站時間列表
             if (etas != null) {
                 Spacer(modifier = Modifier.height(8.dp))
                 if (etas.isEmpty()) {
@@ -407,7 +398,7 @@ private fun StopItemCard(
                             }
                             Box(
                                 modifier = Modifier
-                                    .clip(RoundedCornerShape)
+                                    .clip(RoundedCornerShape(6.dp))
                                     .background(MaterialTheme.colorScheme.secondaryContainer)
                                     .padding(horizontal = 8.dp, vertical = 4.dp)
                             ) {
