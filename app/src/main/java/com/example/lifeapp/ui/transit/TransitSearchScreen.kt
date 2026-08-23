@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import com.example.lifeapp.data.local.entity.TransitBookmarkEntity
 import com.example.lifeapp.data.model.TransitEta
 import com.example.lifeapp.data.model.TransitRoute
 import com.example.lifeapp.data.model.TransitStop
@@ -53,7 +54,7 @@ fun TransitSearchScreen(
                 .weight(1f)
                 .padding(horizontal = 16.dp)
         ) {
-            // 頂部導覽列
+            // 頂部標題列
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
@@ -87,7 +88,6 @@ fun TransitSearchScreen(
                 modifier = Modifier.padding(bottom = 6.dp)
             )
 
-            // 第一層：搜尋與我的收藏 Tabs
             if (uiState.selectedRoute == null) {
                 TabRow(
                     selectedTabIndex = uiState.currentTab.ordinal,
@@ -134,7 +134,7 @@ fun TransitSearchScreen(
                         }
                     }
                 } else {
-                    // 問題 3 修復：我的收藏頁面列表渲染
+                    // 【問題 3 修復】「我的收藏」分頁清單渲染與點擊跳轉
                     if (uiState.bookmarks.isEmpty()) {
                         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                             Text("目前沒有已收藏的車站", fontSize = 14.sp, color = TextGray)
@@ -144,7 +144,7 @@ fun TransitSearchScreen(
                             items(uiState.bookmarks) { bookmark ->
                                 BookmarkItem(
                                     bookmark = bookmark,
-                                    onDelete = { viewModel.removeBookmarkByKey(bookmark.bookmarkKey) },
+                                    onDelete = { viewModel.removeBookmark(bookmark.bookmarkId) },
                                     onClick = { viewModel.selectBookmarkRoute(bookmark) }
                                 )
                             }
@@ -152,7 +152,7 @@ fun TransitSearchScreen(
                     }
                 }
             } else {
-                // 第二層：詳細路線車站列表
+                // 車站詳細列表頁
                 if (uiState.isLoadingStops) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator(color = PrimaryDarkBlue)
@@ -163,13 +163,13 @@ fun TransitSearchScreen(
                             val etas = uiState.selectedStopEtaMap[stop.stopId]
                             val isExpanded = uiState.expandedStopIds.contains(stop.stopId)
                             val currentRoute = uiState.selectedRoute
-                            val bookmarkKey = "KMB_${currentRoute?.routeName}_${currentRoute?.bound}_${currentRoute?.serviceType}_${stop.stopId}"
-                            val isBookmarked = uiState.bookmarkedStopIds.contains(bookmarkKey)
+                            val bookmarkId = "KMB_${currentRoute?.routeName}_${currentRoute?.bound}_${currentRoute?.serviceType}_${stop.stopId}"
+                            val isBookmarked = uiState.bookmarkedStopIds.contains(bookmarkId)
 
                             StopCardItem(
                                 stop = stop,
                                 etas = etas,
-                                currentBound = currentRoute?.bound.orEmpty(), // 傳入目前選擇的方向進行 ETA 過濾
+                                currentBound = currentRoute?.bound.orEmpty(), // 傳入目前路由方向
                                 isExpanded = isExpanded,
                                 isBookmarked = isBookmarked,
                                 onToggleExpand = { viewModel.toggleStopExpand(stop.stopId) },
@@ -181,7 +181,7 @@ fun TransitSearchScreen(
             }
         }
 
-        // 底部動態 Chip 按鈕（數字與英文字母選單）
+        // 底部 Chip 鍵盤
         if (uiState.selectedRoute == null && uiState.currentTab == TransitTab.SEARCH) {
             Surface(
                 color = Color.White,
@@ -197,7 +197,7 @@ fun TransitSearchScreen(
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                             items(uiState.numericChips) { char ->
                                 SuggestionChip(
-                                    onClick = { viewModel.onChipClicked(char.toString()) },
+                                    onClick = { viewModel.onChipClicked(char) },
                                     label = { Text(char.toString(), fontWeight = FontWeight.Bold, fontSize = 15.sp) },
                                     colors = SuggestionChipDefaults.suggestionChipColors(
                                         containerColor = PrimaryLightBlue,
@@ -210,13 +210,12 @@ fun TransitSearchScreen(
                         Spacer(modifier = Modifier.height(2.dp))
                     }
                     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        // 問題 2 修復：動態顯示所有出現過的字母 Chip（如 F, K, X 等）
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.weight(1f)) {
                             items(uiState.letterChips) { letter ->
                                 FilterChip(
                                     selected = false,
                                     onClick = { viewModel.onChipClicked(letter) },
-                                    label = { Text(letter, fontWeight = FontWeight.Bold, fontSize = 15.sp) },
+                                    label = { Text(letter.toString(), fontWeight = FontWeight.Bold, fontSize = 15.sp) },
                                     colors = FilterChipDefaults.filterChipColors(
                                         containerColor = Color(0xFFE8EAF6),
                                         labelColor = PrimaryDarkBlue
@@ -309,9 +308,9 @@ fun StopCardItem(
                 Divider(color = Color.LightGray.copy(alpha = 0.4f))
                 Spacer(modifier = Modifier.height(6.dp))
 
-                // 問題 1 修復：根據 currentBound (方向) 過濾 ETA 列表，防止頭尾站顯示雙向 ETA
+                // 【問題 1 修正】過濾 ETA 列表，僅顯示符合當前 direction/bound 的班次，防止頭尾站混入反方向資料
                 val filteredEtas = etas?.filter { eta ->
-                    eta.dir.isNullOrEmpty() || eta.dir.orEmpty().equals(currentBound, ignoreCase = true)
+                    eta.dir.isNullOrEmpty() || eta.dir.equals(currentBound, ignoreCase = true)
                 }
 
                 if (filteredEtas == null) {
@@ -370,10 +369,9 @@ fun StopCardItem(
     }
 }
 
-// 問題 3 修復：收藏項目 UI 元件
 @Composable
 fun BookmarkItem(
-    bookmark: BookmarkUiModel,
+    bookmark: TransitBookmarkEntity,
     onDelete: () -> Unit,
     onClick: () -> Unit
 ) {
