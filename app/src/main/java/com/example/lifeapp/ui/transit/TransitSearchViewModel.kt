@@ -116,6 +116,7 @@ class TransitSearchViewModel @Inject constructor(
         updateFilteredRoutes(upperQuery)
     }
 
+    // 【修正 1】：全動態鍵盤邏輯，不再漏掉 N 線、A 線等字頭
     private fun updateFilteredRoutes(query: String) {
         val all = _uiState.value.allRoutes
         
@@ -125,7 +126,8 @@ class TransitSearchViewModel @Inject constructor(
             all.filter { it.routeName.contains(query, ignoreCase = true) }
         }
 
-        val nextChars = all.mapNotNull { route ->
+        // 計算在目前 query 下，下一個可能的字元（數字或字母）
+        val nextChars = filtered.mapNotNull { route ->
             val name = route.routeName.uppercase()
             val index = name.indexOf(query, ignoreCase = true)
             if (index != -1 && index + query.length < name.length) {
@@ -133,9 +135,10 @@ class TransitSearchViewModel @Inject constructor(
             } else null
         }.distinct().sorted()
 
+        // query 為空時：動態搜集全港所有路線出現過的所有英文字母 (包括 N, A, E, B, X 等)
         val defaultLetters = if (query.isEmpty()) {
-            all.mapNotNull { route ->
-                Regex("[A-Za-z]+$").find(route.routeName)?.value?.uppercase()?.firstOrNull()
+            all.flatMap { route ->
+                route.routeName.uppercase().filter { it.isLetter() }.toList()
             }.distinct().sorted()
         } else {
             nextChars.filter { it.isLetter() }
@@ -248,19 +251,27 @@ class TransitSearchViewModel @Inject constructor(
         _uiState.update { currentState -> currentState.copy(expandedStopIds = currentExpanded) }
     }
 
+    // 【修正 2】：過濾 ETA，避免頭尾站出現相反方向/重複的班次
     fun fetchStopEta(stopId: String) {
         val route = _uiState.value.selectedRoute ?: return
         viewModelScope.launch {
             try {
-                val etaList = busRepository.getKmbEta(
+                val rawEtaList = busRepository.getKmbEta(
                     stopId = stopId,
                     route = route.routeName,
                     serviceType = route.serviceType ?: "1"
                 )
 
+                // 根據當前路線的「目的地 (destinationZh)」來過濾，確保只顯示往該目的地的班次
+                val filteredEtaList = rawEtaList.filter { eta ->
+                    route.destinationZh.isNullOrEmpty() || 
+                    eta.destinationZh.isEmpty() || 
+                    eta.destinationZh == route.destinationZh
+                }
+
                 _uiState.update { currentState ->
                     val currentMap = currentState.selectedStopEtaMap.toMutableMap()
-                    currentMap[stopId] = etaList
+                    currentMap[stopId] = if (filteredEtaList.isNotEmpty()) filteredEtaList else rawEtaList
                     currentState.copy(selectedStopEtaMap = currentMap)
                 }
             } catch (_: Exception) {}
@@ -294,7 +305,6 @@ class TransitSearchViewModel @Inject constructor(
             if (_uiState.value.bookmarkedStopIds.contains(bookmarkId)) {
                 busRepository.removeBookmark(bookmarkId)
             } else {
-                // 精確匹配 TransitBookmarkEntity 結構
                 val entity = TransitBookmarkEntity(
                     bookmarkId = bookmarkId,
                     routeName = route.routeName,
