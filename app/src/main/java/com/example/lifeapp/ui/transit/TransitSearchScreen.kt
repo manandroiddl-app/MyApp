@@ -76,7 +76,7 @@ fun TransitSearchScreen(
             }
 
             Text(
-                text = if (uiState.selectedRoute == null) "請輸入路線編號以搜尋即時到站時間" else "${uiState.selectedRoute?.originZh} ➔ ${uiState.selectedRoute?.destinationZh}",
+                text = if (uiState.selectedRoute == null) "請輸入路線編號以搜尋即時到站時間" else "${uiState.selectedRoute?.originZh.orEmpty()} ➔ ${uiState.selectedRoute?.destinationZh.orEmpty()}",
                 fontSize = 12.sp,
                 color = TextGray,
                 modifier = Modifier.padding(bottom = 6.dp)
@@ -259,8 +259,10 @@ fun StopCardItem(
                 }
                 Spacer(modifier = Modifier.width(10.dp))
                 
+                // 使用 .orEmpty() 將 String? 轉為 String 再進行 ifEmpty 判斷，徹底避免 nullable 錯誤
+                val stopName = stop.nameZh.orEmpty().ifEmpty { "車站 ${stop.sequence}" }
                 Text(
-                    text = stop.nameZh.ifEmpty { "車站 ${stop.sequence}" },
+                    text = stopName,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Bold,
                     color = TextDark,
@@ -302,7 +304,7 @@ fun StopCardItem(
                                     }
                                     Spacer(modifier = Modifier.width(6.dp))
                                     
-                                    val destName = eta.destinationZh?.takeIf { it.isNotEmpty() } ?: "終點站"
+                                    val destName = eta.destinationZh.orEmpty().ifEmpty { "終點站" }
                                     Text(text = "往 $destName", fontSize = 13.sp, color = TextDark)
                                 }
                                 
@@ -310,7 +312,7 @@ fun StopCardItem(
                                 val displayText: String
                                 val displayColor: Color
 
-                                if (eta.etaTimestamp.isEmpty() || mins == null) {
+                                if (eta.etaTimestamp.orEmpty().isEmpty() || mins == null) {
                                     displayText = "暫時無班次資料"
                                     displayColor = TextGray
                                 } else if (mins <= 1) {
