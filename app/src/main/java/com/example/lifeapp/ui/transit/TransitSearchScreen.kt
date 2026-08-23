@@ -1,322 +1,277 @@
 package com.example.lifeapp.ui.transit
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Backspace
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.outlined.StarBorder
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalLifecycleOwner
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.example.lifeapp.data.local.entity.TransitBookmarkEntity
+import com.example.lifeapp.data.model.OperatorCompany
 import com.example.lifeapp.data.model.TransitEta
 import com.example.lifeapp.data.model.TransitRoute
 import com.example.lifeapp.data.model.TransitStop
-import com.example.lifeapp.ui.theme.*
+import com.example.lifeapp.data.repository.BusRepository
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import javax.inject.Inject
 
-@Composable
-fun TransitSearchScreen(
-    viewModel: TransitSearchViewModel = hiltViewModel()
-) {
-    val uiState by viewModel.uiState.collectAsState()
-    val currentTimeMs by viewModel.currentTimeMs.collectAsState()
-    val lifecycleOwner = LocalLifecycleOwner.current
+enum class TransitTab { SEARCH, BOOKMARK }
 
-    DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) viewModel.onResumeRefresh()
-            else if (event == Lifecycle.Event.ON_PAUSE) viewModel.onPauseStopRefresh()
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+data class TransitUiState(
+    val currentTab: TransitTab = TransitTab.SEARCH,
+    val searchQuery: String = "",
+    val numericChips: List<Char> = emptyList(),
+    val letterChips: List<Char> = emptyList(),
+    val allRoutes: List<TransitRoute> = emptyList(),
+    val filteredRoutes: List<TransitRoute> = emptyList(),
+    val bookmarks: List<TransitBookmarkEntity> = emptyList(),
+    val isLoadingRoutes: Boolean = false,
+    
+    val selectedRoute: TransitRoute? = null,
+    val routeStops: List<TransitStop> = emptyList(),
+    val isLoadingStops: Boolean = false,
+    val selectedStopEtaMap: Map<String, List<TransitEta>> = emptyMap(),
+    val bookmarkedStopIds: Set<String> = emptySet(),
+    val expandedStopIds: Set<String> = emptySet()
+)
+
+@HiltViewModel
+class TransitSearchViewModel @Inject constructor(
+    private val busRepository: BusRepository
+) : ViewModel() {
+
+    private val _uiState = MutableStateFlow(TransitUiState())
+    val uiState: StateFlow<TransitUiState> = _uiState.asStateFlow()
+
+    private val _currentTimeMs = MutableStateFlow(System.currentTimeMillis())
+    val currentTimeMs: StateFlow<Long> = _currentTimeMs.asStateFlow()
+
+    private var etaAutoRefreshJob: Job? = null
+    private var tickerJob: Job? = null
+
+    init {
+        loadAllRoutes()
+        observeBookmarks()
+        startTicker()
     }
 
-    // 捨棄 Scaffold 避免多餘底層邊界，使用純 Column 讓 Chip 真正貼底
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .statusBarsPadding()
-    ) {
-        // 主內容區塊 (動態填滿剩餘空間，推開底部 Chip)
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .padding(horizontal = 16.dp)
-        ) {
-            Spacer(modifier = Modifier.height(8.dp))
+    fun onResumeRefresh() {
+        startEtaAutoRefreshLoop()
+    }
 
-            // Header
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                if (uiState.selectedRoute != null) {
-                    IconButton(onClick = { viewModel.clearSelectedRoute() }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "返回", tint = PrimaryDarkBlue)
-                    }
-                }
-                Text(
-                    text = if (uiState.selectedRoute == null) "巴士 / 交通到站" else "路線 ${uiState.selectedRoute?.routeName}",
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = PrimaryDarkBlue
+    fun onPauseStopRefresh() {
+        stopEtaAutoRefreshLoop()
+    }
+
+    private fun startTicker() {
+        tickerJob?.cancel()
+        tickerJob = viewModelScope.launch {
+            while (isActive) {
+                delay(1000L)
+                _currentTimeMs.value = System.currentTimeMillis()
+            }
+        }
+    }
+
+    private fun loadAllRoutes() {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoadingRoutes = true)
+            val routes = busRepository.getKmbRoutes()
+            _uiState.value = _uiState.value.copy(
+                allRoutes = routes,
+                isLoadingRoutes = false
+            )
+            updateFilteredRoutes(_uiState.value.searchQuery)
+        }
+    }
+
+    private fun observeBookmarks() {
+        viewModelScope.launch {
+            busRepository.getAllBookmarks().collectLatest { bookmarkList ->
+                val bookmarkedIds = bookmarkList.map { it.bookmarkId }.toSet()
+                _uiState.value = _uiState.value.copy(
+                    bookmarks = bookmarkList,
+                    bookmarkedStopIds = bookmarkedIds
                 )
             }
+        }
+    }
 
-            Text(
-                text = if (uiState.selectedRoute == null) "請輸入路線編號以搜尋即時到站時間" else "${uiState.selectedRoute?.originZh} ➔ ${uiState.selectedRoute?.destinationZh}",
-                fontSize = 13.sp,
-                color = TextGray,
-                modifier = Modifier.padding(bottom = 8.dp)
+    fun selectTab(tab: TransitTab) {
+        _uiState.value = _uiState.value.copy(currentTab = tab)
+    }
+
+    fun onChipClicked(char: Char) {
+        onSearchQueryChanged(_uiState.value.searchQuery + char)
+    }
+
+    fun onBackspaceClicked() {
+        val current = _uiState.value.searchQuery
+        if (current.isNotEmpty()) {
+            onSearchQueryChanged(current.substring(0, current.length - 1))
+        }
+    }
+
+    fun onClearSearch() {
+        onSearchQueryChanged("")
+    }
+
+    fun onSearchQueryChanged(query: String) {
+        val upperQuery = query.uppercase()
+        updateFilteredRoutes(upperQuery)
+    }
+
+    private fun updateFilteredRoutes(query: String) {
+        val all = _uiState.value.allRoutes
+        
+        // 🎯 修復 3b：移除 .distinctBy { it.routeName }，完整保留雙向 (Bound O/I) 路線
+        val filtered = if (query.isEmpty()) {
+            all
+        } else {
+            all.filter { it.routeName.startsWith(query, ignoreCase = true) }
+        }
+
+        val nextChars = all.mapNotNull { route ->
+            val name = route.routeName.uppercase()
+            if (name.startsWith(query, ignoreCase = true) && name.length > query.length) name[query.length] else null
+        }.distinct().sorted()
+
+        val (nums, letters) = if (query.isEmpty()) {
+            val defaultNums = listOf('1', '2', '3', '4', '5', '6', '7', '8', '9', '0')
+            val defaultLetters = all.mapNotNull { it.routeName.firstOrNull { c -> c.isLetter() }?.uppercaseChar() }.distinct().sorted()
+            Pair(defaultNums, defaultLetters)
+        } else {
+            Pair(nextChars.filter { it.isDigit() }, nextChars.filter { it.isLetter() })
+        }
+
+        _uiState.value = _uiState.value.copy(
+            searchQuery = query,
+            filteredRoutes = filtered,
+            numericChips = nums,
+            letterChips = letters
+        )
+    }
+
+    fun selectRoute(route: TransitRoute) {
+        _uiState.value = _uiState.value.copy(
+            selectedRoute = route,
+            isLoadingStops = true,
+            routeStops = emptyList(),
+            selectedStopEtaMap = emptyMap(),
+            expandedStopIds = emptySet()
+        )
+
+        viewModelScope.launch {
+            val stops = busRepository.getKmbRouteStops(
+                route = route.routeName,
+                bound = route.bound ?: "O",
+                serviceType = route.serviceType ?: "1"
             )
 
-            if (uiState.selectedRoute == null) {
-                TabRow(
-                    selectedTabIndex = uiState.currentTab.ordinal,
-                    containerColor = Color.Transparent,
-                    contentColor = PrimaryDarkBlue,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                ) {
-                    Tab(
-                        selected = uiState.currentTab == TransitTab.SEARCH,
-                        onClick = { viewModel.selectTab(TransitTab.SEARCH) },
-                        text = { Text("路線搜尋", fontWeight = FontWeight.Bold) }
-                    )
-                    Tab(
-                        selected = uiState.currentTab == TransitTab.BOOKMARK,
-                        onClick = { viewModel.selectTab(TransitTab.BOOKMARK) },
-                        text = { Text("我的收藏 (${uiState.bookmarks.size})", fontWeight = FontWeight.Bold) }
-                    )
-                }
+            // 🎯 修復 2：全部車站預設 100% 展開
+            val allStopIds = stops.map { it.stopId }.toSet()
 
-                if (uiState.currentTab == TransitTab.SEARCH) {
-                    OutlinedTextField(
-                        value = uiState.searchQuery,
-                        onValueChange = { viewModel.onSearchQueryChanged(it) },
-                        label = { Text("搜尋路線 (例如 1A, 102)") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = PrimaryDarkBlue,
-                            unfocusedBorderColor = Color.LightGray
-                        )
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
+            _uiState.value = _uiState.value.copy(
+                routeStops = stops,
+                isLoadingStops = false,
+                expandedStopIds = allStopIds
+            )
 
-                    if (uiState.isLoadingRoutes) {
-                        Box(modifier = Modifier.fillMaxWidth().height(100.dp), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator(color = PrimaryDarkBlue)
-                        }
-                    } else {
-                        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxSize()) {
-                            items(uiState.filteredRoutes) { route ->
-                                RouteCardItem(route = route, onClick = { viewModel.selectRoute(route) })
-                            }
-                        }
-                    }
-                } else {
-                    Text("已收藏的車站列表", fontSize = 14.sp, color = TextGray)
-                }
-            } else {
-                if (uiState.isLoadingStops) {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = PrimaryDarkBlue)
-                    }
-                } else {
-                    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxSize()) {
-                        items(uiState.routeStops) { stop ->
-                            val etas = uiState.selectedStopEtaMap[stop.stopId]
-                            val isExpanded = uiState.expandedStopIds.contains(stop.stopId)
-                            val isBookmarked = uiState.bookmarkedStopIds.contains("KMB_${uiState.selectedRoute?.routeName}_${uiState.selectedRoute?.bound}_${uiState.selectedRoute?.serviceType}_${stop.stopId}")
+            // 一次過發起所有車站 ETA 的 Fetch
+            allStopIds.forEach { fetchStopEta(it) }
 
-                            StopCardItem(
-                                stop = stop,
-                                etas = etas,
-                                isExpanded = isExpanded,
-                                isBookmarked = isBookmarked,
-                                onToggleExpand = { viewModel.toggleStopExpand(stop.stopId) },
-                                onToggleBookmark = { viewModel.toggleBookmark(stop) }
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        // 底部 Chip 區塊 (無權重，自然沉底緊貼 MainActivity BottomBar)
-        if (uiState.selectedRoute == null && uiState.currentTab == TransitTab.SEARCH) {
-            Surface(
-                color = Color.White,
-                shadowElevation = 12.dp,
-                shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 10.dp, bottom = 12.dp, start = 12.dp, end = 12.dp)
-                ) {
-                    if (uiState.numericChips.isNotEmpty()) {
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                            items(uiState.numericChips) { char ->
-                                SuggestionChip(
-                                    onClick = { viewModel.onChipClicked(char) },
-                                    label = { Text(char.toString(), fontWeight = FontWeight.Bold, fontSize = 16.sp) },
-                                    colors = SuggestionChipDefaults.suggestionChipColors(
-                                        containerColor = PrimaryLightBlue,
-                                        labelColor = PrimaryDarkBlue
-                                    ),
-                                    border = null
-                                )
-                            }
-                        }
-                        Spacer(modifier = Modifier.height(4.dp))
-                    }
-                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.weight(1f)) {
-                            items(uiState.letterChips) { char ->
-                                FilterChip(
-                                    selected = false,
-                                    onClick = { viewModel.onChipClicked(char) },
-                                    label = { Text(char.toString(), fontWeight = FontWeight.Bold, fontSize = 16.sp) },
-                                    colors = FilterChipDefaults.filterChipColors(
-                                        containerColor = Color(0xFFE8EAF6),
-                                        labelColor = PrimaryDarkBlue
-                                    ),
-                                    border = null
-                                )
-                            }
-                        }
-                        Spacer(modifier = Modifier.width(8.dp))
-                        IconButton(
-                            onClick = { viewModel.onBackspaceClicked() },
-                            modifier = Modifier.size(40.dp).background(Color(0xFFFFEBEE), RoundedCornerShape(12.dp))
-                        ) {
-                            Icon(Icons.Default.Backspace, contentDescription = "退格", tint = Color.Red, modifier = Modifier.size(20.dp))
-                        }
-                    }
-                }
-            }
+            startEtaAutoRefreshLoop()
         }
     }
-}
 
-@Composable
-fun RouteCardItem(route: TransitRoute, onClick: () -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable(onClick = onClick),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = Modifier.size(44.dp).background(PrimaryLightBlue, RoundedCornerShape(10.dp)),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(route.routeName, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = PrimaryDarkBlue)
-            }
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text("${route.originZh} ➔ ${route.destinationZh}", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextDark)
-                Text("九巴 KMB", fontSize = 12.sp, color = TextGray)
-            }
-        }
+    fun clearSelectedRoute() {
+        stopEtaAutoRefreshLoop()
+        _uiState.value = _uiState.value.copy(
+            selectedRoute = null,
+            routeStops = emptyList(),
+            selectedStopEtaMap = emptyMap(),
+            expandedStopIds = emptySet()
+        )
     }
-}
 
-@Composable
-fun StopCardItem(
-    stop: TransitStop,
-    etas: List<TransitEta>?,
-    isExpanded: Boolean,
-    isBookmarked: Boolean,
-    onToggleExpand: () -> Unit,
-    onToggleBookmark: () -> Unit
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable { onToggleExpand() },
-        colors = CardDefaults.cardColors(containerColor = if (isExpanded) Color(0xFFE3F2FD) else Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-    ) {
-        Column(modifier = Modifier.padding(14.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                Surface(color = PrimaryDarkBlue, shape = RoundedCornerShape(6.dp)) {
-                    Text(
-                        text = "${stop.sequence}", color = Color.White, fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                    )
-                }
-                Spacer(modifier = Modifier.width(10.dp))
-                Text(
-                    text = stop.nameZh, fontSize = 16.sp, fontWeight = FontWeight.Bold,
-                    color = TextDark, modifier = Modifier.weight(1f)
+    fun toggleStopExpand(stopId: String) {
+        val currentExpanded = _uiState.value.expandedStopIds.toMutableSet()
+        if (currentExpanded.contains(stopId)) {
+            currentExpanded.remove(stopId)
+        } else {
+            currentExpanded.add(stopId)
+            fetchStopEta(stopId)
+        }
+        _uiState.value = _uiState.value.copy(expandedStopIds = currentExpanded)
+    }
+
+    fun fetchStopEta(stopId: String) {
+        val route = _uiState.value.selectedRoute ?: return
+        viewModelScope.launch {
+            try {
+                val etaList = busRepository.getKmbEta(
+                    stopId = stopId,
+                    route = route.routeName,
+                    serviceType = route.serviceType ?: "1"
                 )
-                IconButton(onClick = onToggleBookmark, modifier = Modifier.size(32.dp)) {
-                    Icon(
-                        imageVector = if (isBookmarked) Icons.Filled.Star else Icons.Outlined.StarBorder,
-                        contentDescription = "收藏",
-                        tint = if (isBookmarked) Color(0xFFFFB300) else TextGray
-                    )
-                }
-            }
+                val currentMap = _uiState.value.selectedStopEtaMap.toMutableMap()
+                currentMap[stopId] = etaList.filter { (it.minutesLeft ?: 0) >= 0 }
+                _uiState.value = _uiState.value.copy(selectedStopEtaMap = currentMap)
+            } catch (_: Exception) {}
+        }
+    }
 
-            if (isExpanded) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Divider(color = Color.LightGray.copy(alpha = 0.5f))
-                Spacer(modifier = Modifier.height(8.dp))
-
-                if (etas == null) {
-                    Text("載入到站時間中...", fontSize = 13.sp, color = TextGray)
-                } else if (etas.isEmpty()) {
-                    Text("暫無即時到站班次", fontSize = 13.sp, color = TextGray)
-                } else {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        etas.take(3).forEachIndexed { index, eta ->
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Surface(color = Color(0xFFE0E0E0), shape = RoundedCornerShape(4.dp)) {
-                                        Text(
-                                            text = "班次 ${index + 1}", fontSize = 10.sp,
-                                            fontWeight = FontWeight.Bold, color = Color.DarkGray,
-                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
-                                        )
-                                    }
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(text = "往 ${eta.destinationZh ?: "終點站"}", fontSize = 13.sp, color = TextDark)
-                                }
-                                
-                                val mins = eta.minutesLeft ?: -1
-                                Text(
-                                    text = if (mins <= 0) "即將到站" else "$mins 分鐘",
-                                    fontSize = 15.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (mins in 0..3) Color.Red else PrimaryDarkBlue
-                                )
-                            }
-                        }
+    private fun startEtaAutoRefreshLoop() {
+        stopEtaAutoRefreshLoop()
+        etaAutoRefreshJob = viewModelScope.launch {
+            while (isActive) {
+                delay(30_000L) // 30 秒自動靜默刷新
+                if (_uiState.value.selectedRoute != null) {
+                    _uiState.value.expandedStopIds.forEach { stopId ->
+                        fetchStopEta(stopId)
                     }
                 }
             }
         }
+    }
+
+    private fun stopEtaAutoRefreshLoop() {
+        etaAutoRefreshJob?.cancel()
+        etaAutoRefreshJob = null
+    }
+
+    fun toggleBookmark(stop: TransitStop) {
+        val route = _uiState.value.selectedRoute ?: return
+        val bookmarkId = "KMB_${route.routeName}_${route.bound}_${route.serviceType}_${stop.stopId}"
+
+        viewModelScope.launch {
+            if (_uiState.value.bookmarkedStopIds.contains(bookmarkId)) {
+                busRepository.removeBookmark(bookmarkId)
+            } else {
+                val entity = TransitBookmarkEntity(
+                    bookmarkId = bookmarkId,
+                    routeName = route.routeName,
+                    company = OperatorCompany.KMB.name,
+                    bound = route.bound ?: "O",
+                    serviceType = route.serviceType ?: "1",
+                    originZh = route.originZh,
+                    destinationZh = route.destinationZh,
+                    stopId = stop.stopId,
+                    stopNameZh = stop.nameZh,
+                    sequence = stop.sequence
+                )
+                busRepository.addBookmark(entity)
+            }
+        }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        stopEtaAutoRefreshLoop()
+        tickerJob?.cancel()
     }
 }
