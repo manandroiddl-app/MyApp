@@ -1,4 +1,3 @@
-app/src/main/java/com/example/lifeapp/di/NetworkModule.kt
 package com.example.lifeapp.di
 
 import com.example.lifeapp.data.api.AppConfigApiService
