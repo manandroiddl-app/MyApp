@@ -6,6 +6,7 @@ import com.example.lifeapp.data.model.OperatorCompany
 import com.example.lifeapp.data.model.TransitEta
 import com.example.lifeapp.data.model.TransitRoute
 import com.example.lifeapp.data.model.TransitStop
+import com.example.lifeapp.data.model.TransitType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -45,7 +46,7 @@ class BusRepository @Inject constructor(
                     TransitRoute(
                         routeId = "KMB_${routeName}_${bound}_${serviceType}",
                         routeName = routeName,
-                        transitType = "BUS",
+                        transitType = TransitType.BUS,
                         company = OperatorCompany.KMB,
                         bound = bound,
                         serviceType = serviceType,
@@ -78,7 +79,6 @@ class BusRepository @Inject constructor(
                 rawStops.add(Pair(obj.optString("stop"), obj.optInt("seq")))
             }
 
-            // 併發 Fetch 缺失的中文站名，徹底消除「載入中...」
             val missingStopIds = rawStops.map { it.first }.filter { !stopNameCache.containsKey(it) }.distinct()
             if (missingStopIds.isNotEmpty()) {
                 missingStopIds.map { stopId ->
@@ -154,8 +154,7 @@ class BusRepository @Inject constructor(
                     TransitEta(
                         routeName = rName,
                         company = OperatorCompany.KMB,
-                        dir = dir,
-                        serviceType = obj.optString("service_type", "1"),
+                        bound = dir,
                         destinationZh = destTc,
                         etaTimestamp = if (etaTimeStr == "null") "" else etaTimeStr,
                         minutesLeft = minsLeft,
