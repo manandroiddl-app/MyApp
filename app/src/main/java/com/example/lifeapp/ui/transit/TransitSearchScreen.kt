@@ -46,16 +46,13 @@ fun TransitSearchScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    // 🎯 修復 1：移除 statusBarsPadding()，頂部不再有多餘留白空位
     Column(modifier = Modifier.fillMaxSize()) {
-        
-        // 主內容區域
         Column(
             modifier = Modifier
                 .weight(1f)
                 .padding(horizontal = 16.dp)
         ) {
-            // 頂部 Title，設 top = 2.dp 緊貼最頂邊緣
+            // 頂部列緊貼頂層
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
@@ -109,7 +106,7 @@ fun TransitSearchScreen(
                     OutlinedTextField(
                         value = uiState.searchQuery,
                         onValueChange = { viewModel.onSearchQueryChanged(it) },
-                        label = { Text("搜尋路線 (例如 1A, 102)") },
+                        label = { Text("搜尋路線 (例如 1A, E33, 102)") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
@@ -160,7 +157,7 @@ fun TransitSearchScreen(
             }
         }
 
-        // 底部 Chip 區域（貼底浮動）
+        // 底部數字/字母 Chip 鍵盤
         if (uiState.selectedRoute == null && uiState.currentTab == TransitTab.SEARCH) {
             Surface(
                 color = Color.White,
@@ -264,7 +261,6 @@ fun StopCardItem(
                 }
                 Spacer(modifier = Modifier.width(10.dp))
                 
-                // 🎯 修復 3a：防止顯示「載入中...」，若空值顯示預設備用站名
                 Text(
                     text = stop.nameZh.ifEmpty { "車站 ${stop.sequence}" },
                     fontSize = 15.sp,
@@ -289,7 +285,8 @@ fun StopCardItem(
                 if (etas == null) {
                     Text("載入到站時間中...", fontSize = 12.sp, color = TextGray)
                 } else if (etas.isEmpty()) {
-                    Text("暫無即時到站班次", fontSize = 12.sp, color = TextGray)
+                    // 🎯 修復 3：無資料時顯示「暫時無班次資料」
+                    Text("暫時無班次資料", fontSize = 13.sp, color = TextGray, fontWeight = FontWeight.Medium)
                 } else {
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         etas.take(3).forEachIndexed { index, eta ->
@@ -307,15 +304,30 @@ fun StopCardItem(
                                         )
                                     }
                                     Spacer(modifier = Modifier.width(6.dp))
-                                    Text(text = "往 ${eta.destinationZh ?: "終點站"}", fontSize = 13.sp, color = TextDark)
+                                    Text(text = "往 ${eta.destinationZh.ifEmpty { "終點站" }}", fontSize = 13.sp, color = TextDark)
                                 }
                                 
-                                val mins = eta.minutesLeft ?: -1
+                                // 🎯 修復 3：精確判斷 ETA 顯示文字（暫時無班次資料 vs 即將到站 vs X 分鐘）
+                                val mins = eta.minutesLeft
+                                val displayText: String
+                                val displayColor: Color
+
+                                if (eta.etaTimestamp.isEmpty() || mins == null) {
+                                    displayText = "暫時無班次資料"
+                                    displayColor = TextGray
+                                } else if (mins <= 1) {
+                                    displayText = "即將到站"
+                                    displayColor = Color.Red
+                                } else {
+                                    displayText = "$mins 分鐘"
+                                    displayColor = PrimaryDarkBlue
+                                }
+
                                 Text(
-                                    text = if (mins <= 0) "即將到站" else "$mins 分鐘",
-                                    fontSize = 14.sp,
+                                    text = displayText,
+                                    fontSize = 13.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = if (mins in 0..3) Color.Red else PrimaryDarkBlue
+                                    color = displayColor
                                 )
                             }
                         }
