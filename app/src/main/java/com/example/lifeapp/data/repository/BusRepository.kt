@@ -6,13 +6,12 @@ import com.example.lifeapp.data.local.GenericCacheDao
 import com.example.lifeapp.data.local.GenericCacheEntity
 import com.example.lifeapp.data.local.dao.TransitBookmarkDao
 import com.example.lifeapp.data.local.entity.TransitBookmarkEntity
-import com.example.lifeapp.data.model.OperatorCompany
-import com.example.lifeapp.data.model.TransitEta
-import com.example.lifeapp.data.model.TransitRoute
-import com.example.lifeapp.data.model.TransitStop
-import com.example.lifeapp.data.model.TransitType
+import com.example.lifeapp.data.model.*
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
@@ -62,27 +61,36 @@ class BusRepository @Inject constructor(
         }
     }
 
-    suspend fun getKmbRouteStops(route: String, bound: String, serviceType: String): List<TransitStop> {
+    // 🎯 重點修復：並行查詢各站牌詳細名稱
+    suspend fun getKmbRouteStops(route: String, bound: String, serviceType: String): List<TransitStop> = coroutineScope {
         val dirParam = if (bound.equals("O", ignoreCase = true)) "outbound" else "inbound"
         val cacheKey = "kmb_stops_${route}_${dirParam}_$serviceType"
         val cached = getCacheList<TransitStop>(cacheKey)
         
         if (!cached.isNullOrEmpty()) {
-            return cached
+            return@coroutineScope cached
         }
 
-        return try {
+        try {
             val response = busApiService.getKmbRouteStops(route, dirParam, serviceType)
-            val stops = response.data?.map { dto ->
-                TransitStop(
-                    stopId = dto.stopId,
-                    sequence = dto.sequence,
-                    nameZh = "載入中...",
-                    nameEn = null,
-                    latitude = 0.0,
-                    longitude = 0.0
-                )
-            } ?: emptyList()
+            val dtoList = response.data ?: emptyList()
+
+            // 使用 async 並行查詢每個站牌的詳細中文名稱
+            val deferredStops = dtoList.map { dto ->
+                async {
+                    val detail = getStopDetail(dto.stopId)
+                    TransitStop(
+                        stopId = dto.stopId,
+                        sequence = dto.sequence,
+                        nameZh = detail?.nameTc ?: "車站 ${dto.sequence}",
+                        nameEn = detail?.nameEn,
+                        latitude = detail?.lat?.toDoubleOrNull() ?: 0.0,
+                        longitude = detail?.long?.toDoubleOrNull() ?: 0.0
+                    )
+                }
+            }
+
+            val stops = deferredStops.awaitAll()
 
             if (stops.isNotEmpty()) {
                 saveCacheList(cacheKey, stops)
@@ -91,6 +99,21 @@ class BusRepository @Inject constructor(
         } catch (e: Exception) {
             Log.e("BusRepository", "Error fetching route stops for $route", e)
             emptyList()
+        }
+    }
+
+    private suspend fun getStopDetail(stopId: String): KmbStopDetailDto? {
+        val cacheKey = "kmb_stop_detail_$stopId"
+        val cached = getCacheObject<KmbStopDetailDto>(cacheKey)
+        if (cached != null) return cached
+
+        return try {
+            val res = busApiService.getKmbStopDetail(stopId)
+            res.data?.also {
+                saveCacheObject(cacheKey, it)
+            }
+        } catch (e: Exception) {
+            null
         }
     }
 
@@ -132,21 +155,30 @@ class BusRepository @Inject constructor(
                 val type = object : TypeToken<List<T>>() {}.type
                 gson.fromJson<List<T>>(entity.jsonContent, type)
             } else null
-        } catch (e: Exception) {
-            Log.e("BusRepository", "Error reading cache for key: $key", e)
-            null
-        }
+        } catch (e: Exception) { null }
     }
 
     private suspend fun <T> saveCacheList(key: String, data: List<T>) {
         try {
             val jsonStr = gson.toJson(data)
-            genericCacheDao.saveCache(
-                GenericCacheEntity(cacheKey = key, jsonContent = jsonStr)
-            )
-        } catch (e: Exception) {
-            Log.e("BusRepository", "Error saving cache for key: $key", e)
-        }
+            genericCacheDao.saveCache(GenericCacheEntity(cacheKey = key, jsonContent = jsonStr))
+        } catch (e: Exception) { }
+    }
+
+    private suspend inline fun <reified T> getCacheObject(key: String): T? {
+        return try {
+            val entity = genericCacheDao.getCache(key)
+            if (entity != null && entity.jsonContent.isNotBlank()) {
+                gson.fromJson(entity.jsonContent, T::class.java)
+            } else null
+        } catch (e: Exception) { null }
+    }
+
+    private suspend fun <T> saveCacheObject(key: String, data: T) {
+        try {
+            val jsonStr = gson.toJson(data)
+            genericCacheDao.saveCache(GenericCacheEntity(cacheKey = key, jsonContent = jsonStr))
+        } catch (e: Exception) { }
     }
 
     private fun calculateMinutesLeft(etaStr: String?, now: ZonedDateTime): Int? {
@@ -155,8 +187,6 @@ class BusRepository @Inject constructor(
             val etaTime = ZonedDateTime.parse(etaStr, DateTimeFormatter.ISO_OFFSET_DATE_TIME)
             val diff = ChronoUnit.MINUTES.between(now, etaTime).toInt()
             if (diff < 0) 0 else diff
-        } catch (e: Exception) {
-            null
-        }
+        } catch (e: Exception) { null }
     }
 }
