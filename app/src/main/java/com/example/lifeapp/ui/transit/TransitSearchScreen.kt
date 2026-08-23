@@ -18,10 +18,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import com.example.lifeapp.data.model.TransitEta
 import com.example.lifeapp.data.model.TransitRoute
 import com.example.lifeapp.data.model.TransitStop
@@ -32,11 +35,27 @@ fun TransitSearchScreen(
     viewModel: TransitSearchViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    // 🎯 監聽 App 生命週期，進入背景停止 Timer，回到前景自動刷新並開啟 Timer
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                viewModel.onResumeRefresh()
+            } else if (event == Lifecycle.Event.ON_PAUSE) {
+                viewModel.onPauseStopRefresh()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
 
     Scaffold(
         containerColor = BackgroundLight,
         bottomBar = {
-            // 🎯 底部鍵盤（只限搜尋頁且未選中特定路線時顯示）
+            // 🎯 1) 底部 Chip 區域貼底優化 (緊貼導航列頂緣)
             if (uiState.selectedRoute == null && uiState.currentTab == TransitTab.SEARCH) {
                 Surface(
                     color = Color.White,
@@ -47,9 +66,9 @@ fun TransitSearchScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .navigationBarsPadding()
-                            .padding(vertical = 10.dp, horizontal = 12.dp)
+                            .padding(top = 8.dp, bottom = 4.dp, start = 12.dp, end = 12.dp)
                     ) {
-                        // 第一行：數字 Chips (向橫 Scroll)
+                        // 第一行：數字 Chips
                         if (uiState.numericChips.isNotEmpty()) {
                             LazyRow(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -67,10 +86,10 @@ fun TransitSearchScreen(
                                     )
                                 }
                             }
-                            Spacer(modifier = Modifier.height(4.dp))
+                            Spacer(modifier = Modifier.height(2.dp))
                         }
 
-                        // 第二行：字母 Chips (向橫 Scroll) + 靠右退格按鈕
+                        // 第二行：字母 Chips + 靠右退格鍵
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically
@@ -95,7 +114,6 @@ fun TransitSearchScreen(
 
                             Spacer(modifier = Modifier.width(8.dp))
 
-                            // 🎯 退格 Button (靠右邊放置)
                             IconButton(
                                 onClick = { viewModel.onBackspaceClicked() },
                                 modifier = Modifier
@@ -119,9 +137,13 @@ fun TransitSearchScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .padding(16.dp)
+                // 🎯 1) 頂部貼邊優化：加上 statusBarsPadding，移除多餘垂直 padding
+                .statusBarsPadding()
+                .padding(horizontal = 16.dp)
         ) {
-            // 🎯 統一頁面標題（藍色系與字級統一）
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // 🎯 標題區
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth()
@@ -141,9 +163,9 @@ fun TransitSearchScreen(
 
             Text(
                 text = if (uiState.selectedRoute == null) "請輸入路線編號以搜尋即時到站時間" else "${uiState.selectedRoute?.originZh} ➔ ${uiState.selectedRoute?.destinationZh}",
-                fontSize = 14.sp,
+                fontSize = 13.sp,
                 color = TextGray,
-                modifier = Modifier.padding(bottom = 12.dp)
+                modifier = Modifier.padding(bottom = 8.dp)
             )
 
             // Tab 選擇列 (搜尋 / 書籤)
@@ -152,7 +174,7 @@ fun TransitSearchScreen(
                     selectedTabIndex = uiState.currentTab.ordinal,
                     containerColor = Color.Transparent,
                     contentColor = PrimaryDarkBlue,
-                    modifier = Modifier.padding(bottom = 12.dp)
+                    modifier = Modifier.padding(bottom = 8.dp)
                 ) {
                     Tab(
                         selected = uiState.currentTab == TransitTab.SEARCH,
@@ -169,7 +191,6 @@ fun TransitSearchScreen(
 
             if (uiState.selectedRoute == null) {
                 if (uiState.currentTab == TransitTab.SEARCH) {
-                    // 搜尋輸入框
                     OutlinedTextField(
                         value = uiState.searchQuery,
                         onValueChange = { viewModel.onSearchQueryChanged(it) },
@@ -183,7 +204,7 @@ fun TransitSearchScreen(
                         )
                     )
 
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
 
                     if (uiState.isLoadingRoutes) {
                         Box(modifier = Modifier.fillMaxWidth().height(100.dp), contentAlignment = Alignment.Center) {
@@ -200,7 +221,6 @@ fun TransitSearchScreen(
                         }
                     }
                 } else {
-                    // 書籤分頁內容...
                     Text("已收藏的車站列表", fontSize = 14.sp, color = TextGray)
                 }
             } else {
@@ -342,33 +362,43 @@ fun StopCardItem(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 if (etas == null) {
-                    Text("載入 ETA 到站時間中...", fontSize = 13.sp, color = TextGray)
+                    Text("載入到站時間中...", fontSize = 13.sp, color = TextGray)
                 } else if (etas.isEmpty()) {
                     Text("暫無即時到站班次", fontSize = 13.sp, color = TextGray)
                 } else {
-                    etas.forEach { eta ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "往 ${eta.destinationZh}",
-                                fontSize = 13.sp,
-                                color = TextDark
-                            )
-                            Text(
-                                text = when {
-                                    eta.minutesLeft == null -> "無即時班次"
-                                    eta.minutesLeft <= 0 -> "即將到站"
-                                    else -> "${eta.minutesLeft} 分鐘"
-                                },
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = if ((eta.minutesLeft ?: 99) <= 3) Color.Red else PrimaryDarkBlue
-                            )
+                    // 🎯 2) 完整列出九巴 API 回傳的所有預計到站班次 (如第 1、2、3 班車)
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        etas.forEachIndexed { index, eta ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = "班次 ${index + 1}",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = TextGray,
+                                        modifier = Modifier.padding(end = 8.dp)
+                                    )
+                                    Text(
+                                        text = "往 ${eta.destinationZh}",
+                                        fontSize = 13.sp,
+                                        color = TextDark
+                                    )
+                                }
+                                Text(
+                                    text = when {
+                                        eta.minutesLeft == null -> "無即時班次"
+                                        eta.minutesLeft <= 0 -> "即將到站"
+                                        else -> "${eta.minutesLeft} 分鐘"
+                                    },
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if ((eta.minutesLeft ?: 99) <= 3) Color.Red else PrimaryDarkBlue
+                                )
+                            }
                         }
                     }
                 }
