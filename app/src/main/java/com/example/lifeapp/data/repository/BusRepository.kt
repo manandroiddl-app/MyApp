@@ -36,31 +36,35 @@ class BusRepository @Inject constructor(
         }
 
         return try {
-            val response = busApiService.getAllRoutes()
-            val routes = response.data.map { dto ->
+            val response = busApiService.getKmbRoutes()
+            val routes = response.data?.map { dto ->
                 TransitRoute(
-                    routeId = "${dto.route}-${dto.bound}-${dto.serviceType}",
+                    routeId = "${dto.route}-${dto.bound ?: ""}-${dto.serviceType ?: ""}",
                     routeName = dto.route,
                     transitType = TransitType.BUS,
                     company = OperatorCompany.KMB,
-                    originZh = dto.origTc,
+                    originZh = dto.origTc ?: "",
                     originEn = dto.origEn,
-                    destinationZh = dto.destTc,
+                    destinationZh = dto.destTc ?: "",
                     destinationEn = dto.destEn,
                     bound = dto.bound,
                     serviceType = dto.serviceType
                 )
+            } ?: emptyList()
+
+            if (routes.isNotEmpty()) {
+                saveCacheList(cacheKey, routes)
             }
-            saveCacheList(cacheKey, routes)
             routes
         } catch (e: Exception) {
+            Log.e("BusRepository", "Error fetching KMB routes", e)
             emptyList()
         }
     }
 
-    suspend fun getKmbRouteStops(routeName: String, direction: String, serviceType: String): List<TransitStop> {
-        val dirParam = if (direction.equals("O", ignoreCase = true)) "outbound" else "inbound"
-        val cacheKey = "kmb_stops_${routeName}_${dirParam}_$serviceType"
+    suspend fun getKmbRouteStops(route: String, bound: String, serviceType: String): List<TransitStop> {
+        val dirParam = if (bound.equals("O", ignoreCase = true)) "outbound" else "inbound"
+        val cacheKey = "kmb_stops_${route}_${dirParam}_$serviceType"
         val cached = getCacheList<TransitStop>(cacheKey)
         
         if (!cached.isNullOrEmpty()) {
@@ -68,40 +72,45 @@ class BusRepository @Inject constructor(
         }
 
         return try {
-            val response = busApiService.getRouteStops(routeName, dirParam, serviceType)
-            val stops = response.data.map { dto ->
+            val response = busApiService.getKmbRouteStops(route, dirParam, serviceType)
+            val stops = response.data?.map { dto ->
                 TransitStop(
-                    stopId = dto.stop,
+                    stopId = dto.stopId,
+                    sequence = dto.sequence,
                     nameZh = "載入中...",
                     nameEn = null,
-                    sequence = dto.seq.toIntOrNull() ?: 0,
-                    latitude = null,
-                    longitude = null
+                    latitude = 0.0,
+                    longitude = 0.0
                 )
+            } ?: emptyList()
+
+            if (stops.isNotEmpty()) {
+                saveCacheList(cacheKey, stops)
             }
-            saveCacheList(cacheKey, stops)
             stops
         } catch (e: Exception) {
+            Log.e("BusRepository", "Error fetching route stops for $route", e)
             emptyList()
         }
     }
 
-    suspend fun getKmbEta(stopId: String, routeName: String): List<TransitEta> {
+    suspend fun getKmbEta(stopId: String, route: String, serviceType: String): List<TransitEta> {
         return try {
-            val response = busApiService.getStopEta(stopId, routeName)
+            val response = busApiService.getKmbEta(stopId, route, serviceType)
             val now = ZonedDateTime.now()
-            response.data.map { dto ->
-                val minutesLeft = calculateMinutesLeft(dto.eta, now)
+            response.data?.map { dto ->
+                val minutesLeft = calculateMinutesLeft(dto.etaTimestamp, now)
                 TransitEta(
-                    routeName = dto.route,
-                    destinationZh = dto.destTc,
-                    etaTimestamp = dto.eta,
-                    minutesLeft = minutesLeft,
-                    remarkZh = dto.rmkTc,
-                    company = OperatorCompany.KMB
+                    routeName = dto.route ?: route,
+                    company = OperatorCompany.KMB,
+                    destinationZh = dto.destTc ?: "",
+                    etaTimestamp = dto.etaTimestamp,
+                    remarkZh = dto.remarkTc,
+                    minutesLeft = minutesLeft
                 )
-            }
+            } ?: emptyList()
         } catch (e: Exception) {
+            Log.e("BusRepository", "Error fetching ETA for stop $stopId", e)
             emptyList()
         }
     }
@@ -112,17 +121,8 @@ class BusRepository @Inject constructor(
         bookmarkDao.insertBookmark(bookmark)
     }
 
-    suspend fun removeBookmark(bookmark: TransitBookmarkEntity) {
-        bookmarkDao.deleteBookmark(bookmark)
-    }
-
-    suspend fun toggleBookmark(bookmark: TransitBookmarkEntity) {
-        val existing = bookmarkDao.getBookmark(bookmark.id)
-        if (existing != null) {
-            bookmarkDao.deleteBookmark(bookmark)
-        } else {
-            bookmarkDao.insertBookmark(bookmark)
-        }
+    suspend fun removeBookmark(bookmarkId: String) {
+        bookmarkDao.deleteBookmarkById(bookmarkId)
     }
 
     private suspend inline fun <reified T> getCacheList(key: String): List<T>? {
@@ -130,7 +130,7 @@ class BusRepository @Inject constructor(
             val entity = genericCacheDao.getCache(key)
             if (entity != null && entity.jsonContent.isNotBlank()) {
                 val type = object : TypeToken<List<T>>() {}.type
-                gson.fromJson(entity.jsonContent, type)
+                gson.fromJson<List<T>>(entity.jsonContent, type)
             } else null
         } catch (e: Exception) {
             Log.e("BusRepository", "Error reading cache for key: $key", e)
