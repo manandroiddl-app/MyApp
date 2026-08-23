@@ -1,4 +1,3 @@
-app/src/main/java/com/example/lifeapp/data/local/AppDatabase.kt
 package com.example.lifeapp.data.local
 
 import androidx.room.Database
