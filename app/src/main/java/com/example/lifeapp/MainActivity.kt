@@ -34,6 +34,7 @@ import com.example.lifeapp.data.repository.AppConfigRepository
 import com.example.lifeapp.ui.theme.*
 import com.example.lifeapp.ui.traffic.TrafficScreen
 import com.example.lifeapp.ui.traffic.TrafficViewModel
+import com.example.lifeapp.ui.transit.TransitSearchScreen
 import com.example.lifeapp.ui.weather.WeatherScreen
 import com.example.lifeapp.ui.weather.WeatherViewModel
 import com.example.lifeapp.util.DbExportHelper
@@ -44,7 +45,8 @@ import javax.inject.Inject
 enum class Screen(val title: String) {
     HUB("大目錄"),
     WEATHER("香港天氣"),
-    TRAFFIC("交通消息")
+    TRAFFIC("特別交通消息"),
+    BUS_SEARCH("巴士/交通到站")
 }
 
 @AndroidEntryPoint
@@ -54,7 +56,7 @@ class MainActivity : ComponentActivity() {
     lateinit var appConfigRepository: AppConfigRepository
 
     @Inject
-    lateinit var appDatabase: AppDatabase // 🎯 注入 AppDatabase 供匯出使用
+    lateinit var appDatabase: AppDatabase
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -120,6 +122,9 @@ fun MainAppLayout(
                                 trafficViewModel.refresh()
                                 Toast.makeText(context, "已更新交通消息", Toast.LENGTH_SHORT).show()
                             }
+                            Screen.BUS_SEARCH -> {
+                                Toast.makeText(context, "可以在搜尋頁輸入路線重新搜尋", Toast.LENGTH_SHORT).show()
+                            }
                         }
                     }
                 }
@@ -141,6 +146,7 @@ fun MainAppLayout(
                     )
                     Screen.WEATHER -> WeatherScreen(viewModel = weatherViewModel)
                     Screen.TRAFFIC -> TrafficScreen(viewModel = trafficViewModel)
+                    Screen.BUS_SEARCH -> TransitSearchScreen()
                 }
             }
         }
@@ -198,9 +204,10 @@ fun HubScreen(
                 iconText = card.icon,
                 badge = card.badge,
                 onClick = {
-                    when (card.id) {
+                    when (card.id.lowercase()) {
                         "weather" -> onNavigate(Screen.WEATHER)
                         "traffic" -> onNavigate(Screen.TRAFFIC)
+                        "bus", "bus_search", "transit", "eta" -> onNavigate(Screen.BUS_SEARCH)
                     }
                 }
             )
