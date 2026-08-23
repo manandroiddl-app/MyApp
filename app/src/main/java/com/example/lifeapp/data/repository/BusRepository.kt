@@ -25,7 +25,6 @@ import javax.inject.Singleton
 class BusRepository @Inject constructor(
     private val bookmarkDao: TransitBookmarkDao
 ) {
-    // 車站名稱記憶體快取 (Stop ID -> 繁體中文站名)
     private val stopNameCache = ConcurrentHashMap<String, String>()
 
     suspend fun getKmbRoutes(): List<TransitRoute> = withContext(Dispatchers.IO) {
@@ -134,7 +133,6 @@ class BusRepository @Inject constructor(
             for (i in 0 until dataArray.length()) {
                 val obj = dataArray.getJSONObject(i)
                 val etaTimeStr = obj.optString("eta", "")
-                val dir = obj.optString("dir", "")
                 val destTc = obj.optString("dest_tc", "")
                 val rName = obj.optString("route", route)
                 val rkZh = obj.optString("rmk_tc", "")
@@ -154,7 +152,6 @@ class BusRepository @Inject constructor(
                     TransitEta(
                         routeName = rName,
                         company = OperatorCompany.KMB,
-                        bound = dir,
                         destinationZh = destTc,
                         etaTimestamp = if (etaTimeStr == "null") "" else etaTimeStr,
                         minutesLeft = minsLeft,
