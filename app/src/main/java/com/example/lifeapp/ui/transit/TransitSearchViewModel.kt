@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -64,13 +65,19 @@ class TransitSearchViewModel @Inject constructor(
 
     private fun loadAllRoutes() {
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoadingRoutes = true)
-            val routes = busRepository.getKmbRoutes()
-            _uiState.value = _uiState.value.copy(
-                allRoutes = routes,
-                isLoadingRoutes = false
-            )
-            updateFilteredRoutes(_uiState.value.searchQuery)
+            _uiState.update { it.copy(isLoadingRoutes = true) }
+            try {
+                val routes = busRepository.getKmbRoutes()
+                _uiState.update { 
+                    it.copy(
+                        allRoutes = routes,
+                        isLoadingRoutes = false
+                    )
+                }
+                updateFilteredRoutes(_uiState.value.searchQuery)
+            } catch (e: Exception) {
+                _uiState.update { it.copy(isLoadingRoutes = false) }
+            }
         }
     }
 
@@ -78,16 +85,18 @@ class TransitSearchViewModel @Inject constructor(
         viewModelScope.launch {
             busRepository.getAllBookmarks().collectLatest { bookmarkList ->
                 val bookmarkedIds = bookmarkList.map { it.bookmarkId }.toSet()
-                _uiState.value = _uiState.value.copy(
-                    bookmarks = bookmarkList,
-                    bookmarkedStopIds = bookmarkedIds
-                )
+                _uiState.update { currentState ->
+                    currentState.copy(
+                        bookmarks = bookmarkList,
+                        bookmarkedStopIds = bookmarkedIds
+                    )
+                }
             }
         }
     }
 
     fun selectTab(tab: TransitTab) {
-        _uiState.value = _uiState.value.copy(currentTab = tab)
+        _uiState.update { it.copy(currentTab = tab) }
     }
 
     fun onChipClicked(char: Char) {
@@ -123,59 +132,107 @@ class TransitSearchViewModel @Inject constructor(
             } else null
         }.distinct().sorted()
 
-        val (nums, letters) = if (query.isEmpty()) {
-            val defaultNums = listOf('1', '2', '3', '4', '5', '6', '7', '8', '9', '0')
-            val defaultLetters = listOf('A', 'B', 'C', 'E', 'K', 'M', 'N', 'R', 'S', 'T', 'X')
-            Pair(defaultNums, defaultLetters)
+        // 【問題 2 修正】當 query 為空時，動態提取所有現有路線中的英文字母（如 F, K, X 等），不再依賴固定 hardcode
+        val defaultLetters = if (query.isEmpty()) {
+            all.mapNotNull { route ->
+                Regex("[A-Za-z]+$").find(route.routeName)?.value?.uppercase()?.firstOrNull()
+            }.distinct().sorted()
         } else {
-            Pair(nextChars.filter { it.isDigit() }, nextChars.filter { it.isLetter() })
+            nextChars.filter { it.isLetter() }
         }
 
-        _uiState.value = _uiState.value.copy(
-            searchQuery = query,
-            filteredRoutes = filtered,
-            numericChips = nums,
-            letterChips = letters
-        )
+        val defaultNums = if (query.isEmpty()) {
+            listOf('1', '2', '3', '4', '5', '6', '7', '8', '9', '0')
+        } else {
+            nextChars.filter { it.isDigit() }
+        }
+
+        _uiState.update { currentState ->
+            currentState.copy(
+                searchQuery = query,
+                filteredRoutes = filtered,
+                numericChips = defaultNums,
+                letterChips = defaultLetters
+            )
+        }
     }
 
     fun selectRoute(route: TransitRoute) {
-        _uiState.value = _uiState.value.copy(
-            selectedRoute = route,
-            isLoadingStops = true,
-            routeStops = emptyList(),
-            selectedStopEtaMap = emptyMap(),
-            expandedStopIds = emptySet()
-        )
+        _uiState.update { currentState ->
+            currentState.copy(
+                selectedRoute = route,
+                isLoadingStops = true,
+                routeStops = emptyList(),
+                selectedStopEtaMap = emptyMap(),
+                expandedStopIds = emptySet()
+            )
+        }
 
         viewModelScope.launch {
-            val stops = busRepository.getKmbRouteStops(
-                route = route.routeName,
-                bound = route.bound ?: "O",
-                serviceType = route.serviceType ?: "1"
-            )
+            try {
+                val stops = busRepository.getKmbRouteStops(
+                    route = route.routeName,
+                    bound = route.bound ?: "O",
+                    serviceType = route.serviceType ?: "1"
+                )
 
-            val allStopIds = stops.map { it.stopId }.toSet()
+                val allStopIds = stops.map { it.stopId }.toSet()
 
-            _uiState.value = _uiState.value.copy(
-                routeStops = stops,
-                isLoadingStops = false,
-                expandedStopIds = allStopIds
-            )
+                _uiState.update { currentState ->
+                    currentState.copy(
+                        routeStops = stops,
+                        isLoadingStops = false,
+                        expandedStopIds = allStopIds
+                    )
+                }
 
-            allStopIds.forEach { fetchStopEta(it) }
-            startEtaAutoRefreshLoop()
+                allStopIds.forEach { fetchStopEta(it) }
+                startEtaAutoRefreshLoop()
+            } catch (e: Exception) {
+                _uiState.update { currentState -> currentState.copy(isLoadingStops = false) }
+            }
+        }
+    }
+
+    // 【問題 3 補充】點擊收藏項目時直接跳轉回對應路線詳情頁
+    fun selectBookmarkRoute(bookmark: TransitBookmarkEntity) {
+        val operatorCompany = try {
+            OperatorCompany.valueOf(bookmark.company)
+        } catch (_: Exception) {
+            OperatorCompany.KMB
+        }
+
+        val targetRoute = _uiState.value.allRoutes.find { route ->
+            route.routeName == bookmark.routeName &&
+                    route.bound == bookmark.bound &&
+                    route.serviceType == bookmark.serviceType
+        } ?: TransitRoute(
+            company = operatorCompany,
+            routeName = bookmark.routeName,
+            bound = bookmark.bound,
+            serviceType = bookmark.serviceType,
+            originZh = bookmark.originZh,
+            destinationZh = bookmark.destinationZh
+        )
+
+        selectRoute(targetRoute)
+
+        // 自動展開該收藏的車站
+        _uiState.update { currentState ->
+            currentState.copy(expandedStopIds = setOf(bookmark.stopId))
         }
     }
 
     fun clearSelectedRoute() {
         stopEtaAutoRefreshLoop()
-        _uiState.value = _uiState.value.copy(
-            selectedRoute = null,
-            routeStops = emptyList(),
-            selectedStopEtaMap = emptyMap(),
-            expandedStopIds = emptySet()
-        )
+        _uiState.update { currentState ->
+            currentState.copy(
+                selectedRoute = null,
+                routeStops = emptyList(),
+                selectedStopEtaMap = emptyMap(),
+                expandedStopIds = emptySet()
+            )
+        }
     }
 
     fun toggleStopExpand(stopId: String) {
@@ -186,7 +243,7 @@ class TransitSearchViewModel @Inject constructor(
             currentExpanded.add(stopId)
             fetchStopEta(stopId)
         }
-        _uiState.value = _uiState.value.copy(expandedStopIds = currentExpanded)
+        _uiState.update { currentState -> currentState.copy(expandedStopIds = currentExpanded) }
     }
 
     fun fetchStopEta(stopId: String) {
@@ -199,9 +256,11 @@ class TransitSearchViewModel @Inject constructor(
                     serviceType = route.serviceType ?: "1"
                 )
 
-                val currentMap = _uiState.value.selectedStopEtaMap.toMutableMap()
-                currentMap[stopId] = etaList
-                _uiState.value = _uiState.value.copy(selectedStopEtaMap = currentMap)
+                _uiState.update { currentState ->
+                    val currentMap = currentState.selectedStopEtaMap.toMutableMap()
+                    currentMap[stopId] = etaList
+                    currentState.copy(selectedStopEtaMap = currentMap)
+                }
             } catch (_: Exception) {}
         }
     }
@@ -247,6 +306,12 @@ class TransitSearchViewModel @Inject constructor(
                 )
                 busRepository.addBookmark(entity)
             }
+        }
+    }
+
+    fun removeBookmark(bookmarkId: String) {
+        viewModelScope.launch {
+            busRepository.removeBookmark(bookmarkId)
         }
     }
 
