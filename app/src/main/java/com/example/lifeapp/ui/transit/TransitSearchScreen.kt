@@ -1,5 +1,6 @@
 package com.example.lifeapp.ui.transit
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -22,14 +23,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.lifeapp.data.model.TransitEta
-import com.example.lifeapp.data.model.TransitRoute
-import com.example.lifeapp.data.model.TransitStop
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
 
+// 定義藍色主題色系
+private val BluePrimary = Color(0xFF1976D2)
+private val BlueOnPrimary = Color(0xFFFFFFFF)
+private val BlueContainer = Color(0xFFE3F2FD)
+private val BlueOnContainer = Color(0xFF0D47A1)
+
 /**
- * 格式化 ETA 時間顯示：例如 "2 分鐘 (05:02)" 或 "即將到達 (05:00)"
+ * 格式化 ETA 時間顯示
  */
 fun formatEtaDisplay(eta: TransitEta): String {
     val mins = eta.minutesLeft
@@ -52,7 +57,6 @@ fun formatEtaDisplay(eta: TransitEta): String {
         } else ""
     }
 
-    // 修正修正 2：使用 .orEmpty() 處理 remarkZh 可能為 null 的情況
     val etaText = when {
         mins == null -> eta.remarkZh.orEmpty().ifEmpty { "暫無班次" }
         mins <= 0 -> "即將到達"
@@ -66,7 +70,6 @@ fun formatEtaDisplay(eta: TransitEta): String {
     }
 }
 
-// 修正 1：為 viewModel 提供預設參數 = hiltViewModel()
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TransitSearchScreen(
@@ -74,56 +77,98 @@ fun TransitSearchScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    if (uiState.selectedRoute != null) {
-                        Text(
-                            text = "${uiState.selectedRoute?.routeName} 往 ${uiState.selectedRoute?.destinationZh}",
-                            fontWeight = FontWeight.Bold
+    // 藍色系色彩配色方案
+    val customColorScheme = lightColorScheme(
+        primary = BluePrimary,
+        onPrimary = BlueOnPrimary,
+        primaryContainer = BlueContainer,
+        onPrimaryContainer = BlueOnContainer
+    )
+
+    MaterialTheme(colorScheme = customColorScheme) {
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = {
+                        if (uiState.selectedRoute != null) {
+                            Text(
+                                text = "${uiState.selectedRoute?.routeName} 往 ${uiState.selectedRoute?.destinationZh}",
+                                fontWeight = FontWeight.Bold
+                            )
+                        } else {
+                            Text(text = "公共交通查詢", fontWeight = FontWeight.Bold)
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        titleContentColor = MaterialTheme.colorScheme.onPrimary,
+                        actionIconContentColor = MaterialTheme.colorScheme.onPrimary,
+                        navigationIconContentColor = MaterialTheme.colorScheme.onPrimary
+                    )
+                )
+            }
+        ) { paddingValues ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+            ) {
+                if (uiState.selectedRoute == null) {
+                    // 分頁標籤
+                    TabRow(
+                        selectedTabIndex = uiState.currentTab.ordinal,
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        contentColor = MaterialTheme.colorScheme.primary
+                    ) {
+                        Tab(
+                            selected = uiState.currentTab == TransitTab.SEARCH,
+                            onClick = { viewModel.selectTab(TransitTab.SEARCH) },
+                            text = { Text("搜尋路線") },
+                            icon = { Icon(Icons.Default.Search, contentDescription = null) }
                         )
-                    } else {
-                        Text(text = "公共交通查詢", fontWeight = FontWeight.Bold)
+                        Tab(
+                            selected = uiState.currentTab == TransitTab.BOOKMARK,
+                            onClick = { viewModel.selectTab(TransitTab.BOOKMARK) },
+                            text = { Text("已收藏") },
+                            icon = { Icon(Icons.Default.Bookmark, contentDescription = null) }
+                        )
                     }
-                },
-                navigationIcon = {
-                    if (uiState.selectedRoute != null) {
-                        IconButton(onClick = { viewModel.clearSelectedRoute() }) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+
+                    Box(modifier = Modifier.weight(1f)) {
+                        when (uiState.currentTab) {
+                            TransitTab.SEARCH -> SearchTabContent(uiState = uiState, viewModel = viewModel)
+                            TransitTab.BOOKMARK -> BookmarkTabContent(uiState = uiState, viewModel = viewModel)
+                        }
+                    }
+                } else {
+                    Box(modifier = Modifier.weight(1f)) {
+                        RouteDetailContent(uiState = uiState, viewModel = viewModel)
+                    }
+
+                    // 路線詳情頁面的底部返回按鈕區塊
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        tonalElevation = 8.dp,
+                        shadowElevation = 8.dp
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Button(
+                                onClick = { viewModel.clearSelectedRoute() },
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                                modifier = Modifier.fillMaxWidth(0.8f)
+                            ) {
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("返回搜尋結果")
+                            }
                         }
                     }
                 }
-            )
-        }
-    ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-        ) {
-            if (uiState.selectedRoute == null) {
-                TabRow(selectedTabIndex = uiState.currentTab.ordinal) {
-                    Tab(
-                        selected = uiState.currentTab == TransitTab.SEARCH,
-                        onClick = { viewModel.selectTab(TransitTab.SEARCH) },
-                        text = { Text("搜尋路線") },
-                        icon = { Icon(Icons.Default.Search, contentDescription = null) }
-                    )
-                    Tab(
-                        selected = uiState.currentTab == TransitTab.BOOKMARK,
-                        onClick = { viewModel.selectTab(TransitTab.BOOKMARK) },
-                        text = { Text("已收藏") },
-                        icon = { Icon(Icons.Default.Bookmark, contentDescription = null) }
-                    )
-                }
-
-                when (uiState.currentTab) {
-                    TransitTab.SEARCH -> SearchTabContent(uiState = uiState, viewModel = viewModel)
-                    TransitTab.BOOKMARK -> BookmarkTabContent(uiState = uiState, viewModel = viewModel)
-                }
-            } else {
-                RouteDetailContent(uiState = uiState, viewModel = viewModel)
             }
         }
     }
@@ -135,67 +180,86 @@ fun SearchTabContent(
     viewModel: TransitSearchViewModel
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(8.dp),
-            shape = RoundedCornerShape(8.dp),
-            color = MaterialTheme.colorScheme.surfaceVariant
-        ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = uiState.searchQuery.ifEmpty { "請輸入路線號碼..." },
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = if (uiState.searchQuery.isEmpty()) Color.Gray else MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.weight(1f)
-                )
-                if (uiState.searchQuery.isNotEmpty()) {
-                    IconButton(onClick = { viewModel.onBackspaceClicked() }) {
-                        Icon(Icons.Default.Backspace, contentDescription = "Clear")
+        // 搜尋結果列表區域（佔滿剩餘空間）
+        Box(modifier = Modifier.weight(1f)) {
+            if (uiState.isLoadingRoutes) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                }
+            } else {
+                LazyColumn(modifier = Modifier.fillMaxSize()) {
+                    items(uiState.filteredRoutes) { route ->
+                        ListItem(
+                            headlineContent = { Text(route.routeName, fontWeight = FontWeight.Bold) },
+                            supportingContent = { Text("${route.originZh} ➔ ${route.destinationZh}") },
+                            modifier = Modifier.clickable { viewModel.selectRoute(route) }
+                        )
+                        HorizontalDivider()
                     }
                 }
             }
         }
 
-        Column(modifier = Modifier.padding(horizontal = 8.dp)) {
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                items(uiState.numericChips) { num ->
-                    FilterChip(
-                        selected = false,
-                        onClick = { viewModel.onChipClicked(num) },
-                        label = { Text(num.toString()) }
-                    )
+        // 底部輸入框與 Chip 鍵盤區塊 (置底)
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            tonalElevation = 8.dp,
+            shadowElevation = 8.dp,
+            color = MaterialTheme.colorScheme.surfaceVariant
+        ) {
+            Column(modifier = Modifier.padding(8.dp)) {
+                // 輸入框
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp),
+                    color = MaterialTheme.colorScheme.surface
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = uiState.searchQuery.ifEmpty { "請輸入路線號碼..." },
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = if (uiState.searchQuery.isEmpty()) Color.Gray else MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.weight(1f)
+                        )
+                        if (uiState.searchQuery.isNotEmpty()) {
+                            IconButton(onClick = { viewModel.onBackspaceClicked() }) {
+                                Icon(Icons.Default.Backspace, contentDescription = "Clear", tint = MaterialTheme.colorScheme.primary)
+                            }
+                        }
+                    }
                 }
-            }
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                items(uiState.letterChips) { letter ->
-                    FilterChip(
-                        selected = false,
-                        onClick = { viewModel.onChipClicked(letter) },
-                        label = { Text(letter.toString()) }
-                    )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // 數字 Chips 鍵盤
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    items(uiState.numericChips) { num ->
+                        FilterChip(
+                            selected = false,
+                            onClick = { viewModel.onChipClicked(num) },
+                            label = { Text(num.toString()) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                containerColor = MaterialTheme.colorScheme.surface
+                            )
+                        )
+                    }
                 }
-            }
-        }
 
-        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-
-        if (uiState.isLoadingRoutes) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
-            }
-        } else {
-            LazyColumn(modifier = Modifier.fillMaxSize()) {
-                items(uiState.filteredRoutes) { route ->
-                    ListItem(
-                        headlineContent = { Text(route.routeName, fontWeight = FontWeight.Bold) },
-                        supportingContent = { Text("${route.originZh} ➔ ${route.destinationZh}") },
-                        modifier = Modifier.clickable { viewModel.selectRoute(route) }
-                    )
-                    HorizontalDivider()
+                // 字母 Chips 鍵盤
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    items(uiState.letterChips) { letter ->
+                        FilterChip(
+                            selected = false,
+                            onClick = { viewModel.onChipClicked(letter) },
+                            label = { Text(letter.toString()) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                containerColor = MaterialTheme.colorScheme.surface
+                            )
+                        )
+                    }
                 }
             }
         }
@@ -209,7 +273,7 @@ fun RouteDetailContent(
 ) {
     if (uiState.isLoadingStops) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator()
+            CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
         }
     } else {
         LazyColumn(
@@ -312,7 +376,7 @@ fun BookmarkTabContent(
                                     shape = RoundedCornerShape(4.dp)
                                 ) {
                                     Text(
-                                        text = bookmark.routeName,
+                                        text = "${bookmark.company} ${bookmark.routeName}",
                                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                                         fontWeight = FontWeight.Bold,
                                         color = MaterialTheme.colorScheme.onPrimaryContainer
@@ -329,7 +393,7 @@ fun BookmarkTabContent(
                             Spacer(modifier = Modifier.height(4.dp))
 
                             Text(
-                                text = bookmark.stopNameZh,
+                                text = "車站：${bookmark.stopNameZh}",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold
                             )
