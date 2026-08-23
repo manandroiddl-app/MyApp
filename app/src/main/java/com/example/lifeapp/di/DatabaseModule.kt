@@ -1,4 +1,3 @@
-app/src/main/java/com/example/lifeapp/di/DatabaseModule.kt
 package com.example.lifeapp.di
 
 import android.content.Context
