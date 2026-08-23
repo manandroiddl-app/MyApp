@@ -61,7 +61,7 @@ class BusRepository @Inject constructor(
         }
     }
 
-    // 🎯 重點修復：並行查詢各站牌詳細名稱
+    // 🎯修復「載入中...」：使用 async 並行查詢每個 stopId 的中文站名
     suspend fun getKmbRouteStops(route: String, bound: String, serviceType: String): List<TransitStop> = coroutineScope {
         val dirParam = if (bound.equals("O", ignoreCase = true)) "outbound" else "inbound"
         val cacheKey = "kmb_stops_${route}_${dirParam}_$serviceType"
@@ -75,7 +75,6 @@ class BusRepository @Inject constructor(
             val response = busApiService.getKmbRouteStops(route, dirParam, serviceType)
             val dtoList = response.data ?: emptyList()
 
-            // 使用 async 並行查詢每個站牌的詳細中文名稱
             val deferredStops = dtoList.map { dto ->
                 async {
                     val detail = getStopDetail(dto.stopId)
