@@ -132,7 +132,7 @@ class TransitSearchViewModel @Inject constructor(
             } else null
         }.distinct().sorted()
 
-        // 【問題 2 修正】當 query 為空時，動態提取所有現有路線中的英文字母（如 F, K, X 等），不再依賴固定 hardcode
+        // 【修正問題 2】當 query 為空時，動態提取所有路線名稱最後出現的字母（解決 F、X 等字母漏掉問題）
         val defaultLetters = if (query.isEmpty()) {
             all.mapNotNull { route ->
                 Regex("[A-Za-z]+$").find(route.routeName)?.value?.uppercase()?.firstOrNull()
@@ -194,7 +194,7 @@ class TransitSearchViewModel @Inject constructor(
         }
     }
 
-    // 【問題 3 補充】點擊收藏項目時直接跳轉回對應路線詳情頁
+    // 【修正問題 3】點擊 Bookmark 項目跳轉到該路線
     fun selectBookmarkRoute(bookmark: TransitBookmarkEntity) {
         val operatorCompany = try {
             OperatorCompany.valueOf(bookmark.company)
@@ -217,7 +217,6 @@ class TransitSearchViewModel @Inject constructor(
 
         selectRoute(targetRoute)
 
-        // 自動展開該收藏的車站
         _uiState.update { currentState ->
             currentState.copy(expandedStopIds = setOf(bookmark.stopId))
         }
@@ -292,16 +291,22 @@ class TransitSearchViewModel @Inject constructor(
             if (_uiState.value.bookmarkedStopIds.contains(bookmarkId)) {
                 busRepository.removeBookmark(bookmarkId)
             } else {
+                // 【編譯修正】完整傳入 TransitBookmarkEntity 需要的所有必要欄位
                 val entity = TransitBookmarkEntity(
                     bookmarkId = bookmarkId,
+                    routeId = "${route.routeName}_${route.bound}_${route.serviceType}",
                     routeName = route.routeName,
                     company = OperatorCompany.KMB.name,
+                    transitType = "BUS",
                     bound = route.bound ?: "O",
                     serviceType = route.serviceType ?: "1",
-                    originZh = route.originZh,
-                    destinationZh = route.destinationZh,
+                    originZh = route.originZh ?: "",
+                    originEn = route.originEn ?: "",
+                    destinationZh = route.destinationZh ?: "",
+                    destinationEn = route.destinationEn ?: "",
                     stopId = stop.stopId,
-                    stopNameZh = stop.nameZh,
+                    stopNameZh = stop.nameZh ?: "",
+                    stopNameEn = stop.nameEn ?: "",
                     sequence = stop.sequence
                 )
                 busRepository.addBookmark(entity)
