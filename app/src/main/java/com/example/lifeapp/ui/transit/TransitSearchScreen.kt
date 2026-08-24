@@ -46,7 +46,7 @@ private fun parseEtaMillis(etaTimestamp: String?): Long? {
 }
 
 /**
- * 判斷該 ETA 是否為可追蹤的有效班次（排除無班次、末班車已過等情況）
+ * 判斷該 ETA 是否為可追蹤的有效班次
  */
 fun isValidTrackableEta(eta: TransitEta): Boolean {
     if (eta.minutesLeft == null) return false
@@ -156,7 +156,7 @@ fun TransitSearchScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
-    // 使用 common 模組通用的 AutoRefreshLifecycleHandler 處理 Lifecycle 與輪詢[cite: 5]
+    // 通用 Lifecycle 與輪詢處理器
     AutoRefreshLifecycleHandler(
         onStartRefresh = { viewModel.onResumeRefresh() },
         onStopRefresh = { viewModel.onPauseStopRefresh() },
@@ -172,12 +172,13 @@ fun TransitSearchScreen(
 
     MaterialTheme(colorScheme = customColorScheme) {
         Scaffold(
-            contentWindowInsets = WindowInsets(0, 0, 0, 0),
-            // 將貼底按鈕放入 bottomBar 槽位，解決無法貼緊底部的問題
+            // 🎯 貼底核心修復：bottomBar 的 Surface 負責吸收 Navigation Bar 邊距，內部不疊加 Extra Padding
             bottomBar = {
                 if (uiState.selectedRoute != null) {
                     Surface(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .navigationBarsPadding(),
                         tonalElevation = 6.dp,
                         shadowElevation = 6.dp,
                         color = MaterialTheme.colorScheme.surface
@@ -185,7 +186,6 @@ fun TransitSearchScreen(
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .navigationBarsPadding()
                                 .padding(horizontal = 12.dp, vertical = 8.dp),
                             contentAlignment = Alignment.Center
                         ) {
@@ -213,13 +213,13 @@ fun TransitSearchScreen(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(paddingValues)
-                    .statusBarsPadding()
+                    .padding(paddingValues) // 自動為清單保留底部按鈕高度，不干擾底欄貼合
             ) {
-                // 頂部路線標題
+                // 🎯 頂部獨立套用 statusBarsPadding，防止 Title 撞到系統狀態列
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .statusBarsPadding()
                         .padding(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -353,7 +353,7 @@ fun SearchTabContent(
     Column(modifier = Modifier.fillMaxSize()) {
         Box(modifier = Modifier.weight(1f)) {
             if (uiState.isLoadingRoutes) {
-                FullPageLoading() //[cite: 4]
+                FullPageLoading() //
             } else {
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
                     items(uiState.filteredRoutes) { route ->
@@ -548,7 +548,7 @@ fun RouteDetailContent(
     viewModel: TransitSearchViewModel
 ) {
     if (uiState.isLoadingStops) {
-        FullPageLoading() //[cite: 4]
+        FullPageLoading() //
     } else {
         val tracked = uiState.trackedVehicle
 
@@ -606,7 +606,6 @@ fun RouteDetailContent(
                                 etaList.take(3).forEach { eta ->
                                     val isHighlight = (eta == chainMatchedEta)
 
-                                    // 只有當 ETA 是可追蹤的有效班次時，才考慮顯示追蹤按鈕
                                     val isTrackable = isValidTrackableEta(eta)
                                     val showTrackButton = isTrackable && when {
                                         tracked == null -> true
