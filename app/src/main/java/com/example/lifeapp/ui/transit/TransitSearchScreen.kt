@@ -27,18 +27,13 @@ import com.example.lifeapp.ui.theme.PrimaryDarkBlue
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
-import kotlin.math.abs
 
-// 定義統一藍色主題色系
 private val BluePrimary = Color(0xFF1976D2)
 private val BlueOnPrimary = Color(0xFFFFFFFF)
 private val BlueContainer = Color(0xFFE3F2FD)
 private val BlueOnContainer = Color(0xFF0D47A1)
-private val HighlightYellow = Color(0xFFFFF59D) // 追蹤的高亮淡黃色背景
+private val HighlightYellow = Color(0xFFFFF59D)
 
-/**
- * 解析 ISO 時間戳記為毫秒數 (用於比對時間)
- */
 private fun parseEtaMillis(etaTimestamp: String?): Long? {
     if (etaTimestamp.isNullOrEmpty()) return null
     return try {
@@ -47,9 +42,6 @@ private fun parseEtaMillis(etaTimestamp: String?): Long? {
     } catch (_: Exception) { null }
 }
 
-/**
- * 格式化 ETA 時間顯示
- */
 fun formatEtaDisplay(eta: TransitEta): String {
     val mins = eta.minutesLeft
 
@@ -84,9 +76,6 @@ fun formatEtaDisplay(eta: TransitEta): String {
     }
 }
 
-/**
- * 格式化交通公司顯示名稱 (支援 Any? 以兼容 String 或 OperatorCompany Enum)
- */
 fun formatCompanyDisplayName(company: Any?): String {
     val companyStr = when (company) {
         is Enum<*> -> company.name
@@ -127,7 +116,6 @@ fun TransitSearchScreen(
                     .padding(paddingValues)
                     .statusBarsPadding()
             ) {
-                // 頂部標題列
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -453,16 +441,19 @@ fun RouteDetailContent(
                 val bookmarkId = "KMB_${route?.routeName}_${route?.bound}_${route?.serviceType}_${stop.stopId}"
                 val isBookmarked = uiState.bookmarkedStopIds.contains(bookmarkId)
 
-                // 判斷該車站相對於選定追蹤車站的位置關係
                 val isTargetStop = tracked != null && tracked.stopId == stop.stopId
                 val isDownstream = tracked != null && stop.sequence > tracked.stopSequence
 
-                // 若為下游車站，動態比對尋找時間最接近的 ETA 班次
+                // 純時序推移演算法：下游抵達時間必須大於或等於上游時間 (diff >= 0)
                 val matchedDownstreamEta = if (isDownstream && trackedMillis != null) {
-                    etaList.minByOrNull { eta ->
-                        val etaTime = parseEtaMillis(eta.etaTimestamp)
-                        if (etaTime != null) abs(etaTime - trackedMillis) else Long.MAX_VALUE
-                    }
+                    etaList
+                        .mapNotNull { eta ->
+                            val etaTime = parseEtaMillis(eta.etaTimestamp) ?: return@mapNotNull null
+                            val diff = etaTime - trackedMillis
+                            if (diff >= 0) Pair(eta, diff) else null
+                        }
+                        .minByOrNull { it.second }
+                        ?.first
                 } else null
 
                 Card(
@@ -496,16 +487,12 @@ fun RouteDetailContent(
                                 )
                             } else {
                                 etaList.take(3).forEach { eta ->
-                                    // 判斷當前 ETA 是否需要 Highlight
                                     val isHighlight = when {
                                         isTargetStop -> eta.etaTimestamp == tracked?.etaTimestamp
                                         isDownstream -> eta == matchedDownstreamEta
                                         else -> false
                                     }
 
-                                    // 判斷是否要顯示追蹤按鈕：
-                                    // 1. 未啟用追蹤：全部顯示 [ 追蹤 ]
-                                    // 2. 已啟用追蹤：僅選定的 ETA 顯示 [ 取消追蹤 ]
                                     val showTrackButton = when {
                                         tracked == null -> true
                                         isTargetStop && isHighlight -> true
@@ -558,7 +545,6 @@ fun RouteDetailContent(
                             }
                         }
 
-                        // ⭐ 收藏按鈕 (不受追蹤狀態影響，獨立顯示與點擊)
                         IconButton(onClick = { viewModel.toggleBookmark(stop) }) {
                             Icon(
                                 imageVector = if (isBookmarked) Icons.Filled.Star else Icons.Outlined.Star,
