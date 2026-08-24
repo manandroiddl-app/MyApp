@@ -23,9 +23,6 @@ import javax.inject.Inject
 
 enum class TransitTab { SEARCH, BOOKMARK }
 
-/**
- * 記錄當前用戶選取追蹤的班次資訊
- */
 data class TrackedVehicleInfo(
     val stopId: String,
     val stopSequence: Int,
@@ -48,7 +45,6 @@ data class TransitUiState(
     val selectedStopEtaMap: Map<String, List<TransitEta>> = emptyMap(),
     val bookmarkedStopIds: Set<String> = emptySet(),
     
-    // 跨站追蹤狀態
     val trackedVehicle: TrackedVehicleInfo? = null
 )
 
@@ -67,12 +63,31 @@ class TransitSearchViewModel @Inject constructor(
         observeBookmarks()
     }
 
+    /**
+     * 當 App 重新 Resume / 解鎖畫面時呼叫：
+     * 1. 立即主動刷新一次當前頁面的 ETA（不用等 30 秒）
+     * 2. 重啟 30 秒輪詢 Loop
+     */
     fun onResumeRefresh() {
+        refreshCurrentEtasImmediately()
         startEtaAutoRefreshLoop()
     }
 
     fun onPauseStopRefresh() {
         stopEtaAutoRefreshLoop()
+    }
+
+    private fun refreshCurrentEtasImmediately() {
+        val state = _uiState.value
+        if (state.selectedRoute != null) {
+            state.routeStops.forEach { stop ->
+                fetchStopEta(stop.stopId)
+            }
+        } else if (state.currentTab == TransitTab.BOOKMARK) {
+            state.bookmarks.forEach { bookmark ->
+                fetchBookmarkEta(bookmark)
+            }
+        }
     }
 
     private fun loadAllRoutes() {
@@ -110,6 +125,9 @@ class TransitSearchViewModel @Inject constructor(
 
     fun selectTab(tab: TransitTab) {
         _uiState.update { it.copy(currentTab = tab) }
+        if (tab == TransitTab.BOOKMARK) {
+            refreshCurrentEtasImmediately()
+        }
     }
 
     fun onChipClicked(char: Char) {
@@ -311,16 +329,7 @@ class TransitSearchViewModel @Inject constructor(
         etaAutoRefreshJob = viewModelScope.launch {
             while (isActive) {
                 delay(30_000L)
-                val state = _uiState.value
-                if (state.selectedRoute != null) {
-                    state.routeStops.forEach { stop ->
-                        fetchStopEta(stop.stopId)
-                    }
-                } else if (state.currentTab == TransitTab.BOOKMARK) {
-                    state.bookmarks.forEach { bookmark ->
-                        fetchBookmarkEta(bookmark)
-                    }
-                }
+                refreshCurrentEtasImmediately()
             }
         }
     }
