@@ -19,7 +19,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -223,7 +222,6 @@ fun TransitSearchScreen(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SearchTabContent(
     uiState: TransitUiState,
@@ -286,51 +284,83 @@ fun SearchTabContent(
             }
         }
 
-        // 底部輸入框與 Chip 鍵盤區塊 (強制關閉 Touch Target 最小內距限制)
-        CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides Dp.Unspecified) {
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                tonalElevation = 8.dp,
-                shadowElevation = 8.dp,
-                color = BlueContainer
+        // 底部輸入框與 Chip 鍵盤區塊 (使用固定高度壓迫結構貼底)
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            tonalElevation = 8.dp,
+            shadowElevation = 8.dp,
+            color = BlueContainer
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 8.dp, end = 8.dp, top = 6.dp, bottom = 0.dp)
             ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(start = 8.dp, end = 8.dp, top = 6.dp, bottom = 2.dp)
+                // 搜尋顯示欄
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp),
+                    color = Color.White
                 ) {
-                    // 搜尋顯示欄
-                    Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(8.dp),
-                        color = Color.White
+                    Row(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = uiState.searchQuery.ifEmpty { "請點擊下方按鈕輸入路線..." },
-                                style = MaterialTheme.typography.bodyLarge,
-                                fontWeight = if (uiState.searchQuery.isNotEmpty()) FontWeight.Bold else FontWeight.Normal,
-                                color = if (uiState.searchQuery.isEmpty()) Color.Gray else PrimaryDarkBlue,
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
+                        Text(
+                            text = uiState.searchQuery.ifEmpty { "請點擊下方按鈕輸入路線..." },
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = if (uiState.searchQuery.isNotEmpty()) FontWeight.Bold else FontWeight.Normal,
+                            color = if (uiState.searchQuery.isEmpty()) Color.Gray else PrimaryDarkBlue,
+                            modifier = Modifier.weight(1f)
+                        )
                     }
+                }
 
-                    Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(4.dp))
 
-                    // 數字 Chips 鍵盤
+                // 數字 Chips 鍵盤
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    contentPadding = PaddingValues(vertical = 0.dp)
+                ) {
+                    items(uiState.numericChips) { num ->
+                        FilterChip(
+                            selected = false,
+                            onClick = { viewModel.onChipClicked(num) },
+                            label = { Text(num.toString(), fontWeight = FontWeight.Bold) },
+                            modifier = Modifier.height(32.dp),
+                            colors = FilterChipDefaults.filterChipColors(
+                                containerColor = Color.White,
+                                labelColor = PrimaryDarkBlue
+                            ),
+                            border = FilterChipDefaults.filterChipBorder(
+                                enabled = true,
+                                selected = false,
+                                borderColor = BluePrimary.copy(alpha = 0.3f)
+                            )
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(2.dp))
+
+                // 字母 Chips 鍵盤 + 靠右擺放倒退按鈕 (Backspace)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
                     LazyRow(
+                        modifier = Modifier.weight(1f),
                         horizontalArrangement = Arrangement.spacedBy(4.dp),
                         contentPadding = PaddingValues(vertical = 0.dp)
                     ) {
-                        items(uiState.numericChips) { num ->
+                        items(uiState.letterChips) { letter ->
                             FilterChip(
                                 selected = false,
-                                onClick = { viewModel.onChipClicked(num) },
-                                label = { Text(num.toString(), fontWeight = FontWeight.Bold) },
+                                onClick = { viewModel.onChipClicked(letter) },
+                                label = { Text(letter.toString(), fontWeight = FontWeight.Bold) },
+                                modifier = Modifier.height(32.dp),
                                 colors = FilterChipDefaults.filterChipColors(
                                     containerColor = Color.White,
                                     labelColor = PrimaryDarkBlue
@@ -344,48 +374,20 @@ fun SearchTabContent(
                         }
                     }
 
-                    // 字母 Chips 鍵盤 + 靠右擺放倒退按鈕 (Backspace)
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                    Spacer(modifier = Modifier.width(6.dp))
+
+                    // 倒退按鈕：與字母 Chip 同行，靠右側擺放
+                    IconButton(
+                        onClick = { viewModel.onBackspaceClicked() },
+                        enabled = uiState.searchQuery.isNotEmpty(),
+                        modifier = Modifier.size(32.dp)
                     ) {
-                        LazyRow(
-                            modifier = Modifier.weight(1f),
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            contentPadding = PaddingValues(vertical = 0.dp)
-                        ) {
-                            items(uiState.letterChips) { letter ->
-                                FilterChip(
-                                    selected = false,
-                                    onClick = { viewModel.onChipClicked(letter) },
-                                    label = { Text(letter.toString(), fontWeight = FontWeight.Bold) },
-                                    colors = FilterChipDefaults.filterChipColors(
-                                        containerColor = Color.White,
-                                        labelColor = PrimaryDarkBlue
-                                    ),
-                                    border = FilterChipDefaults.filterChipBorder(
-                                        enabled = true,
-                                        selected = false,
-                                        borderColor = BluePrimary.copy(alpha = 0.3f)
-                                    )
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.width(6.dp))
-
-                        // 倒退按鈕：與字母 Chip 同行，靠右側擺放
-                        IconButton(
-                            onClick = { viewModel.onBackspaceClicked() },
-                            enabled = uiState.searchQuery.isNotEmpty()
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Backspace,
-                                contentDescription = "Backspace",
-                                tint = if (uiState.searchQuery.isNotEmpty()) PrimaryDarkBlue else Color.Gray
-                            )
-                        }
+                        Icon(
+                            imageVector = Icons.Default.Backspace,
+                            contentDescription = "Backspace",
+                            tint = if (uiState.searchQuery.isNotEmpty()) PrimaryDarkBlue else Color.Gray,
+                            modifier = Modifier.size(20.dp)
+                        )
                     }
                 }
             }
