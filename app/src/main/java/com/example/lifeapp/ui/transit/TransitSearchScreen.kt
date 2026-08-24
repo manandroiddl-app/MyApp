@@ -72,17 +72,22 @@ fun formatEtaDisplay(eta: TransitEta): String {
 }
 
 /**
- * 格式化交通公司顯示名稱
+ * 格式化交通公司顯示名稱 (支援 Any? 以兼容 String 或 OperatorCompany Enum)
  */
-fun formatCompanyDisplayName(companyCode: String?): String {
-    return when (companyCode?.uppercase()) {
+fun formatCompanyDisplayName(company: Any?): String {
+    val companyStr = when (company) {
+        is Enum<*> -> company.name
+        else -> company?.toString()
+    }
+
+    return when (companyStr?.uppercase()) {
         "KMB" -> "九巴"
         "CTB" -> "城巴"
         "NWFB" -> "新巴"
         "GMB" -> "綠色小巴"
         "NLB" -> "嶼巴"
         "MTR" -> "港鐵巴士"
-        else -> companyCode.orEmpty().ifEmpty { "巴士" }
+        else -> companyStr.orEmpty().ifEmpty { "巴士" }
     }
 }
 
