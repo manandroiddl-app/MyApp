@@ -1,6 +1,5 @@
 package com.example.lifeapp.ui.transit
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -21,13 +20,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.lifeapp.data.model.TransitEta
+import com.example.lifeapp.ui.theme.PrimaryDarkBlue
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
 
-// 定義藍色主題色系
+// 定義統一藍色主題色系
 private val BluePrimary = Color(0xFF1976D2)
 private val BlueOnPrimary = Color(0xFFFFFFFF)
 private val BlueContainer = Color(0xFFE3F2FD)
@@ -77,7 +78,6 @@ fun TransitSearchScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
-    // 藍色系色彩配色方案
     val customColorScheme = lightColorScheme(
         primary = BluePrimary,
         onPrimary = BlueOnPrimary,
@@ -90,20 +90,24 @@ fun TransitSearchScreen(
             topBar = {
                 TopAppBar(
                     title = {
-                        if (uiState.selectedRoute != null) {
-                            Text(
-                                text = "${uiState.selectedRoute?.routeName} 往 ${uiState.selectedRoute?.destinationZh}",
-                                fontWeight = FontWeight.Bold
-                            )
+                        val titleText = if (uiState.selectedRoute != null) {
+                            "${uiState.selectedRoute?.routeName} 往 ${uiState.selectedRoute?.destinationZh}"
                         } else {
-                            Text(text = "公共交通查詢", fontWeight = FontWeight.Bold)
+                            "公共交通查詢"
                         }
+                        Text(
+                            text = titleText,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = PrimaryDarkBlue
+                        )
                     },
+                    windowInsets = WindowInsets(top = 8.dp, bottom = 0.dp),
                     colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        titleContentColor = MaterialTheme.colorScheme.onPrimary,
-                        actionIconContentColor = MaterialTheme.colorScheme.onPrimary,
-                        navigationIconContentColor = MaterialTheme.colorScheme.onPrimary
+                        containerColor = Color.Transparent,
+                        titleContentColor = PrimaryDarkBlue,
+                        actionIconContentColor = PrimaryDarkBlue,
+                        navigationIconContentColor = PrimaryDarkBlue
                     )
                 )
             }
@@ -114,7 +118,6 @@ fun TransitSearchScreen(
                     .padding(paddingValues)
             ) {
                 if (uiState.selectedRoute == null) {
-                    // 分頁標籤
                     TabRow(
                         selectedTabIndex = uiState.currentTab.ordinal,
                         containerColor = MaterialTheme.colorScheme.surface,
@@ -123,13 +126,13 @@ fun TransitSearchScreen(
                         Tab(
                             selected = uiState.currentTab == TransitTab.SEARCH,
                             onClick = { viewModel.selectTab(TransitTab.SEARCH) },
-                            text = { Text("搜尋路線") },
+                            text = { Text("搜尋路線", fontWeight = FontWeight.Bold) },
                             icon = { Icon(Icons.Default.Search, contentDescription = null) }
                         )
                         Tab(
                             selected = uiState.currentTab == TransitTab.BOOKMARK,
                             onClick = { viewModel.selectTab(TransitTab.BOOKMARK) },
-                            text = { Text("已收藏") },
+                            text = { Text("已收藏", fontWeight = FontWeight.Bold) },
                             icon = { Icon(Icons.Default.Bookmark, contentDescription = null) }
                         )
                     }
@@ -145,7 +148,6 @@ fun TransitSearchScreen(
                         RouteDetailContent(uiState = uiState, viewModel = viewModel)
                     }
 
-                    // 路線詳情頁面的底部返回按鈕區塊
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
                         tonalElevation = 8.dp,
@@ -164,7 +166,7 @@ fun TransitSearchScreen(
                             ) {
                                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Text("返回搜尋結果")
+                                Text("返回搜尋結果", fontWeight = FontWeight.Bold)
                             }
                         }
                     }
@@ -180,7 +182,6 @@ fun SearchTabContent(
     viewModel: TransitSearchViewModel
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
-        // 搜尋結果列表區域（佔滿剩餘空間）
         Box(modifier = Modifier.weight(1f)) {
             if (uiState.isLoadingRoutes) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -200,64 +201,105 @@ fun SearchTabContent(
             }
         }
 
-        // 底部輸入框與 Chip 鍵盤區塊 (置底)
+        // 底部輸入框與 Chip 鍵盤區塊 (無底 Padding，完全貼底)
         Surface(
             modifier = Modifier.fillMaxWidth(),
             tonalElevation = 8.dp,
             shadowElevation = 8.dp,
-            color = MaterialTheme.colorScheme.surfaceVariant
+            color = BlueContainer
         ) {
-            Column(modifier = Modifier.padding(8.dp)) {
-                // 輸入框
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 8.dp, end = 8.dp, top = 8.dp, bottom = 0.dp)
+            ) {
+                // 搜尋顯示欄
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(8.dp),
-                    color = MaterialTheme.colorScheme.surface
+                    color = Color.White
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = uiState.searchQuery.ifEmpty { "請輸入路線號碼..." },
+                            text = uiState.searchQuery.ifEmpty { "請點擊下方按鈕輸入路線..." },
                             style = MaterialTheme.typography.bodyLarge,
-                            color = if (uiState.searchQuery.isEmpty()) Color.Gray else MaterialTheme.colorScheme.onSurface,
+                            fontWeight = if (uiState.searchQuery.isNotEmpty()) FontWeight.Bold else FontWeight.Normal,
+                            color = if (uiState.searchQuery.isEmpty()) Color.Gray else PrimaryDarkBlue,
                             modifier = Modifier.weight(1f)
                         )
-                        if (uiState.searchQuery.isNotEmpty()) {
-                            IconButton(onClick = { viewModel.onBackspaceClicked() }) {
-                                Icon(Icons.Default.Backspace, contentDescription = "Clear", tint = MaterialTheme.colorScheme.primary)
-                            }
-                        }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(6.dp))
 
                 // 數字 Chips 鍵盤
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    contentPadding = PaddingValues(vertical = 2.dp)
+                ) {
                     items(uiState.numericChips) { num ->
                         FilterChip(
                             selected = false,
                             onClick = { viewModel.onChipClicked(num) },
-                            label = { Text(num.toString()) },
+                            label = { Text(num.toString(), fontWeight = FontWeight.Bold) },
                             colors = FilterChipDefaults.filterChipColors(
-                                containerColor = MaterialTheme.colorScheme.surface
+                                containerColor = Color.White,
+                                labelColor = PrimaryDarkBlue
+                            ),
+                            border = FilterChipDefaults.filterChipBorder(
+                                enabled = true,
+                                selected = false,
+                                borderColor = BluePrimary.copy(alpha = 0.3f)
                             )
                         )
                     }
                 }
 
-                // 字母 Chips 鍵盤
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    items(uiState.letterChips) { letter ->
-                        FilterChip(
-                            selected = false,
-                            onClick = { viewModel.onChipClicked(letter) },
-                            label = { Text(letter.toString()) },
-                            colors = FilterChipDefaults.filterChipColors(
-                                containerColor = MaterialTheme.colorScheme.surface
+                // 字母 Chips 鍵盤 + 靠右擺放倒退按鈕 (Backspace)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    LazyRow(
+                        modifier = Modifier.weight(1f),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        contentPadding = PaddingValues(vertical = 2.dp)
+                    ) {
+                        items(uiState.letterChips) { letter ->
+                            FilterChip(
+                                selected = false,
+                                onClick = { viewModel.onChipClicked(letter) },
+                                label = { Text(letter.toString(), fontWeight = FontWeight.Bold) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    containerColor = Color.White,
+                                    labelColor = PrimaryDarkBlue
+                                ),
+                                border = FilterChipDefaults.filterChipBorder(
+                                    enabled = true,
+                                    selected = false,
+                                    borderColor = BluePrimary.copy(alpha = 0.3f)
+                                )
                             )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.width(6.dp))
+
+                    // 倒退按鈕：與字母 Chip 同行，靠右側擺放
+                    IconButton(
+                        onClick = { viewModel.onBackspaceClicked() },
+                        enabled = uiState.searchQuery.isNotEmpty()
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Backspace,
+                            contentDescription = "Backspace",
+                            tint = if (uiState.searchQuery.isNotEmpty()) PrimaryDarkBlue else Color.Gray
                         )
                     }
                 }
@@ -290,7 +332,8 @@ fun RouteDetailContent(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 8.dp, vertical = 4.dp),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White)
                 ) {
                     Row(
                         modifier = Modifier
@@ -302,7 +345,8 @@ fun RouteDetailContent(
                             Text(
                                 text = "${stop.sequence}. ${stop.nameZh}",
                                 style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
+                                fontWeight = FontWeight.Bold,
+                                color = PrimaryDarkBlue
                             )
 
                             Spacer(modifier = Modifier.height(4.dp))
@@ -318,7 +362,7 @@ fun RouteDetailContent(
                                     Text(
                                         text = formatEtaDisplay(eta),
                                         style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.primary,
+                                        color = BluePrimary,
                                         fontWeight = FontWeight.SemiBold
                                     )
                                 }
@@ -361,7 +405,8 @@ fun BookmarkTabContent(
                         .fillMaxWidth()
                         .padding(vertical = 4.dp)
                         .clickable { viewModel.selectBookmarkRoute(bookmark) },
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White)
                 ) {
                     Row(
                         modifier = Modifier
@@ -372,14 +417,14 @@ fun BookmarkTabContent(
                         Column(modifier = Modifier.weight(1f)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Surface(
-                                    color = MaterialTheme.colorScheme.primaryContainer,
+                                    color = BlueContainer,
                                     shape = RoundedCornerShape(4.dp)
                                 ) {
                                     Text(
                                         text = "${bookmark.company} ${bookmark.routeName}",
                                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                                         fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                                        color = BlueOnContainer
                                     )
                                 }
                                 Spacer(modifier = Modifier.width(8.dp))
@@ -395,7 +440,8 @@ fun BookmarkTabContent(
                             Text(
                                 text = "車站：${bookmark.stopNameZh}",
                                 style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
+                                fontWeight = FontWeight.Bold,
+                                color = PrimaryDarkBlue
                             )
 
                             Spacer(modifier = Modifier.height(4.dp))
@@ -411,7 +457,7 @@ fun BookmarkTabContent(
                                     Text(
                                         text = formatEtaDisplay(eta),
                                         style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.primary,
+                                        color = BluePrimary,
                                         fontWeight = FontWeight.SemiBold
                                     )
                                 }
