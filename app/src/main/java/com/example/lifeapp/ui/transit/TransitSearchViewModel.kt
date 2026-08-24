@@ -9,15 +9,13 @@ import com.example.lifeapp.data.model.TransitRoute
 import com.example.lifeapp.data.model.TransitStop
 import com.example.lifeapp.data.model.TransitType
 import com.example.lifeapp.data.repository.BusRepository
+import com.example.lifeapp.ui.common.AutoRefreshDelegate
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -56,7 +54,12 @@ class TransitSearchViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(TransitUiState())
     val uiState: StateFlow<TransitUiState> = _uiState.asStateFlow()
 
-    private var etaAutoRefreshJob: Job? = null
+    // 使用 common 模組的 AutoRefreshDelegate，設定 30 秒輪詢
+    private val autoRefreshDelegate = AutoRefreshDelegate(
+        scope = viewModelScope,
+        intervalMillis = 30000L,
+        onRefresh = { refreshCurrentEtasImmediately() }
+    )
 
     init {
         loadAllRoutes()
@@ -64,20 +67,18 @@ class TransitSearchViewModel @Inject constructor(
     }
 
     /**
-     * 當 App 重新 Resume / 解鎖畫面時呼叫：
-     * 1. 立即主動刷新一次當前頁面的 ETA（不用等 30 秒）
-     * 2. 重啟 30 秒輪詢 Loop
+     * 當 App 切回前景 / 解鎖螢幕時由 AutoRefreshLifecycleHandler 觸發
      */
     fun onResumeRefresh() {
         refreshCurrentEtasImmediately()
-        startEtaAutoRefreshLoop()
+        autoRefreshDelegate.start()
     }
 
     fun onPauseStopRefresh() {
-        stopEtaAutoRefreshLoop()
+        autoRefreshDelegate.stop()
     }
 
-    private fun refreshCurrentEtasImmediately() {
+    fun refreshCurrentEtasImmediately() {
         val state = _uiState.value
         if (state.selectedRoute != null) {
             state.routeStops.forEach { stop ->
@@ -214,7 +215,7 @@ class TransitSearchViewModel @Inject constructor(
                 }
 
                 stops.forEach { fetchStopEta(it.stopId) }
-                startEtaAutoRefreshLoop()
+                autoRefreshDelegate.start()
             } catch (_: Exception) {
                 _uiState.update { currentState -> currentState.copy(isLoadingStops = false) }
             }
@@ -249,7 +250,7 @@ class TransitSearchViewModel @Inject constructor(
     }
 
     fun clearSelectedRoute() {
-        stopEtaAutoRefreshLoop()
+        autoRefreshDelegate.stop()
         _uiState.update { currentState ->
             currentState.copy(
                 selectedRoute = null,
@@ -324,21 +325,6 @@ class TransitSearchViewModel @Inject constructor(
         }
     }
 
-    private fun startEtaAutoRefreshLoop() {
-        stopEtaAutoRefreshLoop()
-        etaAutoRefreshJob = viewModelScope.launch {
-            while (isActive) {
-                delay(30_000L)
-                refreshCurrentEtasImmediately()
-            }
-        }
-    }
-
-    private fun stopEtaAutoRefreshLoop() {
-        etaAutoRefreshJob?.cancel()
-        etaAutoRefreshJob = null
-    }
-
     fun toggleBookmark(stop: TransitStop) {
         val route = _uiState.value.selectedRoute ?: return
         val bookmarkId = "KMB_${route.routeName}_${route.bound}_${route.serviceType}_${stop.stopId}"
@@ -372,6 +358,6 @@ class TransitSearchViewModel @Inject constructor(
 
     override fun onCleared() {
         super.onCleared()
-        stopEtaAutoRefreshLoop()
+        autoRefreshDelegate.stop()
     }
 }
