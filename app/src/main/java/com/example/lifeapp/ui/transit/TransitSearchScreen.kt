@@ -18,15 +18,14 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
 import com.example.lifeapp.data.model.TransitEta
 import com.example.lifeapp.data.model.TransitStop
+import com.example.lifeapp.ui.common.AutoRefreshLifecycleHandler
+import com.example.lifeapp.ui.common.FullPageLoading
 import com.example.lifeapp.ui.theme.PrimaryDarkBlue
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -97,9 +96,6 @@ fun formatCompanyDisplayName(company: Any?): String {
     }
 }
 
-/**
- * 鏈式遞延演算法 (Chain Reaction Propagation)
- */
 fun calculateTrackedChain(
     routeStops: List<TransitStop>,
     stopEtaMap: Map<String, List<TransitEta>>,
@@ -151,21 +147,12 @@ fun TransitSearchScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
-    // 監聽 Lifecycle (App resume / 切換時自動刷新數據)
-    val lifecycleOwner = LocalLifecycleOwner.current
-    DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
-                viewModel.onResumeRefresh()
-            } else if (event == Lifecycle.Event.ON_PAUSE) {
-                viewModel.onPauseStopRefresh()
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
-        }
-    }
+    // 🎯 使用 common 模組通用的 AutoRefreshLifecycleHandler 處理 Lifecycle 與輪詢
+    AutoRefreshLifecycleHandler(
+        onStartRefresh = { viewModel.onResumeRefresh() },
+        onStopRefresh = { viewModel.onPauseStopRefresh() },
+        onResumeFetch = { viewModel.refreshCurrentEtasImmediately() }
+    )
 
     val customColorScheme = lightColorScheme(
         primary = BluePrimary,
@@ -184,7 +171,7 @@ fun TransitSearchScreen(
                     .padding(paddingValues)
                     .statusBarsPadding()
             ) {
-                // 頂部 Header：若已選擇路線，顯示標準 [公司 Tag] [路線] [起點] ➔ [終點] [特別班次 Tag]
+                // 頂部路線標題格式 [公司 Tag] [路線] [起點] ➔ [終點] [特別班次 Tag]
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -308,7 +295,7 @@ fun TransitSearchScreen(
                         RouteDetailContent(uiState = uiState, viewModel = viewModel)
                     }
 
-                    // 調整：極簡化 Padding，貼近底部系統導航列
+                    // 貼底按鈕區域
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
                         tonalElevation = 4.dp,
@@ -353,9 +340,8 @@ fun SearchTabContent(
     Column(modifier = Modifier.fillMaxSize()) {
         Box(modifier = Modifier.weight(1f)) {
             if (uiState.isLoadingRoutes) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-                }
+                // 🛡️ 使用 common 模組的全頁加載組件
+                FullPageLoading()
             } else {
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
                     items(uiState.filteredRoutes) { route ->
@@ -550,9 +536,8 @@ fun RouteDetailContent(
     viewModel: TransitSearchViewModel
 ) {
     if (uiState.isLoadingStops) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-        }
+        // 🛡️ 使用 common 模組的全頁加載組件
+        FullPageLoading()
     } else {
         val tracked = uiState.trackedVehicle
 
