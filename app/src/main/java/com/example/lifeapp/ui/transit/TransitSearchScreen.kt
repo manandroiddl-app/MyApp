@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.lifeapp.data.model.TransitEta
+import com.example.lifeapp.data.model.TransitStop
 import com.example.lifeapp.ui.theme.PrimaryDarkBlue
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -91,6 +92,61 @@ fun formatCompanyDisplayName(company: Any?): String {
         "MTR" -> "港鐵巴士"
         else -> companyStr.orEmpty().ifEmpty { "巴士" }
     }
+}
+
+/**
+ * 鏈式遞延演算法 (Chain Reaction Propagation)
+ * 從追蹤車站開始，逐站向上/遞延推算下游對應的班次，若中間斷層則中斷後續 Highlight
+ */
+fun calculateTrackedChain(
+    routeStops: List<TransitStop>,
+    stopEtaMap: Map<String, List<TransitEta>>,
+    tracked: TrackedVehicleInfo?
+): Map<String, TransitEta> {
+    if (tracked == null) return emptyMap()
+
+    val resultMap = mutableMapOf<String, TransitEta>()
+    val trackedMillis = parseEtaMillis(tracked.etaTimestamp) ?: return emptyMap()
+
+    // 1. 找出追蹤車站及後續的所有下游車站 (按 sequence 排序)
+    val downstreamStops = routeStops
+        .filter { it.sequence >= tracked.stopSequence }
+        .sortedBy { it.sequence }
+
+    var currentBaseMillis = trackedMillis
+
+    // 2. 逐站進行連鎖遞延 (Chain Reaction)
+    for (stop in downstreamStops) {
+        if (stop.stopId == tracked.stopId) {
+            // 起始站：直接綁定用戶選擇的 ETA
+            val targetEta = stopEtaMap[stop.stopId]?.find { it.etaTimestamp == tracked.etaTimestamp }
+            if (targetEta != null) {
+                resultMap[stop.stopId] = targetEta
+            }
+            continue
+        }
+
+        // 下游車站：抵達時間必須 >= 上一站成功匹配的時間 (currentBaseMillis)
+        val etaList = stopEtaMap[stop.stopId] ?: emptyList()
+        val matchedEta = etaList
+            .mapNotNull { eta ->
+                val etaTime = parseEtaMillis(eta.etaTimestamp) ?: return@mapNotNull null
+                val diff = etaTime - currentBaseMillis
+                if (diff >= 0) Pair(eta, etaTime) else null
+            }
+            .minByOrNull { it.second - currentBaseMillis }
+
+        if (matchedEta != null) {
+            // 成功匹配：記錄 Highlight，將基準時間遞延給下一站
+            resultMap[stop.stopId] = matchedEta.first
+            currentBaseMillis = matchedEta.second
+        } else {
+            // 中斷機制 (Circuit Breaker)：中途若無符合班次，鏈條中斷，後續車站不再 Highlight
+            break
+        }
+    }
+
+    return resultMap
 }
 
 @Composable
@@ -429,7 +485,15 @@ fun RouteDetailContent(
         }
     } else {
         val tracked = uiState.trackedVehicle
-        val trackedMillis = parseEtaMillis(tracked?.etaTimestamp)
+
+        // 預先透過鏈式遞延演算法算出整條路線對應的 Highlight Map
+        val highlightMap = remember(uiState.routeStops, uiState.selectedStopEtaMap, tracked) {
+            calculateTrackedChain(
+                routeStops = uiState.routeStops,
+                stopEtaMap = uiState.selectedStopEtaMap,
+                tracked = tracked
+            )
+        }
 
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
@@ -441,20 +505,9 @@ fun RouteDetailContent(
                 val bookmarkId = "KMB_${route?.routeName}_${route?.bound}_${route?.serviceType}_${stop.stopId}"
                 val isBookmarked = uiState.bookmarkedStopIds.contains(bookmarkId)
 
+                // 取得目前車站經由連鎖推導出的對應 ETA
+                val chainMatchedEta = highlightMap[stop.stopId]
                 val isTargetStop = tracked != null && tracked.stopId == stop.stopId
-                val isDownstream = tracked != null && stop.sequence > tracked.stopSequence
-
-                // 純時序推移演算法：下游抵達時間必須大於或等於上游時間 (diff >= 0)
-                val matchedDownstreamEta = if (isDownstream && trackedMillis != null) {
-                    etaList
-                        .mapNotNull { eta ->
-                            val etaTime = parseEtaMillis(eta.etaTimestamp) ?: return@mapNotNull null
-                            val diff = etaTime - trackedMillis
-                            if (diff >= 0) Pair(eta, diff) else null
-                        }
-                        .minByOrNull { it.second }
-                        ?.first
-                } else null
 
                 Card(
                     modifier = Modifier
@@ -487,11 +540,8 @@ fun RouteDetailContent(
                                 )
                             } else {
                                 etaList.take(3).forEach { eta ->
-                                    val isHighlight = when {
-                                        isTargetStop -> eta.etaTimestamp == tracked?.etaTimestamp
-                                        isDownstream -> eta == matchedDownstreamEta
-                                        else -> false
-                                    }
+                                    // 精準 Highlight：僅當此班次完全等於鏈式推導出的物件時才突出顯示
+                                    val isHighlight = (eta == chainMatchedEta)
 
                                     val showTrackButton = when {
                                         tracked == null -> true
