@@ -45,9 +45,6 @@ private fun parseEtaMillis(etaTimestamp: String?): Long? {
     } catch (_: Exception) { null }
 }
 
-/**
- * 判斷該 ETA 是否為可追蹤的有效班次
- */
 fun isValidTrackableEta(eta: TransitEta): Boolean {
     if (eta.minutesLeft == null) return false
     if (eta.etaTimestamp.isNullOrEmpty()) return false
@@ -156,7 +153,6 @@ fun TransitSearchScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
-    // 通用 Lifecycle 與輪詢處理器
     AutoRefreshLifecycleHandler(
         onStartRefresh = { viewModel.onResumeRefresh() },
         onStopRefresh = { viewModel.onPauseStopRefresh() },
@@ -172,15 +168,13 @@ fun TransitSearchScreen(
 
     MaterialTheme(colorScheme = customColorScheme) {
         Scaffold(
-            // 🎯 貼底核心修復：bottomBar 的 Surface 負責吸收 Navigation Bar 邊距，內部不疊加 Extra Padding
+            // 🎯 1. 移除內部的 navigationBarsPadding()，讓 Scaffold 計算唯一的安全邊距
             bottomBar = {
                 if (uiState.selectedRoute != null) {
                     Surface(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .navigationBarsPadding(),
-                        tonalElevation = 6.dp,
-                        shadowElevation = 6.dp,
+                        modifier = Modifier.fillMaxWidth(),
+                        tonalElevation = 8.dp,
+                        shadowElevation = 8.dp,
                         color = MaterialTheme.colorScheme.surface
                     ) {
                         Box(
@@ -210,17 +204,17 @@ fun TransitSearchScreen(
                 }
             }
         ) { paddingValues ->
+            // 🎯 2. 全頁面僅依靠 paddingValues，完全移除 statusBarsPadding()
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(paddingValues) // 自動為清單保留底部按鈕高度，不干擾底欄貼合
+                    .padding(paddingValues)
             ) {
-                // 🎯 頂部獨立套用 statusBarsPadding，防止 Title 撞到系統狀態列
+                // 頂部路線標題列
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .statusBarsPadding()
-                        .padding(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 6.dp),
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     val route = uiState.selectedRoute
@@ -285,58 +279,59 @@ fun TransitSearchScreen(
                     }
                 }
 
-                if (uiState.selectedRoute == null) {
-                    TabRow(
-                        selectedTabIndex = uiState.currentTab.ordinal,
-                        containerColor = MaterialTheme.colorScheme.surface,
-                        contentColor = MaterialTheme.colorScheme.primary
-                    ) {
-                        Tab(
-                            selected = uiState.currentTab == TransitTab.SEARCH,
-                            onClick = { viewModel.selectTab(TransitTab.SEARCH) },
-                            text = {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.Center
-                                ) {
-                                    Text("搜尋路線", fontWeight = FontWeight.Bold)
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Icon(
-                                        imageVector = Icons.Default.Search,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
+                // 🎯 3. 使用 weight(1f) 強制將內容拉滿剩餘畫面高度
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                ) {
+                    if (uiState.selectedRoute == null) {
+                        Column(modifier = Modifier.fillMaxSize()) {
+                            TabRow(
+                                selectedTabIndex = uiState.currentTab.ordinal,
+                                containerColor = MaterialTheme.colorScheme.surface,
+                                contentColor = MaterialTheme.colorScheme.primary
+                            ) {
+                                Tab(
+                                    selected = uiState.currentTab == TransitTab.SEARCH,
+                                    onClick = { viewModel.selectTab(TransitTab.SEARCH) },
+                                    text = {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text("搜尋路線", fontWeight = FontWeight.Bold)
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Icon(
+                                                imageVector = Icons.Default.Search,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                    }
+                                )
+                                Tab(
+                                    selected = uiState.currentTab == TransitTab.BOOKMARK,
+                                    onClick = { viewModel.selectTab(TransitTab.BOOKMARK) },
+                                    text = {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text("已收藏", fontWeight = FontWeight.Bold)
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Icon(
+                                                imageVector = Icons.Default.Bookmark,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                    }
+                                )
                             }
-                        )
-                        Tab(
-                            selected = uiState.currentTab == TransitTab.BOOKMARK,
-                            onClick = { viewModel.selectTab(TransitTab.BOOKMARK) },
-                            text = {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.Center
-                                ) {
-                                    Text("已收藏", fontWeight = FontWeight.Bold)
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Icon(
-                                        imageVector = Icons.Default.Bookmark,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
-                            }
-                        )
-                    }
 
-                    Box(modifier = Modifier.weight(1f)) {
-                        when (uiState.currentTab) {
-                            TransitTab.SEARCH -> SearchTabContent(uiState = uiState, viewModel = viewModel)
-                            TransitTab.BOOKMARK -> BookmarkTabContent(uiState = uiState, viewModel = viewModel)
+                            Box(modifier = Modifier.weight(1f)) {
+                                when (uiState.currentTab) {
+                                    TransitTab.SEARCH -> SearchTabContent(uiState = uiState, viewModel = viewModel)
+                                    TransitTab.BOOKMARK -> BookmarkTabContent(uiState = uiState, viewModel = viewModel)
+                                }
+                            }
                         }
-                    }
-                } else {
-                    Box(modifier = Modifier.weight(1f)) {
+                    } else {
                         RouteDetailContent(uiState = uiState, viewModel = viewModel)
                     }
                 }
@@ -353,7 +348,7 @@ fun SearchTabContent(
     Column(modifier = Modifier.fillMaxSize()) {
         Box(modifier = Modifier.weight(1f)) {
             if (uiState.isLoadingRoutes) {
-                FullPageLoading() //
+                FullPageLoading()
             } else {
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
                     items(uiState.filteredRoutes) { route ->
@@ -548,7 +543,7 @@ fun RouteDetailContent(
     viewModel: TransitSearchViewModel
 ) {
     if (uiState.isLoadingStops) {
-        FullPageLoading() //
+        FullPageLoading()
     } else {
         val tracked = uiState.trackedVehicle
 
