@@ -27,12 +27,25 @@ import com.example.lifeapp.ui.theme.PrimaryDarkBlue
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
+import kotlin.math.abs
 
 // 定義統一藍色主題色系
 private val BluePrimary = Color(0xFF1976D2)
 private val BlueOnPrimary = Color(0xFFFFFFFF)
 private val BlueContainer = Color(0xFFE3F2FD)
 private val BlueOnContainer = Color(0xFF0D47A1)
+private val HighlightYellow = Color(0xFFFFF59D) // 追蹤的高亮淡黃色背景
+
+/**
+ * 解析 ISO 時間戳記為毫秒數 (用於比對時間)
+ */
+private fun parseEtaMillis(etaTimestamp: String?): Long? {
+    if (etaTimestamp.isNullOrEmpty()) return null
+    return try {
+        val sdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.getDefault())
+        sdf.parse(etaTimestamp)?.time
+    } catch (_: Exception) { null }
+}
 
 /**
  * 格式化 ETA 時間顯示
@@ -238,7 +251,6 @@ fun SearchTabContent(
                         ListItem(
                             headlineContent = {
                                 Column(modifier = Modifier.fillMaxWidth()) {
-                                    // 上層：公司標籤 + 路線編號 + 起終點
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
                                         verticalAlignment = Alignment.CenterVertically
@@ -275,16 +287,15 @@ fun SearchTabContent(
                                         )
                                     }
 
-                                    // 下層：[特別班次] 獨立橘色 Badge 標籤
                                     if (isSpecialService) {
                                         Spacer(modifier = Modifier.height(4.dp))
                                         Surface(
-                                            color = Color(0xFFFFE0B2), // 淺橙色背景
+                                            color = Color(0xFFFFE0B2),
                                             shape = RoundedCornerShape(4.dp)
                                         ) {
                                             Text(
                                                 text = "特別班次",
-                                                color = Color(0xFFE65100), // 深橙色文字
+                                                color = Color(0xFFE65100),
                                                 fontSize = 11.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
@@ -301,7 +312,6 @@ fun SearchTabContent(
             }
         }
 
-        // 底部輸入框與 Chip 鍵盤區塊
         Surface(
             modifier = Modifier.fillMaxWidth(),
             tonalElevation = 8.dp,
@@ -313,7 +323,6 @@ fun SearchTabContent(
                     .fillMaxWidth()
                     .padding(start = 8.dp, end = 8.dp, top = 6.dp, bottom = 0.dp)
             ) {
-                // 搜尋顯示欄
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(8.dp),
@@ -335,7 +344,6 @@ fun SearchTabContent(
 
                 Spacer(modifier = Modifier.height(4.dp))
 
-                // 數字 Chips 鍵盤
                 LazyRow(
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                     contentPadding = PaddingValues(vertical = 0.dp)
@@ -367,7 +375,6 @@ fun SearchTabContent(
 
                 Spacer(modifier = Modifier.height(2.dp))
 
-                // 字母 Chips 鍵盤 + 靠右擺放倒退按鈕 (Backspace)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
@@ -433,6 +440,9 @@ fun RouteDetailContent(
             CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
         }
     } else {
+        val tracked = uiState.trackedVehicle
+        val trackedMillis = parseEtaMillis(tracked?.etaTimestamp)
+
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(bottom = 16.dp)
@@ -442,6 +452,18 @@ fun RouteDetailContent(
                 val route = uiState.selectedRoute
                 val bookmarkId = "KMB_${route?.routeName}_${route?.bound}_${route?.serviceType}_${stop.stopId}"
                 val isBookmarked = uiState.bookmarkedStopIds.contains(bookmarkId)
+
+                // 判斷該車站相對於選定追蹤車站的位置關係
+                val isTargetStop = tracked != null && tracked.stopId == stop.stopId
+                val isDownstream = tracked != null && stop.sequence > tracked.stopSequence
+
+                // 若為下游車站，動態比對尋找時間最接近的 ETA 班次
+                val matchedDownstreamEta = if (isDownstream && trackedMillis != null) {
+                    etaList.minByOrNull { eta ->
+                        val etaTime = parseEtaMillis(eta.etaTimestamp)
+                        if (etaTime != null) abs(etaTime - trackedMillis) else Long.MAX_VALUE
+                    }
+                } else null
 
                 Card(
                     modifier = Modifier
@@ -474,16 +496,69 @@ fun RouteDetailContent(
                                 )
                             } else {
                                 etaList.take(3).forEach { eta ->
-                                    Text(
-                                        text = formatEtaDisplay(eta),
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = BluePrimary,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
+                                    // 判斷當前 ETA 是否需要 Highlight
+                                    val isHighlight = when {
+                                        isTargetStop -> eta.etaTimestamp == tracked?.etaTimestamp
+                                        isDownstream -> eta == matchedDownstreamEta
+                                        else -> false
+                                    }
+
+                                    // 判斷是否要顯示追蹤按鈕：
+                                    // 1. 未啟用追蹤：全部顯示 [ 追蹤 ]
+                                    // 2. 已啟用追蹤：僅選定的 ETA 顯示 [ 取消追蹤 ]
+                                    val showTrackButton = when {
+                                        tracked == null -> true
+                                        isTargetStop && isHighlight -> true
+                                        else -> false
+                                    }
+
+                                    Surface(
+                                        color = if (isHighlight) HighlightYellow else Color.Transparent,
+                                        shape = RoundedCornerShape(4.dp),
+                                        modifier = Modifier.padding(vertical = 2.dp)
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                        ) {
+                                            Text(
+                                                text = formatEtaDisplay(eta),
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = if (isHighlight) Color.Black else BluePrimary,
+                                                fontWeight = if (isHighlight) FontWeight.Bold else FontWeight.SemiBold
+                                            )
+
+                                            if (showTrackButton) {
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                OutlinedButton(
+                                                    onClick = {
+                                                        viewModel.toggleTrackVehicle(
+                                                            stopId = stop.stopId,
+                                                            stopSequence = stop.sequence,
+                                                            etaTimestamp = eta.etaTimestamp
+                                                        )
+                                                    },
+                                                    modifier = Modifier.height(26.dp),
+                                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                                                    colors = ButtonDefaults.outlinedButtonColors(
+                                                        containerColor = if (isHighlight) Color.White else Color.Transparent
+                                                    )
+                                                ) {
+                                                    Text(
+                                                        text = if (isHighlight) "取消追蹤" else "追蹤",
+                                                        fontSize = 11.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = if (isHighlight) Color.Red else BluePrimary
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
 
+                        // ⭐ 收藏按鈕 (不受追蹤狀態影響，獨立顯示與點擊)
                         IconButton(onClick = { viewModel.toggleBookmark(stop) }) {
                             Icon(
                                 imageVector = if (isBookmarked) Icons.Filled.Star else Icons.Outlined.Star,
