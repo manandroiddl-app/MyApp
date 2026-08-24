@@ -114,7 +114,7 @@ fun TransitSearchScreen(
                     .padding(paddingValues)
                     .statusBarsPadding()
             ) {
-                // 修復 padding 參數命名，極致拉高標題列
+                // 頂部標題列
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -232,55 +232,65 @@ fun SearchTabContent(
             } else {
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
                     items(uiState.filteredRoutes) { route ->
-                        // 安全處理可空型態 String?
                         val serviceTypeInt = route.serviceType?.toIntOrNull() ?: 1
                         val isSpecialService = serviceTypeInt > 1
 
-                        val routeDetailText = if (isSpecialService) {
-                            "${route.originZh} ➔ ${route.destinationZh} [特別班次]"
-                        } else {
-                            "${route.originZh} ➔ ${route.destinationZh}"
-                        }
-
                         ListItem(
                             headlineContent = {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    // 營運公司標籤
-                                    Surface(
-                                        color = BlueContainer,
-                                        shape = RoundedCornerShape(4.dp)
+                                Column(modifier = Modifier.fillMaxWidth()) {
+                                    // 上層：公司標籤 + 路線編號 + 起終點
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically
                                     ) {
+                                        Surface(
+                                            color = BlueContainer,
+                                            shape = RoundedCornerShape(4.dp)
+                                        ) {
+                                            Text(
+                                                text = formatCompanyDisplayName(route.company),
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = BlueOnContainer,
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            )
+                                        }
+
+                                        Spacer(modifier = Modifier.width(8.dp))
+
                                         Text(
-                                            text = formatCompanyDisplayName(route.company),
-                                            fontSize = 12.sp,
+                                            text = route.routeName,
                                             fontWeight = FontWeight.Bold,
-                                            color = BlueOnContainer,
-                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            fontSize = 16.sp,
+                                            color = PrimaryDarkBlue
+                                        )
+
+                                        Spacer(modifier = Modifier.width(8.dp))
+
+                                        Text(
+                                            text = "${route.originZh} ➔ ${route.destinationZh}",
+                                            fontSize = 14.sp,
+                                            color = Color.DarkGray,
+                                            modifier = Modifier.weight(1f)
                                         )
                                     }
 
-                                    Spacer(modifier = Modifier.width(8.dp))
-
-                                    // 路線編號
-                                    Text(
-                                        text = route.routeName,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 16.sp,
-                                        color = PrimaryDarkBlue
-                                    )
-
-                                    Spacer(modifier = Modifier.width(8.dp))
-
-                                    // 起終點與 [特別班次] 標記
-                                    Text(
-                                        text = routeDetailText,
-                                        fontSize = 14.sp,
-                                        color = Color.DarkGray,
-                                        modifier = Modifier.weight(1f)
-                                    )
+                                    // 下層：[特別班次] 獨立橘色 Badge 標籤
+                                    if (isSpecialService) {
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Surface(
+                                            color = Color(0xFFFFE0B2), // 淺橙色背景
+                                            shape = RoundedCornerShape(4.dp)
+                                        ) {
+                                            Text(
+                                                text = "特別班次",
+                                                color = Color(0xFFE65100), // 深橙色文字
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                    }
                                 }
                             },
                             modifier = Modifier.clickable { viewModel.selectRoute(route) }
@@ -291,7 +301,7 @@ fun SearchTabContent(
             }
         }
 
-        // 底部輸入框與 Chip 鍵盤區塊 (極致貼底 + 優化 Chip 內部留白)
+        // 底部輸入框與 Chip 鍵盤區塊
         Surface(
             modifier = Modifier.fillMaxWidth(),
             tonalElevation = 8.dp,
@@ -395,7 +405,6 @@ fun SearchTabContent(
 
                     Spacer(modifier = Modifier.width(6.dp))
 
-                    // 倒退按鈕：與字母 Chip 同行，靠右側擺放
                     IconButton(
                         onClick = { viewModel.onBackspaceClicked() },
                         enabled = uiState.searchQuery.isNotEmpty(),
