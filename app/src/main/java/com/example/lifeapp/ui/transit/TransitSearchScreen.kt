@@ -114,11 +114,11 @@ fun TransitSearchScreen(
                     .padding(paddingValues)
                     .statusBarsPadding()
             ) {
-                // 對齊 WeatherScreen 頁面標題佈局 (fontSize 20.sp, padding 16.dp)
+                // 盡量向上拉高：壓縮頂底垂直 Padding 至 4.dp
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                        .padding(horizontal = 16.dp, top = 4.dp, bottom = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     val titleText = if (uiState.selectedRoute != null) {
@@ -232,6 +232,15 @@ fun SearchTabContent(
             } else {
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
                     items(uiState.filteredRoutes) { route ->
+                        val serviceTypeInt = route.serviceType.toIntOrNull() ?: 1
+                        val isSpecialService = serviceTypeInt > 1
+
+                        val routeDetailText = if (isSpecialService) {
+                            "${route.originZh} ➔ ${route.destinationZh} [特別班次]"
+                        } else {
+                            "${route.originZh} ➔ ${route.destinationZh}"
+                        }
+
                         ListItem(
                             headlineContent = {
                                 Row(
@@ -254,7 +263,7 @@ fun SearchTabContent(
 
                                     Spacer(modifier = Modifier.width(8.dp))
 
-                                    // 路線編號與起終點放同一行
+                                    // 路線編號
                                     Text(
                                         text = route.routeName,
                                         fontWeight = FontWeight.Bold,
@@ -264,8 +273,9 @@ fun SearchTabContent(
 
                                     Spacer(modifier = Modifier.width(8.dp))
 
+                                    // 起終點與 [特別班次] 標記
                                     Text(
-                                        text = "${route.originZh} ➔ ${route.destinationZh}",
+                                        text = routeDetailText,
                                         fontSize = 14.sp,
                                         color = Color.DarkGray,
                                         modifier = Modifier.weight(1f)
@@ -314,7 +324,7 @@ fun SearchTabContent(
 
                 Spacer(modifier = Modifier.height(4.dp))
 
-                // 數字 Chips 鍵盤 (微調高度至 34.dp 並為 Text 加入上下 Padding)
+                // 數字 Chips 鍵盤
                 LazyRow(
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                     contentPadding = PaddingValues(vertical = 0.dp)
