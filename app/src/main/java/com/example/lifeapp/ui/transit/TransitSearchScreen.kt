@@ -107,6 +107,7 @@ fun TransitSearchScreen(
 
     MaterialTheme(colorScheme = customColorScheme) {
         Scaffold(
+            contentWindowInsets = WindowInsets(0, 0, 0, 0),
             topBar = {
                 TopAppBar(
                     title = {
@@ -122,7 +123,7 @@ fun TransitSearchScreen(
                             color = PrimaryDarkBlue
                         )
                     },
-                    windowInsets = WindowInsets(top = 8.dp, bottom = 0.dp),
+                    windowInsets = WindowInsets.statusBars,
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = Color.Transparent,
                         titleContentColor = PrimaryDarkBlue,
@@ -135,7 +136,7 @@ fun TransitSearchScreen(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(paddingValues)
+                    .padding(top = paddingValues.calculateTopPadding())
             ) {
                 if (uiState.selectedRoute == null) {
                     TabRow(
@@ -200,6 +201,7 @@ fun TransitSearchScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .navigationBarsPadding()
                                 .padding(12.dp),
                             horizontalArrangement = Arrangement.Center
                         ) {
@@ -282,7 +284,7 @@ fun SearchTabContent(
             }
         }
 
-        // 底部輸入框與 Chip 鍵盤區塊 (完全貼合下方，無底 Padding 及無 WindowInsets 留白)
+        // 底部輸入框與 Chip 鍵盤區塊 (消除底下縫隙，讓背景藍填滿 navigationBars 區域)
         Surface(
             modifier = Modifier.fillMaxWidth(),
             tonalElevation = 8.dp,
@@ -292,8 +294,8 @@ fun SearchTabContent(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .windowInsetsPadding(WindowInsets(0, 0, 0, 0))
-                    .padding(start = 8.dp, end = 8.dp, top = 8.dp, bottom = 0.dp)
+                    .navigationBarsPadding()
+                    .padding(start = 8.dp, end = 8.dp, top = 8.dp, bottom = 4.dp)
             ) {
                 // 搜尋顯示欄
                 Surface(
@@ -342,9 +344,7 @@ fun SearchTabContent(
 
                 // 字母 Chips 鍵盤 + 靠右擺放倒退按鈕 (Backspace)
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 0.dp),
+                    modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
