@@ -91,7 +91,6 @@ fun formatCompanyDisplayName(company: Any?): String {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TransitSearchScreen(
     viewModel: TransitSearchViewModel = hiltViewModel()
@@ -107,37 +106,34 @@ fun TransitSearchScreen(
 
     MaterialTheme(colorScheme = customColorScheme) {
         Scaffold(
-            contentWindowInsets = WindowInsets(0, 0, 0, 0),
-            topBar = {
-                TopAppBar(
-                    title = {
-                        val titleText = if (uiState.selectedRoute != null) {
-                            "${uiState.selectedRoute?.routeName} 往 ${uiState.selectedRoute?.destinationZh}"
-                        } else {
-                            "公共交通查詢"
-                        }
-                        Text(
-                            text = titleText,
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = PrimaryDarkBlue
-                        )
-                    },
-                    windowInsets = WindowInsets.statusBars,
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = Color.Transparent,
-                        titleContentColor = PrimaryDarkBlue,
-                        actionIconContentColor = PrimaryDarkBlue,
-                        navigationIconContentColor = PrimaryDarkBlue
-                    )
-                )
-            }
+            contentWindowInsets = WindowInsets(0, 0, 0, 0)
         ) { paddingValues ->
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(top = paddingValues.calculateTopPadding())
+                    .padding(paddingValues)
+                    .statusBarsPadding()
             ) {
+                // 對齊 WeatherScreen 頁面標題佈局 (fontSize 20.sp, padding 16.dp)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    val titleText = if (uiState.selectedRoute != null) {
+                        "${uiState.selectedRoute?.routeName} 往 ${uiState.selectedRoute?.destinationZh}"
+                    } else {
+                        "公共交通查詢"
+                    }
+                    Text(
+                        text = titleText,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 20.sp,
+                        color = PrimaryDarkBlue
+                    )
+                }
+
                 if (uiState.selectedRoute == null) {
                     TabRow(
                         selectedTabIndex = uiState.currentTab.ordinal,
@@ -284,7 +280,7 @@ fun SearchTabContent(
             }
         }
 
-        // 底部輸入框與 Chip 鍵盤區塊 (使用固定高度壓迫結構貼底)
+        // 底部輸入框與 Chip 鍵盤區塊 (極致貼底 + 優化 Chip 內部留白)
         Surface(
             modifier = Modifier.fillMaxWidth(),
             tonalElevation = 8.dp,
@@ -318,7 +314,7 @@ fun SearchTabContent(
 
                 Spacer(modifier = Modifier.height(4.dp))
 
-                // 數字 Chips 鍵盤
+                // 數字 Chips 鍵盤 (微調高度至 34.dp 並為 Text 加入上下 Padding)
                 LazyRow(
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                     contentPadding = PaddingValues(vertical = 0.dp)
@@ -327,8 +323,14 @@ fun SearchTabContent(
                         FilterChip(
                             selected = false,
                             onClick = { viewModel.onChipClicked(num) },
-                            label = { Text(num.toString(), fontWeight = FontWeight.Bold) },
-                            modifier = Modifier.height(32.dp),
+                            label = {
+                                Text(
+                                    text = num.toString(),
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(vertical = 2.dp)
+                                )
+                            },
+                            modifier = Modifier.height(34.dp),
                             colors = FilterChipDefaults.filterChipColors(
                                 containerColor = Color.White,
                                 labelColor = PrimaryDarkBlue
@@ -359,8 +361,14 @@ fun SearchTabContent(
                             FilterChip(
                                 selected = false,
                                 onClick = { viewModel.onChipClicked(letter) },
-                                label = { Text(letter.toString(), fontWeight = FontWeight.Bold) },
-                                modifier = Modifier.height(32.dp),
+                                label = {
+                                    Text(
+                                        text = letter.toString(),
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(vertical = 2.dp)
+                                    )
+                                },
+                                modifier = Modifier.height(34.dp),
                                 colors = FilterChipDefaults.filterChipColors(
                                     containerColor = Color.White,
                                     labelColor = PrimaryDarkBlue
@@ -380,7 +388,7 @@ fun SearchTabContent(
                     IconButton(
                         onClick = { viewModel.onBackspaceClicked() },
                         enabled = uiState.searchQuery.isNotEmpty(),
-                        modifier = Modifier.size(32.dp)
+                        modifier = Modifier.size(34.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Backspace,
