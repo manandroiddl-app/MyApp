@@ -45,6 +45,15 @@ private fun parseEtaMillis(etaTimestamp: String?): Long? {
     } catch (_: Exception) { null }
 }
 
+/**
+ * 判斷該 ETA 是否為可追蹤的有效班次（排除無班次、末班車已過等情況）
+ */
+fun isValidTrackableEta(eta: TransitEta): Boolean {
+    if (eta.minutesLeft == null) return false
+    if (eta.etaTimestamp.isNullOrEmpty()) return false
+    return true
+}
+
 fun formatEtaDisplay(eta: TransitEta): String {
     val mins = eta.minutesLeft
 
@@ -147,7 +156,7 @@ fun TransitSearchScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
-    // 🎯 使用 common 模組通用的 AutoRefreshLifecycleHandler 處理 Lifecycle 與輪詢
+    // 使用 common 模組通用的 AutoRefreshLifecycleHandler 處理 Lifecycle 與輪詢[cite: 5]
     AutoRefreshLifecycleHandler(
         onStartRefresh = { viewModel.onResumeRefresh() },
         onStopRefresh = { viewModel.onPauseStopRefresh() },
@@ -163,7 +172,43 @@ fun TransitSearchScreen(
 
     MaterialTheme(colorScheme = customColorScheme) {
         Scaffold(
-            contentWindowInsets = WindowInsets(0, 0, 0, 0)
+            contentWindowInsets = WindowInsets(0, 0, 0, 0),
+            // 將貼底按鈕放入 bottomBar 槽位，解決無法貼緊底部的問題
+            bottomBar = {
+                if (uiState.selectedRoute != null) {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        tonalElevation = 6.dp,
+                        shadowElevation = 6.dp,
+                        color = MaterialTheme.colorScheme.surface
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .navigationBarsPadding()
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Button(
+                                onClick = { viewModel.clearSelectedRoute() },
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(44.dp),
+                                contentPadding = PaddingValues(vertical = 0.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("返回搜尋結果", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                            }
+                        }
+                    }
+                }
+            }
         ) { paddingValues ->
             Column(
                 modifier = Modifier
@@ -171,7 +216,7 @@ fun TransitSearchScreen(
                     .padding(paddingValues)
                     .statusBarsPadding()
             ) {
-                // 頂部路線標題格式 [公司 Tag] [路線] [起點] ➔ [終點] [特別班次 Tag]
+                // 頂部路線標題
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -294,38 +339,6 @@ fun TransitSearchScreen(
                     Box(modifier = Modifier.weight(1f)) {
                         RouteDetailContent(uiState = uiState, viewModel = viewModel)
                     }
-
-                    // 貼底按鈕區域
-                    Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        tonalElevation = 4.dp,
-                        shadowElevation = 4.dp
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .navigationBarsPadding()
-                                .padding(horizontal = 12.dp, vertical = 4.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Button(
-                                onClick = { viewModel.clearSelectedRoute() },
-                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(40.dp),
-                                contentPadding = PaddingValues(vertical = 0.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack, 
-                                    contentDescription = null,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("返回搜尋結果", fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                            }
-                        }
-                    }
                 }
             }
         }
@@ -340,8 +353,7 @@ fun SearchTabContent(
     Column(modifier = Modifier.fillMaxSize()) {
         Box(modifier = Modifier.weight(1f)) {
             if (uiState.isLoadingRoutes) {
-                // 🛡️ 使用 common 模組的全頁加載組件
-                FullPageLoading()
+                FullPageLoading() //[cite: 4]
             } else {
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
                     items(uiState.filteredRoutes) { route ->
@@ -536,8 +548,7 @@ fun RouteDetailContent(
     viewModel: TransitSearchViewModel
 ) {
     if (uiState.isLoadingStops) {
-        // 🛡️ 使用 common 模組的全頁加載組件
-        FullPageLoading()
+        FullPageLoading() //[cite: 4]
     } else {
         val tracked = uiState.trackedVehicle
 
@@ -595,7 +606,9 @@ fun RouteDetailContent(
                                 etaList.take(3).forEach { eta ->
                                     val isHighlight = (eta == chainMatchedEta)
 
-                                    val showTrackButton = when {
+                                    // 只有當 ETA 是可追蹤的有效班次時，才考慮顯示追蹤按鈕
+                                    val isTrackable = isValidTrackableEta(eta)
+                                    val showTrackButton = isTrackable && when {
                                         tracked == null -> true
                                         isTargetStop && isHighlight -> true
                                         else -> false
