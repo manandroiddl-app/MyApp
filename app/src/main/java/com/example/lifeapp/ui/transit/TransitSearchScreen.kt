@@ -18,10 +18,13 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import com.example.lifeapp.data.model.TransitEta
 import com.example.lifeapp.data.model.TransitStop
 import com.example.lifeapp.ui.theme.PrimaryDarkBlue
@@ -96,7 +99,6 @@ fun formatCompanyDisplayName(company: Any?): String {
 
 /**
  * 鏈式遞延演算法 (Chain Reaction Propagation)
- * 從追蹤車站開始，逐站向上/遞延推算下游對應的班次，若中間斷層則中斷後續 Highlight
  */
 fun calculateTrackedChain(
     routeStops: List<TransitStop>,
@@ -108,17 +110,14 @@ fun calculateTrackedChain(
     val resultMap = mutableMapOf<String, TransitEta>()
     val trackedMillis = parseEtaMillis(tracked.etaTimestamp) ?: return emptyMap()
 
-    // 1. 找出追蹤車站及後續的所有下游車站 (按 sequence 排序)
     val downstreamStops = routeStops
         .filter { it.sequence >= tracked.stopSequence }
         .sortedBy { it.sequence }
 
     var currentBaseMillis = trackedMillis
 
-    // 2. 逐站進行連鎖遞延 (Chain Reaction)
     for (stop in downstreamStops) {
         if (stop.stopId == tracked.stopId) {
-            // 起始站：直接綁定用戶選擇的 ETA
             val targetEta = stopEtaMap[stop.stopId]?.find { it.etaTimestamp == tracked.etaTimestamp }
             if (targetEta != null) {
                 resultMap[stop.stopId] = targetEta
@@ -126,7 +125,6 @@ fun calculateTrackedChain(
             continue
         }
 
-        // 下游車站：抵達時間必須 >= 上一站成功匹配的時間 (currentBaseMillis)
         val etaList = stopEtaMap[stop.stopId] ?: emptyList()
         val matchedEta = etaList
             .mapNotNull { eta ->
@@ -137,11 +135,9 @@ fun calculateTrackedChain(
             .minByOrNull { it.second - currentBaseMillis }
 
         if (matchedEta != null) {
-            // 成功匹配：記錄 Highlight，將基準時間遞延給下一站
             resultMap[stop.stopId] = matchedEta.first
             currentBaseMillis = matchedEta.second
         } else {
-            // 中斷機制 (Circuit Breaker)：中途若無符合班次，鏈條中斷，後續車站不再 Highlight
             break
         }
     }
@@ -154,6 +150,22 @@ fun TransitSearchScreen(
     viewModel: TransitSearchViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+
+    // 監聽 Lifecycle (App resume / 切換時自動刷新數據)
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                viewModel.onResumeRefresh()
+            } else if (event == Lifecycle.Event.ON_PAUSE) {
+                viewModel.onPauseStopRefresh()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
 
     val customColorScheme = lightColorScheme(
         primary = BluePrimary,
@@ -172,23 +184,73 @@ fun TransitSearchScreen(
                     .padding(paddingValues)
                     .statusBarsPadding()
             ) {
+                // 頂部 Header：若已選擇路線，顯示標準 [公司 Tag] [路線] [起點] ➔ [終點] [特別班次 Tag]
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 4.dp),
+                        .padding(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    val titleText = if (uiState.selectedRoute != null) {
-                        "${uiState.selectedRoute?.routeName} 往 ${uiState.selectedRoute?.destinationZh}"
+                    val route = uiState.selectedRoute
+                    if (route != null) {
+                        val serviceTypeInt = route.serviceType?.toIntOrNull() ?: 1
+                        val isSpecialService = serviceTypeInt > 1
+
+                        Surface(
+                            color = BlueContainer,
+                            shape = RoundedCornerShape(4.dp)
+                        ) {
+                            Text(
+                                text = formatCompanyDisplayName(route.company),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = BlueOnContainer,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(6.dp))
+
+                        Text(
+                            text = route.routeName,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 18.sp,
+                            color = PrimaryDarkBlue
+                        )
+
+                        Spacer(modifier = Modifier.width(8.dp))
+
+                        Text(
+                            text = "${route.originZh} ➔ ${route.destinationZh}",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = Color.DarkGray,
+                            modifier = Modifier.weight(1f)
+                        )
+
+                        if (isSpecialService) {
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Surface(
+                                color = Color(0xFFFFE0B2),
+                                shape = RoundedCornerShape(4.dp)
+                            ) {
+                                Text(
+                                    text = "特別班次",
+                                    color = Color(0xFFE65100),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
                     } else {
-                        "公共交通查詢"
+                        Text(
+                            text = "公共交通查詢",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 20.sp,
+                            color = PrimaryDarkBlue
+                        )
                     }
-                    Text(
-                        text = titleText,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 20.sp,
-                        color = PrimaryDarkBlue
-                    )
                 }
 
                 if (uiState.selectedRoute == null) {
@@ -246,26 +308,34 @@ fun TransitSearchScreen(
                         RouteDetailContent(uiState = uiState, viewModel = viewModel)
                     }
 
+                    // 調整：極簡化 Padding，貼近底部系統導航列
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
-                        tonalElevation = 8.dp,
-                        shadowElevation = 8.dp
+                        tonalElevation = 4.dp,
+                        shadowElevation = 4.dp
                     ) {
-                        Row(
+                        Box(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .navigationBarsPadding()
-                                .padding(12.dp),
-                            horizontalArrangement = Arrangement.Center
+                                .padding(horizontal = 12.dp, vertical = 4.dp),
+                            contentAlignment = Alignment.Center
                         ) {
                             Button(
                                 onClick = { viewModel.clearSelectedRoute() },
                                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                                modifier = Modifier.fillMaxWidth(0.8f)
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(40.dp),
+                                contentPadding = PaddingValues(vertical = 0.dp)
                             ) {
-                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("返回搜尋結果", fontWeight = FontWeight.Bold)
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack, 
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("返回搜尋結果", fontWeight = FontWeight.Bold, fontSize = 15.sp)
                             }
                         }
                     }
@@ -486,7 +556,6 @@ fun RouteDetailContent(
     } else {
         val tracked = uiState.trackedVehicle
 
-        // 預先透過鏈式遞延演算法算出整條路線對應的 Highlight Map
         val highlightMap = remember(uiState.routeStops, uiState.selectedStopEtaMap, tracked) {
             calculateTrackedChain(
                 routeStops = uiState.routeStops,
@@ -497,7 +566,7 @@ fun RouteDetailContent(
 
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(bottom = 16.dp)
+            contentPadding = PaddingValues(bottom = 8.dp)
         ) {
             items(uiState.routeStops) { stop ->
                 val etaList = uiState.selectedStopEtaMap[stop.stopId] ?: emptyList()
@@ -505,7 +574,6 @@ fun RouteDetailContent(
                 val bookmarkId = "KMB_${route?.routeName}_${route?.bound}_${route?.serviceType}_${stop.stopId}"
                 val isBookmarked = uiState.bookmarkedStopIds.contains(bookmarkId)
 
-                // 取得目前車站經由連鎖推導出的對應 ETA
                 val chainMatchedEta = highlightMap[stop.stopId]
                 val isTargetStop = tracked != null && tracked.stopId == stop.stopId
 
@@ -540,7 +608,6 @@ fun RouteDetailContent(
                                 )
                             } else {
                                 etaList.take(3).forEach { eta ->
-                                    // 精準 Highlight：僅當此班次完全等於鏈式推導出的物件時才突出顯示
                                     val isHighlight = (eta == chainMatchedEta)
 
                                     val showTrackButton = when {
