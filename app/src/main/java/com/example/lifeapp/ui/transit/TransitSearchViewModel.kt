@@ -176,7 +176,7 @@ class TransitSearchViewModel @Inject constructor(
                 isLoadingStops = true,
                 routeStops = emptyList(),
                 selectedStopEtaMap = emptyMap(),
-                trackedVehicle = null // 清除先前的追蹤狀態
+                trackedVehicle = null
             )
         }
 
@@ -242,9 +242,6 @@ class TransitSearchViewModel @Inject constructor(
         }
     }
 
-    /**
-     * 切換特定車站與班次的時間追蹤
-     */
     fun toggleTrackVehicle(stopId: String, stopSequence: Int, etaTimestamp: String?) {
         _uiState.update { currentState ->
             val currentTracked = currentState.trackedVehicle
