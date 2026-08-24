@@ -23,6 +23,15 @@ import javax.inject.Inject
 
 enum class TransitTab { SEARCH, BOOKMARK }
 
+/**
+ * 記錄當前用戶選取追蹤的班次資訊
+ */
+data class TrackedVehicleInfo(
+    val stopId: String,
+    val stopSequence: Int,
+    val etaTimestamp: String?
+)
+
 data class TransitUiState(
     val currentTab: TransitTab = TransitTab.SEARCH,
     val searchQuery: String = "",
@@ -37,7 +46,10 @@ data class TransitUiState(
     val routeStops: List<TransitStop> = emptyList(),
     val isLoadingStops: Boolean = false,
     val selectedStopEtaMap: Map<String, List<TransitEta>> = emptyMap(),
-    val bookmarkedStopIds: Set<String> = emptySet()
+    val bookmarkedStopIds: Set<String> = emptySet(),
+    
+    // 跨站追蹤狀態
+    val trackedVehicle: TrackedVehicleInfo? = null
 )
 
 @HiltViewModel
@@ -91,7 +103,6 @@ class TransitSearchViewModel @Inject constructor(
                         bookmarkedStopIds = bookmarkedIds
                     )
                 }
-                // 當書籤更新時同步獲取書籤車站的 ETA
                 bookmarkList.forEach { fetchBookmarkEta(it) }
             }
         }
@@ -164,7 +175,8 @@ class TransitSearchViewModel @Inject constructor(
                 selectedRoute = route,
                 isLoadingStops = true,
                 routeStops = emptyList(),
-                selectedStopEtaMap = emptyMap()
+                selectedStopEtaMap = emptyMap(),
+                trackedVehicle = null // 清除先前的追蹤狀態
             )
         }
 
@@ -224,8 +236,29 @@ class TransitSearchViewModel @Inject constructor(
             currentState.copy(
                 selectedRoute = null,
                 routeStops = emptyList(),
-                selectedStopEtaMap = emptyMap()
+                selectedStopEtaMap = emptyMap(),
+                trackedVehicle = null
             )
+        }
+    }
+
+    /**
+     * 切換特定車站與班次的時間追蹤
+     */
+    fun toggleTrackVehicle(stopId: String, stopSequence: Int, etaTimestamp: String?) {
+        _uiState.update { currentState ->
+            val currentTracked = currentState.trackedVehicle
+            if (currentTracked?.stopId == stopId && currentTracked.etaTimestamp == etaTimestamp) {
+                currentState.copy(trackedVehicle = null)
+            } else {
+                currentState.copy(
+                    trackedVehicle = TrackedVehicleInfo(
+                        stopId = stopId,
+                        stopSequence = stopSequence,
+                        etaTimestamp = etaTimestamp
+                    )
+                )
+            }
         }
     }
 
