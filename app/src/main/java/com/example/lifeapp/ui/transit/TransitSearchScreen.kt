@@ -71,6 +71,21 @@ fun formatEtaDisplay(eta: TransitEta): String {
     }
 }
 
+/**
+ * 格式化交通公司顯示名稱
+ */
+fun formatCompanyDisplayName(companyCode: String?): String {
+    return when (companyCode?.uppercase()) {
+        "KMB" -> "九巴"
+        "CTB" -> "城巴"
+        "NWFB" -> "新巴"
+        "GMB" -> "綠色小巴"
+        "NLB" -> "嶼巴"
+        "MTR" -> "港鐵巴士"
+        else -> companyCode.orEmpty().ifEmpty { "巴士" }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TransitSearchScreen(
@@ -126,14 +141,38 @@ fun TransitSearchScreen(
                         Tab(
                             selected = uiState.currentTab == TransitTab.SEARCH,
                             onClick = { viewModel.selectTab(TransitTab.SEARCH) },
-                            text = { Text("搜尋路線", fontWeight = FontWeight.Bold) },
-                            icon = { Icon(Icons.Default.Search, contentDescription = null) }
+                            text = {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    Text("搜尋路線", fontWeight = FontWeight.Bold)
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Icon(
+                                        imageVector = Icons.Default.Search,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
                         )
                         Tab(
                             selected = uiState.currentTab == TransitTab.BOOKMARK,
                             onClick = { viewModel.selectTab(TransitTab.BOOKMARK) },
-                            text = { Text("已收藏", fontWeight = FontWeight.Bold) },
-                            icon = { Icon(Icons.Default.Bookmark, contentDescription = null) }
+                            text = {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    Text("已收藏", fontWeight = FontWeight.Bold)
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Icon(
+                                        imageVector = Icons.Default.Bookmark,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
                         )
                     }
 
@@ -191,17 +230,54 @@ fun SearchTabContent(
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
                     items(uiState.filteredRoutes) { route ->
                         ListItem(
-                            headlineContent = { Text(route.routeName, fontWeight = FontWeight.Bold) },
-                            supportingContent = { Text("${route.originZh} ➔ ${route.destinationZh}") },
+                            headlineContent = {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    // 營運公司標籤
+                                    Surface(
+                                        color = BlueContainer,
+                                        shape = RoundedCornerShape(4.dp)
+                                    ) {
+                                        Text(
+                                            text = formatCompanyDisplayName(route.company),
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = BlueOnContainer,
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                        )
+                                    }
+
+                                    Spacer(modifier = Modifier.width(8.dp))
+
+                                    // 路線編號與起終點放同一行
+                                    Text(
+                                        text = route.routeName,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 16.sp,
+                                        color = PrimaryDarkBlue
+                                    )
+
+                                    Spacer(modifier = Modifier.width(8.dp))
+
+                                    Text(
+                                        text = "${route.originZh} ➔ ${route.destinationZh}",
+                                        fontSize = 14.sp,
+                                        color = Color.DarkGray,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+                            },
                             modifier = Modifier.clickable { viewModel.selectRoute(route) }
                         )
-                        HorizontalDivider()
+                        HorizontalDivider(color = Color(0xFFEEEEEE))
                     }
                 }
             }
         }
 
-        // 底部輸入框與 Chip 鍵盤區塊 (無底 Padding，完全貼底)
+        // 底部輸入框與 Chip 鍵盤區塊 (完全貼合下方，無底 Padding 及無 WindowInsets 留白)
         Surface(
             modifier = Modifier.fillMaxWidth(),
             tonalElevation = 8.dp,
@@ -211,6 +287,7 @@ fun SearchTabContent(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .windowInsetsPadding(WindowInsets(0, 0, 0, 0))
                     .padding(start = 8.dp, end = 8.dp, top = 8.dp, bottom = 0.dp)
             ) {
                 // 搜尋顯示欄
@@ -233,12 +310,12 @@ fun SearchTabContent(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(4.dp))
 
                 // 數字 Chips 鍵盤
                 LazyRow(
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    contentPadding = PaddingValues(vertical = 2.dp)
+                    contentPadding = PaddingValues(vertical = 0.dp)
                 ) {
                     items(uiState.numericChips) { num ->
                         FilterChip(
@@ -262,14 +339,14 @@ fun SearchTabContent(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(bottom = 4.dp),
+                        .padding(bottom = 0.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     LazyRow(
                         modifier = Modifier.weight(1f),
                         horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        contentPadding = PaddingValues(vertical = 2.dp)
+                        contentPadding = PaddingValues(vertical = 0.dp)
                     ) {
                         items(uiState.letterChips) { letter ->
                             FilterChip(
@@ -421,7 +498,7 @@ fun BookmarkTabContent(
                                     shape = RoundedCornerShape(4.dp)
                                 ) {
                                     Text(
-                                        text = "${bookmark.company} ${bookmark.routeName}",
+                                        text = "${formatCompanyDisplayName(bookmark.company)} ${bookmark.routeName}",
                                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                                         fontWeight = FontWeight.Bold,
                                         color = BlueOnContainer
