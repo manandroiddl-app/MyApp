@@ -114,11 +114,11 @@ fun TransitSearchScreen(
                     .padding(paddingValues)
                     .statusBarsPadding()
             ) {
-                // 盡量向上拉高：壓縮頂底垂直 Padding 至 4.dp
+                // 修復 padding 參數命名，極致拉高標題列
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, top = 4.dp, bottom = 4.dp),
+                        .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     val titleText = if (uiState.selectedRoute != null) {
@@ -232,7 +232,8 @@ fun SearchTabContent(
             } else {
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
                     items(uiState.filteredRoutes) { route ->
-                        val serviceTypeInt = route.serviceType.toIntOrNull() ?: 1
+                        // 安全處理可空型態 String?
+                        val serviceTypeInt = route.serviceType?.toIntOrNull() ?: 1
                         val isSpecialService = serviceTypeInt > 1
 
                         val routeDetailText = if (isSpecialService) {
