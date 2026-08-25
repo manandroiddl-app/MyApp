@@ -1,152 +1,37 @@
 package com.example.lifeapp.ui.transit
 
-import com.example.lifeapp.data.model.TransitEta
-import com.example.lifeapp.data.model.TransitStop
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.TimeZone
 
-fun formatCompanyDisplayName(company: Any?): String {
-    val compStr = when (company) {
-        null -> ""
-        is String -> company
-        else -> company.toString()
-    }
-
-    return when (compStr.uppercase()) {
-        "KMB" -> "九巴"
-        "CTB" -> "城巴"
-        "NWFB" -> "新巴"
-        "NLB" -> "嶼巴"
-        "MTR" -> "港鐵"
-        "GMB" -> "專線小巴"
-        else -> compStr
-    }
-}
-
-fun formatEtaDisplay(eta: TransitEta): String {
-    val mins = eta.getEtaMinutes()
-    val remarkStr = if (!eta.rmkZh.isNullAsStringEmpty()) " (${eta.rmkZh})" else ""
-
-    if (mins != null) {
-        val minText = when {
-            mins <= 0 -> "即將到達"
-            else -> "${mins} 分鐘"
-        }
-        return "$minText$remarkStr"
-    }
-
-    val timestampStr = eta.etaTimestamp
-    if (!timestampStr.isNullAsStringEmpty()) {
-        val formattedTime = formatTimestampToTimeOnly(timestampStr)
-        if (formattedTime.isNotEmpty()) {
-            return "$formattedTime$remarkStr"
-        }
-    }
-
-    return if (remarkStr.isNotEmpty()) remarkStr.trim() else "暫無預計時間"
-}
-
-private fun String?.isNullAsStringEmpty(): Boolean {
-    if (this == null) return true
-    val trimmed = this.trim()
-    return trimmed.isEmpty() || trimmed.equals("null", ignoreCase = true)
-}
-
-private fun formatTimestampToTimeOnly(timestampStr: String?): String {
-    if (timestampStr.isNullAsStringEmpty()) return ""
+/**
+ * 計算 ISO Timestamp 距離現在還有多少分鐘
+ */
+fun getEtaMinutes(etaTimestamp: String?): Long? {
+    if (etaTimestamp.isNullOrEmpty()) return null
     return try {
-        val cleanStr = timestampStr!!.trim()
-        val isoFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
-        val date = isoFormat.parse(cleanStr)
-        if (date != null) {
-            val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
-            timeFormat.format(date)
-        } else {
-            ""
-        }
-    } catch (e: Exception) {
-        if (timestampStr!!.length >= 16 && timestampStr.contains("T")) {
-            val timePart = timestampStr.substringAfter("T").take(5)
-            if (timePart.matches(Regex("\\d{2}:\\d{2}"))) {
-                return timePart
-            }
-        }
-        ""
-    }
-}
-
-private fun parseIsoTimestampToMillis(timestampStr: String?): Long? {
-    if (timestampStr.isNullAsStringEmpty()) return null
-    return try {
-        val cleanStr = timestampStr!!.trim()
-        val isoFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
-        isoFormat.parse(cleanStr)?.time
-    } catch (e: Exception) {
+        val sdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.getDefault())
+        sdf.timeZone = TimeZone.getTimeZone("Asia/Hong_Kong")
+        val etaDate = sdf.parse(etaTimestamp) ?: return null
+        val diffMs = etaDate.time - System.currentTimeMillis()
+        val minutes = diffMs / (1000 * 60)
+        if (minutes < 0) 0 else minutes
+    } catch (_: Exception) {
         null
     }
 }
 
-data class TrackedChainResult(
-    val chainMap: Map<String, Pair<TransitEta, Boolean>> = emptyMap(),
-    val effectiveHeadStopId: String? = null
-)
-
-fun calculateTrackedChain(
-    routeStops: List<TransitStop>,
-    selectedStopEtaMap: Map<String, List<TransitEta>>,
-    tracked: TrackedVehicleInfo?
-): TrackedChainResult {
-    if (tracked == null || routeStops.isEmpty()) {
-        return TrackedChainResult()
+/**
+ * 格式化 ETA 顯示文字（處理「即將到站」、備註如「最後班次」等）
+ */
+fun formatEtaDisplay(etaMinutes: Long?, rmkZh: String?): String {
+    if (!rmkZh.isNullOrEmpty() && rmkZh != "原定班次" && rmkZh != "預算班次") {
+        return rmkZh
     }
-
-    val sortedStops = routeStops.sortedBy { it.sequence }
-    val targetTimestampMillis = parseIsoTimestampToMillis(tracked.etaTimestamp)
-
-    val targetIndex = sortedStops.indexOfFirst { it.stopId == tracked.stopId }
-    val startIndex = if (targetIndex != -1) targetIndex else 0
-
-    val chainMap = mutableMapOf<String, Pair<TransitEta, Boolean>>()
-    var effectiveHeadStopId: String? = null
-
-    var lastMatchedTimeMillis = targetTimestampMillis
-
-    for (i in startIndex until sortedStops.size) {
-        val stop = sortedStops[i]
-        val etas: List<TransitEta> = selectedStopEtaMap[stop.stopId] ?: emptyList()
-
-        val matchedEta = etas.firstOrNull { eta: TransitEta ->
-            val etaMillis = parseIsoTimestampToMillis(eta.etaTimestamp)
-            val sameSeq = eta.etaSeq == tracked.etaSeq
-
-            if (sameSeq) {
-                true
-            } else if (lastMatchedTimeMillis != null && etaMillis != null) {
-                val diffMins = (etaMillis - lastMatchedTimeMillis!!) / (1000 * 60)
-                diffMins in -3..15
-            } else {
-                false
-            }
-        }
-
-        if (matchedEta != null) {
-            val matchedMillis = parseIsoTimestampToMillis(matchedEta.etaTimestamp)
-            if (matchedMillis != null) {
-                lastMatchedTimeMillis = matchedMillis
-            }
-
-            val isHead = (effectiveHeadStopId == null)
-            if (isHead) {
-                effectiveHeadStopId = stop.stopId
-            }
-
-            chainMap[stop.stopId] = Pair(matchedEta, isHead)
-        }
+    return when (etaMinutes) {
+        null -> "暫無數據"
+        0L -> "即將到站"
+        else -> "${etaMinutes} 分鐘"
     }
-
-    return TrackedChainResult(
-        chainMap = chainMap,
-        effectiveHeadStopId = effectiveHeadStopId
-    )
 }
