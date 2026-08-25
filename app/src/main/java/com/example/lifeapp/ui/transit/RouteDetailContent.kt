@@ -2,231 +2,369 @@ package com.example.lifeapp.ui.transit
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.DirectionsBus
-import androidx.compose.material.icons.filled.ExpandLess
-import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.filled.GpsFixed
-import androidx.compose.material.icons.filled.GpsOff
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.MyLocation
+import androidx.compose.material.icons.outlined.MyLocation
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Divider
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.lifeapp.ui.common.FullPageLoading
-import com.example.lifeapp.ui.theme.PrimaryDarkBlue
+import com.example.lifeapp.data.model.TransitEta
+import com.example.lifeapp.data.model.TransitRoute
+import com.example.lifeapp.data.model.TransitStop
 
-private val BluePrimary = Color(0xFF1976D2)
-private val BlueContainer = Color(0xFFE3F2FD)
-
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RouteDetailContent(
     uiState: TransitUiState,
-    viewModel: TransitSearchViewModel
+    onBackClick: () -> Unit,
+    onToggleBookmark: (TransitStop) -> Unit,
+    onToggleTrackVehicle: (String, Int, String?) -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    if (uiState.isLoadingStops) {
-        FullPageLoading()
-    } else {
-        val tracked = uiState.trackedVehicle
+    val route = uiState.selectedRoute ?: return
 
-        val trackedChainResult = remember(uiState.routeStops, uiState.selectedStopEtaMap, tracked) {
-            calculateTrackedChain(uiState.routeStops, uiState.selectedStopEtaMap, tracked)
+    // 在 UI 層獨立管理預設展開的第一個車站與使用者手動展開的車站 ID
+    var expandedStopId by remember(uiState.routeStops) {
+        mutableStateOf(uiState.routeStops.firstOrNull()?.stopId)
+    }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = route.routeName,
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimary
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "往 ${route.destinationZh ?: ""}",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
+                            )
+                        }
+                        if (!route.originZh.isNullOrEmpty()) {
+                            Text(
+                                text = "由 ${route.originZh} 開出",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.6f)
+                            )
+                        }
+                    }
+                },
+                navigationIcon = {
+                    IconButton(onClick = onBackClick) {
+                        Icon(
+                            imageVector = Icons.Default.ArrowBack,
+                            contentDescription = "返回",
+                            tint = MaterialTheme.colorScheme.onPrimary
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.primary
+                )
+            )
+        },
+        modifier = modifier
+    ) { paddingValues ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+        ) {
+            if (uiState.isLoadingStops) {
+                CircularProgressIndicator(
+                    modifier = Modifier.align(Alignment.Center)
+                )
+            } else if (uiState.routeStops.isEmpty()) {
+                Text(
+                    text = "暫無路線車站資料",
+                    modifier = Modifier.align(Alignment.Center),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    itemsIndexed(
+                        items = uiState.routeStops,
+                        key = { _, stop -> stop.stopId }
+                    ) { index, stop ->
+                        val isFirst = index == 0
+                        val isLast = index == uiState.routeStops.size - 1
+                        val etas = uiState.selectedStopEtaMap[stop.stopId] ?: emptyList()
+
+                        // 生成與 ViewModel 一致的 Bookmark ID 進行比對
+                        val expectedBookmarkId = "KMB_${route.routeName}_${route.bound ?: "O"}_${route.serviceType ?: "1"}_${stop.stopId}"
+                        val isBookmarked = uiState.bookmarkedStopIds.contains(expectedBookmarkId)
+
+                        val isExpanded = expandedStopId == stop.stopId
+
+                        StopDetailItem(
+                            stop = stop,
+                            etas = etas,
+                            isFirst = isFirst,
+                            isLast = isLast,
+                            isExpanded = isExpanded,
+                            isBookmarked = isBookmarked,
+                            trackedVehicle = uiState.trackedVehicle,
+                            onItemClick = {
+                                expandedStopId = if (isExpanded) null else stop.stopId
+                            },
+                            onBookmarkClick = { onToggleBookmark(stop) },
+                            onTrackVehicleClick = { eta ->
+                                onToggleTrackVehicle(stop.stopId, stop.sequence, eta.etaTimestamp)
+                            }
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StopDetailItem(
+    stop: TransitStop,
+    etas: List<TransitEta>,
+    isFirst: Boolean,
+    isLast: Boolean,
+    isExpanded: Boolean,
+    isBookmarked: Boolean,
+    trackedVehicle: TrackedVehicleInfo?,
+    onItemClick: () -> Unit,
+    onBookmarkClick: () -> Unit,
+    onTrackVehicleClick: (TransitEta) -> Unit
+) {
+    val firstEta = etas.firstOrNull()
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onItemClick)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.Top
+    ) {
+        // 左側：路線圖連線與站號球
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.width(36.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .width(4.dp)
+                    .height(16.dp)
+                    .background(if (isFirst) Color.Transparent else MaterialTheme.colorScheme.primary)
+            )
+
+            Box(
+                modifier = Modifier
+                    .size(28.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primary),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "${stop.sequence}",
+                    color = MaterialTheme.colorScheme.onPrimary,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .width(4.dp)
+                    .fillMaxSize()
+                    .weight(1f, fill = false)
+                    .background(if (isLast) Color.Transparent else MaterialTheme.colorScheme.primary)
+            )
         }
 
-        val chainMap = trackedChainResult.chainMap
-        val effectiveHeadStopId = trackedChainResult.effectiveHeadStopId
+        Spacer(modifier = Modifier.width(12.dp))
 
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(bottom = 16.dp)
+        // 右側：車站資訊與到站時間卡片
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+            )
         ) {
-            itemsIndexed(
-                items = uiState.routeStops,
-                key = { _, stop -> stop.stopId }
-            ) { index, stop ->
-                val isExpanded = uiState.expandedStopIds.contains(stop.stopId)
-                val isBookmarked = uiState.bookmarks.any { it.stopId == stop.stopId }
-                val etaList = uiState.selectedStopEtaMap[stop.stopId]
+            Column(
+                modifier = Modifier.padding(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = stop.nameZh ?: "",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        if (!stop.nameEn.isNullOrEmpty()) {
+                            Text(
+                                text = stop.nameEn,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
 
-                val trackedPair = chainMap[stop.stopId]
-                val isTrackedInChain = trackedPair != null
-                val trackedEtaInfo = trackedPair?.first
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = onBookmarkClick) {
+                            Icon(
+                                imageVector = if (isBookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
+                                contentDescription = "書籤",
+                                tint = if (isBookmarked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
 
-                val showCancelTrackButton = (tracked != null && stop.stopId == effectiveHeadStopId)
-
-                val cardBgColor = if (isTrackedInChain) {
-                    Color(0xFFFFF9C4)
-                } else {
-                    Color.White
+                        Icon(
+                            imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                            contentDescription = "展開/收起",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
 
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 4.dp),
-                    colors = CardDefaults.cardColors(containerColor = cardBgColor),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { viewModel.toggleStopExpanded(stop.stopId) }
-                            .padding(12.dp)
+                // 未展開時顯示第一班 ETA 簡要資訊
+                if (!isExpanded && firstEta != null) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(28.dp)
-                                    .background(BlueContainer, CircleShape),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = "${index + 1}",
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = PrimaryDarkBlue
-                                )
-                            }
+                        val etaMinutes = getEtaMinutes(firstEta.etaTimestamp)
+                        Text(
+                            text = formatEtaDisplay(etaMinutes, firstEta.rmkZh),
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
 
-                            Spacer(modifier = Modifier.width(10.dp))
+                // 展開時顯示詳細 ETA 清單
+                AnimatedVisibility(
+                    visible = isExpanded,
+                    enter = expandVertically() + fadeIn(),
+                    exit = shrinkVertically() + fadeOut()
+                ) {
+                    Column(modifier = Modifier.padding(top = 8.dp)) {
+                        Divider(modifier = Modifier.padding(vertical = 8.dp))
 
+                        if (etas.isEmpty()) {
                             Text(
-                                text = stop.nameZh,
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = PrimaryDarkBlue,
-                                modifier = Modifier.weight(1f)
+                                text = "暫無到站時間數據",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
+                        } else {
+                            etas.forEachIndexed { etaIndex, eta ->
+                                val etaMinutes = getEtaMinutes(eta.etaTimestamp)
+                                val isTracked = trackedVehicle?.stopId == stop.stopId &&
+                                        trackedVehicle.etaTimestamp == eta.etaTimestamp
 
-                            IconButton(
-                                onClick = { viewModel.toggleBookmark(stop) },
-                                modifier = Modifier.size(32.dp)
-                            ) {
-                                Icon(
-                                    imageVector = if (isBookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
-                                    contentDescription = "Bookmark",
-                                    tint = if (isBookmarked) Color(0xFFFFC107) else Color.Gray,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 4.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            imageVector = Icons.Default.DirectionsBus,
+                                            contentDescription = "巴士",
+                                            modifier = Modifier.size(16.dp),
+                                            tint = MaterialTheme.colorScheme.primary
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = "班次 ${eta.etaSeq ?: (etaIndex + 1)}",
+                                            style = MaterialTheme.typography.bodyMedium
+                                        )
+                                    }
 
-                            Icon(
-                                imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                                contentDescription = "Expand",
-                                tint = Color.Gray,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            text = formatEtaDisplay(etaMinutes, eta.rmkZh),
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (etaMinutes != null && etaMinutes <= 3) Color(0xFFD32F2F) else MaterialTheme.colorScheme.primary
+                                        )
 
-                        if (isTrackedInChain && trackedEtaInfo != null && !isExpanded) {
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Default.DirectionsBus,
-                                    contentDescription = null,
-                                    tint = Color(0xFFF57F17),
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = "追蹤班次：${formatEtaDisplay(trackedEtaInfo)}",
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFFF57F17)
-                                )
-                            }
-                        }
+                                        Spacer(modifier = Modifier.width(8.dp))
 
-                        AnimatedVisibility(
-                            visible = isExpanded,
-                            enter = expandVertically(),
-                            exit = shrinkVertically()
-                        ) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(top = 8.dp)
-                            ) {
-                                HorizontalDivider(color = Color(0xFFEEEEEE))
-                                Spacer(modifier = Modifier.height(8.dp))
-
-                                if (etaList == null) {
-                                    Text(
-                                        text = "載入班次中...",
-                                        fontSize = 13.sp,
-                                        color = Color.Gray
-                                    )
-                                } else if (etaList.isEmpty()) {
-                                    Text(
-                                        text = "暫無預計班次",
-                                        fontSize = 13.sp,
-                                        color = Color.Gray
-                                    )
-                                } else {
-                                    etaList.forEach { eta ->
-                                        val isThisEtaTracked = isTrackedInChain &&
-                                                trackedEtaInfo?.etaTimestamp == eta.etaTimestamp &&
-                                                trackedEtaInfo?.etaSeq == eta.etaSeq
-
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(vertical = 4.dp),
-                                            verticalAlignment = Alignment.CenterVertically
+                                        // 追蹤車輛按鈕
+                                        IconButton(
+                                            onClick = { onTrackVehicleClick(eta) },
+                                            modifier = Modifier.size(28.dp)
                                         ) {
-                                            Text(
-                                                text = formatEtaDisplay(eta),
-                                                fontSize = 14.sp,
-                                                fontWeight = if (isThisEtaTracked) FontWeight.Bold else FontWeight.Medium,
-                                                color = if (isThisEtaTracked) Color(0xFFE65100) else BluePrimary,
-                                                modifier = Modifier.weight(1f)
+                                            Icon(
+                                                imageVector = if (isTracked) Icons.Filled.MyLocation else Icons.Outlined.MyLocation,
+                                                contentDescription = "追蹤車輛",
+                                                tint = if (isTracked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.size(20.dp)
                                             )
-
-                                            if (isThisEtaTracked && showCancelTrackButton) {
-                                                Button(
-                                                    onClick = { viewModel.toggleTrackVehicle(stop.stopId, eta.etaSeq, eta.etaTimestamp) },
-                                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD32F2F)),
-                                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-                                                    modifier = Modifier.height(30.dp)
-                                                ) {
-                                                    Icon(
-                                                        imageVector = Icons.Default.GpsOff,
-                                                        contentDescription = null,
-                                                        modifier = Modifier.size(14.dp)
-                                                    )
-                                                    Spacer(modifier = Modifier.width(4.dp))
-                                                    Text("取消追蹤", fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                                }
-                                            } else if (tracked == null) {
-                                                OutlinedButton(
-                                                    onClick = { viewModel.toggleTrackVehicle(stop.stopId, eta.etaSeq, eta.etaTimestamp) },
-                                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-                                                    modifier = Modifier.height(30.dp)
-                                                ) {
-                                                    Icon(
-                                                        imageVector = Icons.Default.GpsFixed,
-                                                        contentDescription = null,
-                                                        modifier = Modifier.size(14.dp)
-                                                    )
-                                                    Spacer(modifier = Modifier.width(4.dp))
-                                                    Text("追蹤此班", fontSize = 11.sp)
-                                                }
-                                            }
                                         }
                                     }
                                 }
