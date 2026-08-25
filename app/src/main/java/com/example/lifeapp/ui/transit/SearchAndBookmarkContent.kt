@@ -30,6 +30,7 @@ fun SearchTabContent(
     viewModel: TransitSearchViewModel
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
+        // 1. 搜尋列表，佔滿剩餘上方所有空間
         Box(modifier = Modifier.weight(1f)) {
             if (uiState.isLoadingRoutes) {
                 FullPageLoading()
@@ -103,6 +104,7 @@ fun SearchTabContent(
             }
         }
 
+        // 2. 底部 Chip 鍵盤，消除所有多餘 Padding 確保緊貼最底部
         Surface(
             modifier = Modifier.fillMaxWidth(),
             tonalElevation = 8.dp,
@@ -112,7 +114,7 @@ fun SearchTabContent(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 8.dp, end = 8.dp, top = 6.dp, bottom = 0.dp)
+                    .padding(start = 8.dp, end = 8.dp, top = 6.dp, bottom = 2.dp)
             ) {
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
