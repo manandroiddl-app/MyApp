@@ -224,16 +224,3 @@ fun TransitSearchScreen(
     }
 }
 
-/**
- * 輔助函式：轉換巴士公司 Enum 顯示名稱
- */
-private fun formatCompanyDisplayName(company: OperatorCompany?): String {
-    return when (company) {
-        OperatorCompany.KMB -> "九巴"
-        OperatorCompany.CTB -> "城巴"
-        OperatorCompany.NWFB -> "新巴"
-        OperatorCompany.NLB -> "嶼巴"
-        OperatorCompany.MTR_BUS -> "港鐵巴士"
-        else -> "巴士"
-    }
-}
