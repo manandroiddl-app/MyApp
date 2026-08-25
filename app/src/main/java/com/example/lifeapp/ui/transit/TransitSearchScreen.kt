@@ -15,6 +15,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.lifeapp.data.model.OperatorCompany
 import com.example.lifeapp.ui.common.AutoRefreshLifecycleHandler
 import com.example.lifeapp.ui.theme.PrimaryDarkBlue
 
@@ -207,10 +208,32 @@ fun TransitSearchScreen(
                             }
                         }
                     } else {
-                        RouteDetailContent(uiState = uiState, viewModel = viewModel)
+                        // 修正位置：對齊 RouteDetailContent 嘅新參數簽名
+                        RouteDetailContent(
+                            uiState = uiState,
+                            onBackClick = { viewModel.clearSelectedRoute() },
+                            onToggleBookmark = { stop -> viewModel.toggleBookmark(stop) },
+                            onToggleTrackVehicle = { stopId, seq, timestamp ->
+                                viewModel.toggleTrackVehicle(stopId, seq, timestamp)
+                            }
+                        )
                     }
                 }
             }
         }
+    }
+}
+
+/**
+ * 輔助函式：轉換巴士公司 Enum 顯示名稱
+ */
+private fun formatCompanyDisplayName(company: OperatorCompany?): String {
+    return when (company) {
+        OperatorCompany.KMB -> "九巴"
+        OperatorCompany.CTB -> "城巴"
+        OperatorCompany.NWFB -> "新巴"
+        OperatorCompany.NLB -> "嶼巴"
+        OperatorCompany.MTR_BUS -> "港鐵巴士"
+        else -> "巴士"
     }
 }
