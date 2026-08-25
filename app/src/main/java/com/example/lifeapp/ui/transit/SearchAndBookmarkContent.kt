@@ -36,7 +36,6 @@ fun SearchTabContent(
             } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
-                    // 🎯 給清單加入底部安全邊距，確保捲動到最後幾筆資料時不會被貼底的鍵盤擋住
                     contentPadding = PaddingValues(bottom = 8.dp)
                 ) {
                     items(uiState.filteredRoutes) { route ->
@@ -107,7 +106,6 @@ fun SearchTabContent(
             }
         }
 
-        // 🎯 鍵盤容器 Surface 貼齊最底部
         Surface(
             modifier = Modifier.fillMaxWidth(),
             tonalElevation = 8.dp,
