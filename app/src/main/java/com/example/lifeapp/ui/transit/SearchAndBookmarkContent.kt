@@ -30,12 +30,15 @@ fun SearchTabContent(
     viewModel: TransitSearchViewModel
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
-        // 1. 搜尋列表，佔滿剩餘上方所有空間
         Box(modifier = Modifier.weight(1f)) {
             if (uiState.isLoadingRoutes) {
                 FullPageLoading()
             } else {
-                LazyColumn(modifier = Modifier.fillMaxSize()) {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    // 🎯 給清單加入底部安全邊距，確保捲動到最後幾筆資料時不會被貼底的鍵盤擋住
+                    contentPadding = PaddingValues(bottom = 8.dp)
+                ) {
                     items(uiState.filteredRoutes) { route ->
                         val serviceTypeInt = route.serviceType?.toIntOrNull() ?: 1
                         val isSpecialService = serviceTypeInt > 1
@@ -104,7 +107,7 @@ fun SearchTabContent(
             }
         }
 
-        // 2. 底部 Chip 鍵盤，消除所有多餘 Padding 確保緊貼最底部
+        // 🎯 鍵盤容器 Surface 貼齊最底部
         Surface(
             modifier = Modifier.fillMaxWidth(),
             tonalElevation = 8.dp,
@@ -114,7 +117,7 @@ fun SearchTabContent(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 8.dp, end = 8.dp, top = 6.dp, bottom = 2.dp)
+                    .padding(start = 8.dp, end = 8.dp, top = 6.dp, bottom = 6.dp)
             ) {
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
