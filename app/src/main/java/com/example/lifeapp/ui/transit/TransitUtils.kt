@@ -31,14 +31,14 @@ fun formatEtaDisplay(etaMinutes: Long?, rmkZh: String?): String {
     }
 }
 
-// 新增：支援直接傳入 TransitEta 物件
+// 支援直接傳入 TransitEta 物件 (移除 rmkZh 以避免 Unresolved reference)
 fun formatEtaDisplay(eta: TransitEta?): String {
     if (eta == null) return "暫無數據"
     val minutes = getEtaMinutes(eta.etaTimestamp)
-    return formatEtaDisplay(minutes, eta.rmkZh)
+    return formatEtaDisplay(minutes, null)
 }
 
-// 新增：公開且同時支援 Enum 與 String 傳入的名稱轉換
+// 公開且同時支援 Enum 與 String 傳入的名稱轉換
 fun formatCompanyDisplayName(company: Any?): String {
     val name = when (company) {
         is OperatorCompany -> company.name
