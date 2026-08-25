@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
@@ -42,7 +41,6 @@ fun RouteDetailContent(
     } else {
         val tracked = uiState.trackedVehicle
 
-        // 計算追蹤鏈與 Effective Head Stop
         val trackedChainResult = remember(uiState.routeStops, uiState.selectedStopEtaMap, tracked) {
             calculateTrackedChain(uiState.routeStops, uiState.selectedStopEtaMap, tracked)
         }
@@ -59,19 +57,17 @@ fun RouteDetailContent(
                 key = { _, stop -> stop.stopId }
             ) { index, stop ->
                 val isExpanded = uiState.expandedStopIds.contains(stop.stopId)
-                val isBookmarked = uiState.bookmarks.any { it.stopId == stop.stopId && it.routeId == uiState.selectedRoute?.routeId }
+                val isBookmarked = uiState.bookmarks.any { it.stopId == stop.stopId }
                 val etaList = uiState.selectedStopEtaMap[stop.stopId]
 
-                // 車站是否在追蹤鏈中 (黃色 Highlight)
                 val trackedPair = chainMap[stop.stopId]
                 val isTrackedInChain = trackedPair != null
                 val trackedEtaInfo = trackedPair?.first
 
-                // 🎯 核心修復：當該站是當前有效追蹤鏈的第一個車站 (Effective Head) 時顯示「取消追蹤」按鈕
                 val showCancelTrackButton = (tracked != null && stop.stopId == effectiveHeadStopId)
 
                 val cardBgColor = if (isTrackedInChain) {
-                    Color(0xFFFFF9C4) // 黃色 Highlight
+                    Color(0xFFFFF9C4)
                 } else {
                     Color.White
                 }
@@ -137,7 +133,6 @@ fun RouteDetailContent(
                             )
                         }
 
-                        // 若此站屬於追蹤鏈，預覽顯示受追蹤班次 ETA
                         if (isTrackedInChain && trackedEtaInfo != null && !isExpanded) {
                             Spacer(modifier = Modifier.height(4.dp))
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -202,10 +197,9 @@ fun RouteDetailContent(
                                                 modifier = Modifier.weight(1f)
                                             )
 
-                                            // 🎯 按鈕邏輯：若為 Effective Head 車站且正在追蹤此班次，顯示「取消追蹤」
                                             if (isThisEtaTracked && showCancelTrackButton) {
                                                 Button(
-                                                    onClick = { viewModel.toggleTrackVehicle(stop, eta) },
+                                                    onClick = { viewModel.toggleTrackVehicle(stop.stopId, eta.etaSeq, eta.etaTimestamp) },
                                                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD32F2F)),
                                                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
                                                     modifier = Modifier.height(30.dp)
@@ -219,9 +213,8 @@ fun RouteDetailContent(
                                                     Text("取消追蹤", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                                 }
                                             } else if (tracked == null) {
-                                                // 尚未追蹤任何車輛時，顯示「追蹤此班」
                                                 OutlinedButton(
-                                                    onClick = { viewModel.toggleTrackVehicle(stop, eta) },
+                                                    onClick = { viewModel.toggleTrackVehicle(stop.stopId, eta.etaSeq, eta.etaTimestamp) },
                                                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
                                                     modifier = Modifier.height(30.dp)
                                                 ) {
