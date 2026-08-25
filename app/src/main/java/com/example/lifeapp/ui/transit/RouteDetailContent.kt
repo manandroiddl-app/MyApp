@@ -294,7 +294,7 @@ private fun StopDetailItem(
                     ) {
                         val etaMinutes = getEtaMinutes(firstEta.etaTimestamp)
                         Text(
-                            text = formatEtaDisplay(etaMinutes, firstEta.rmkZh),
+                            text = formatEtaDisplay(etaMinutes, null),
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.primary
@@ -339,14 +339,14 @@ private fun StopDetailItem(
                                         )
                                         Spacer(modifier = Modifier.width(6.dp))
                                         Text(
-                                            text = "班次 ${eta.etaSeq ?: (etaIndex + 1)}",
+                                            text = "班次 ${etaIndex + 1}",
                                             style = MaterialTheme.typography.bodyMedium
                                         )
                                     }
 
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Text(
-                                            text = formatEtaDisplay(etaMinutes, eta.rmkZh),
+                                            text = formatEtaDisplay(etaMinutes, null),
                                             style = MaterialTheme.typography.bodyMedium,
                                             fontWeight = FontWeight.Bold,
                                             color = if (etaMinutes != null && etaMinutes <= 3) Color(0xFFD32F2F) else MaterialTheme.colorScheme.primary
