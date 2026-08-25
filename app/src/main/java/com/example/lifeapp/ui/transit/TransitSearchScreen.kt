@@ -79,8 +79,6 @@ fun TransitSearchScreen(
                 }
             }
         ) { paddingValues ->
-            // 🎯 關鍵改動：將頂部與底部的 Padding 分開處理
-            // 當未選擇路線（無 BottomBar）時，底部 padding 值設為 0，讓 Chip 鍵盤延伸至螢幕最底
             val topPadding = paddingValues.calculateTopPadding()
             val bottomPadding = if (uiState.selectedRoute != null) paddingValues.calculateBottomPadding() else 0.dp
 
@@ -89,7 +87,6 @@ fun TransitSearchScreen(
                     .fillMaxSize()
                     .padding(top = topPadding, bottom = bottomPadding)
             ) {
-                // 頂部路線標題列
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
