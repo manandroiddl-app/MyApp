@@ -53,4 +53,6 @@
 
 編譯級審查（Compilation-Level Review）：輸出代碼前，在腦海中模擬 Kotlin Compiler run 一次全流程，確保無任何 Unresolved Reference、Type Mismatch 或 Parameter Missing 才會交貨。
 
+任何時候, 如果要用家提供最新版本, 才可以有足夠資料去查證或提升coding 質素, 必定要提出
+
 避免 Version Divergence (版本分支脫節)：防止因為版本錯配而產生「覆蓋了已完成功能」或「需要花大量時間改 Bug」的情況。
