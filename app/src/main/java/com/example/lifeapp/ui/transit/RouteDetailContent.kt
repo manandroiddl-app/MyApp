@@ -16,7 +16,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
-import androidx.compose.material.icons.filled.DirectionsBus
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.outlined.MyLocation
 import androidx.compose.material3.Card
@@ -26,6 +25,7 @@ import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -33,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.lifeapp.data.model.TransitEta
 import com.example.lifeapp.data.model.TransitStop
 
@@ -99,19 +100,20 @@ private fun StopDetailItem(
     onBookmarkClick: () -> Unit,
     onTrackVehicleClick: (TransitEta) -> Unit
 ) {
+    // 1) 車站卡片改用藍色系背景
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 6.dp),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+            containerColor = Color(0xFFE3F2FD) // 柔和淺藍色背景
         )
     ) {
         Column(
             modifier = Modifier.padding(12.dp)
         ) {
-            // 車站名稱列與書籤按鈕 (已移除 Seq No)
+            // 車站名稱列與書籤按鈕
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -121,13 +123,14 @@ private fun StopDetailItem(
                     Text(
                         text = stop.nameZh ?: "",
                         style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF0D47A1)
                     )
                     if (!stop.nameEn.isNullOrEmpty()) {
                         Text(
                             text = stop.nameEn,
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = Color(0xFF1565C0)
                         )
                     }
                 }
@@ -136,23 +139,27 @@ private fun StopDetailItem(
                     Icon(
                         imageVector = if (isBookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
                         contentDescription = "書籤",
-                        tint = if (isBookmarked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                        tint = if (isBookmarked) Color(0xFF1976D2) else Color(0xFF5C6BC0)
                     )
                 }
             }
 
-            Divider(modifier = Modifier.padding(vertical = 8.dp))
+            Divider(
+                modifier = Modifier.padding(vertical = 8.dp),
+                color = Color(0xFFBBDEFB)
+            )
 
-            // 直接展開所有 ETA 班次 (已移除收摺功能)
+            // 2) ETA 資訊 Layout 調整 (左: 倒數時間 | 中: 到達時刻 | 右: 追蹤 Icon)
             if (etas.isEmpty()) {
                 Text(
                     text = "暫無到站時間數據",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = Color(0xFF5C6BC0)
                 )
             } else {
-                etas.forEachIndexed { etaIndex, eta ->
+                etas.forEach { eta ->
                     val etaMinutes = getEtaMinutes(eta.etaTimestamp)
+                    val clockTime = formatEtaTimeClock(eta.etaTimestamp)
                     val isTracked = trackedVehicle?.stopId == stop.stopId &&
                             trackedVehicle.etaTimestamp == eta.etaTimestamp
 
@@ -160,45 +167,44 @@ private fun StopDetailItem(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(vertical = 4.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Default.DirectionsBus,
-                                contentDescription = "巴士",
-                                modifier = Modifier.size(16.dp),
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
+                        // 左欄：倒數分鐘 (例如 "5 分鐘" / "即將到站")
+                        Text(
+                            text = formatEtaDisplay(etaMinutes, eta.remarkZh),
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = if (etaMinutes != null && etaMinutes <= 3) Color(0xFFD32F2F) else Color(0xFF0D47A1),
+                            modifier = Modifier.weight(1.2f)
+                        )
+
+                        // 中欄：精確到達時刻 (例如 "[23:53]" / "[00:03]")
+                        Surface(
+                            color = Color(0xFFBBDEFB),
+                            shape = RoundedCornerShape(4.dp)
+                        ) {
                             Text(
-                                text = "班次 ${etaIndex + 1}",
-                                style = MaterialTheme.typography.bodyMedium
+                                text = "[$clockTime]",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color(0xFF1565C0),
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                             )
                         }
 
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = formatEtaDisplay(etaMinutes, eta.remarkZh),
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = if (etaMinutes != null && etaMinutes <= 3) Color(0xFFD32F2F) else MaterialTheme.colorScheme.primary
+                        Spacer(modifier = Modifier.width(12.dp))
+
+                        // 右欄：追蹤車輛 Icon
+                        IconButton(
+                            onClick = { onTrackVehicleClick(eta) },
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (isTracked) Icons.Filled.MyLocation else Icons.Outlined.MyLocation,
+                                contentDescription = "追蹤車輛",
+                                tint = if (isTracked) Color(0xFF1976D2) else Color(0xFF78909C),
+                                modifier = Modifier.size(20.dp)
                             )
-
-                            Spacer(modifier = Modifier.width(8.dp))
-
-                            // 追蹤車輛按鈕
-                            IconButton(
-                                onClick = { onTrackVehicleClick(eta) },
-                                modifier = Modifier.size(28.dp)
-                            ) {
-                                Icon(
-                                    imageVector = if (isTracked) Icons.Filled.MyLocation else Icons.Outlined.MyLocation,
-                                    contentDescription = "追蹤車輛",
-                                    tint = if (isTracked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
                         }
                     }
                 }
