@@ -17,12 +17,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.lifeapp.domain.model.OperatorCompany
+import com.example.lifeapp.data.model.OperatorCompany
 import com.example.lifeapp.ui.common.FullPageLoading
 import com.example.lifeapp.ui.theme.PrimaryDarkBlue
-import com.example.lifeapp.util.formatCompanyDisplayName
-import com.example.lifeapp.util.formatEtaDisplay
-import com.example.lifeapp.util.getEtaMinutes
 
 private val BluePrimary = Color(0xFF1976D2)
 private val BlueContainer = Color(0xFFE3F2FD)
