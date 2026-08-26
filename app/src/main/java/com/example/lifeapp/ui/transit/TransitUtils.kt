@@ -1,54 +1,63 @@
 package com.example.lifeapp.ui.transit
 
 import com.example.lifeapp.data.model.OperatorCompany
-import com.example.lifeapp.data.model.TransitEta
-import java.text.SimpleDateFormat
-import java.util.Locale
-import java.util.TimeZone
+import java.time.Duration
+import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
 
-fun getEtaMinutes(etaTimestamp: String?): Long? {
+/**
+ * 計算 ISO 8601 時間字串與當前時間的相差分鐘數
+ */
+fun getEtaMinutes(etaTimestamp: String?): Int? {
     if (etaTimestamp.isNullOrEmpty()) return null
     return try {
-        val sdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.getDefault())
-        sdf.timeZone = TimeZone.getTimeZone("Asia/Hong_Kong")
-        val etaDate = sdf.parse(etaTimestamp) ?: return null
-        val diffMs = etaDate.time - System.currentTimeMillis()
-        val minutes = diffMs / (1000 * 60)
+        val etaTime = ZonedDateTime.parse(etaTimestamp)
+        val now = ZonedDateTime.now()
+        val duration = Duration.between(now, etaTime)
+        val minutes = duration.toMinutes().toInt()
         if (minutes < 0) 0 else minutes
-    } catch (_: Exception) {
+    } catch (e: Exception) {
         null
     }
 }
 
-fun formatEtaDisplay(etaMinutes: Long?, rmkZh: String?): String {
-    if (!rmkZh.isNullOrEmpty() && rmkZh != "原定班次" && rmkZh != "預算班次") {
-        return rmkZh
+/**
+ * 格式化倒數時間顯示 (例: "即將到站", "5 分鐘")
+ */
+fun formatEtaDisplay(etaMinutes: Int?, remark: String?): String {
+    if (etaMinutes == null) {
+        return remark ?: "暫無資料"
     }
-    return when (etaMinutes) {
-        null -> "暫無數據"
-        0L -> "即將到站"
-        else -> "${etaMinutes} 分鐘"
+    return when {
+        etaMinutes <= 0 -> "即將到站"
+        else -> "$etaMinutes 分鐘"
     }
 }
 
-// 支援直接傳入 TransitEta 物件 (移除 rmkZh 以避免 Unresolved reference)
-fun formatEtaDisplay(eta: TransitEta?): String {
-    if (eta == null) return "暫無數據"
-    val minutes = getEtaMinutes(eta.etaTimestamp)
-    return formatEtaDisplay(minutes, null)
+/**
+ * 將 ISO 8601 時間字串格式化為精確時刻 [HH:mm] (例: "23:53", "00:03")
+ */
+fun formatEtaTimeClock(etaTimestamp: String?): String {
+    if (etaTimestamp.isNullOrEmpty()) return "--:--"
+    return try {
+        val etaTime = ZonedDateTime.parse(etaTimestamp)
+        val formatter = DateTimeFormatter.ofPattern("HH:mm")
+        etaTime.format(formatter)
+    } catch (e: Exception) {
+        "--:--"
+    }
 }
 
-// 公開且同時支援 Enum 與 String 傳入的名稱轉換
-fun formatCompanyDisplayName(company: Any?): String {
-    val name = when (company) {
-        is OperatorCompany -> company.name
-        else -> company?.toString() ?: ""
-    }
-    return when (name.uppercase()) {
-        "KMB" -> "九巴"
-        "CTB" -> "城巴"
-        "NLB" -> "嶼巴"
-        "LRTFE", "MTR" -> "港鐵巴士"
-        else -> "巴士"
+/**
+ * 轉換公司名稱顯示
+ */
+fun formatCompanyDisplayName(company: OperatorCompany): String {
+    return when (company) {
+        OperatorCompany.KMB -> "九巴"
+        OperatorCompany.CTB -> "城巴"
+        OperatorCompany.NLB -> "嶼巴"
+        OperatorCompany.GMB -> "專線小巴"
+        OperatorCompany.MTR -> "港鐵"
+        OperatorCompany.FERRY -> "渡輪"
     }
 }
