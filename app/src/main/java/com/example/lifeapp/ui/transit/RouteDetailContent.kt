@@ -179,7 +179,7 @@ private fun StopDetailItem(
 
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = formatEtaDisplay(etaMinutes, eta.rmk),
+                                text = formatEtaDisplay(etaMinutes, eta.remarkZh),
                                 style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = if (etaMinutes != null && etaMinutes <= 3) Color(0xFFD32F2F) else MaterialTheme.colorScheme.primary
