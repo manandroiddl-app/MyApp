@@ -241,6 +241,13 @@ fun BookmarkTabContent(
         ) {
             items(uiState.bookmarks) { bookmark ->
                 val etaList = uiState.selectedStopEtaMap[bookmark.stopId] ?: emptyList()
+                
+                // 將 String 安全轉換成 OperatorCompany 枚舉
+                val operatorCompany = try {
+                    OperatorCompany.valueOf(bookmark.company)
+                } catch (_: Exception) {
+                    OperatorCompany.KMB
+                }
 
                 Card(
                     modifier = Modifier
@@ -263,7 +270,7 @@ fun BookmarkTabContent(
                                     shape = RoundedCornerShape(4.dp)
                                 ) {
                                     Text(
-                                        text = "${formatCompanyDisplayName(bookmark.company)} ${bookmark.routeName}",
+                                        text = "${formatCompanyDisplayName(operatorCompany)} ${bookmark.routeName}",
                                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                                         fontWeight = FontWeight.Bold,
                                         color = BlueOnContainer
