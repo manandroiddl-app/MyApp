@@ -15,7 +15,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.example.lifeapp.data.model.OperatorCompany
 import com.example.lifeapp.ui.common.AutoRefreshLifecycleHandler
 import com.example.lifeapp.ui.theme.PrimaryDarkBlue
 
@@ -80,13 +79,13 @@ fun TransitSearchScreen(
                 }
             }
         ) { paddingValues ->
-            val topPadding = paddingValues.calculateTopPadding()
+            // 移除頂部 calculateTopPadding()，讓 High-level 路線資料緊貼頂部
             val bottomPadding = if (uiState.selectedRoute != null) paddingValues.calculateBottomPadding() else 0.dp
 
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(top = topPadding, bottom = bottomPadding)
+                    .padding(bottom = bottomPadding)
             ) {
                 Row(
                     modifier = Modifier
@@ -208,7 +207,6 @@ fun TransitSearchScreen(
                             }
                         }
                     } else {
-                        // 修正位置：對齊 RouteDetailContent 嘅新參數簽名
                         RouteDetailContent(
                             uiState = uiState,
                             onBackClick = { viewModel.clearSelectedRoute() },
@@ -223,4 +221,3 @@ fun TransitSearchScreen(
         }
     }
 }
-
