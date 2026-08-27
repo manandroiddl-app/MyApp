@@ -39,6 +39,15 @@ import com.example.lifeapp.data.model.TransitEta
 import com.example.lifeapp.data.model.TransitStop
 import java.time.ZonedDateTime
 
+/**
+ * 封裝追蹤運算後的結果
+ */
+private data class TrackingCalculationResult(
+    val trackedEtaMap: Map<String, String>,      // StopId -> Highlighted EtaTimestamp
+    val activeBaseStopId: String?,               // 當前最新有效的起點車站 ID
+    val activeBaseEtaTimestamp: String?          // 當前最新有效的起點 ETA Timestamp
+)
+
 @Composable
 fun RouteDetailContent(
     uiState: TransitUiState,
@@ -64,8 +73,8 @@ fun RouteDetailContent(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         } else {
-            // 計算跨車站鏈式追蹤地圖：Map<StopId, TrackedEtaTimestamp>
-            val trackedEtaMap = calculateTrackedEtaMap(
+            // 計算跨車站鏈式追蹤地圖（支援車輛到站後自動順移起點）
+            val trackingResult = calculateTrackedEtaMap(
                 routeStops = uiState.routeStops,
                 stopEtaMap = uiState.selectedStopEtaMap,
                 trackedVehicle = uiState.trackedVehicle
@@ -89,7 +98,9 @@ fun RouteDetailContent(
                         etas = etas,
                         isBookmarked = isBookmarked,
                         trackedVehicle = uiState.trackedVehicle,
-                        trackedEtaTimestamp = trackedEtaMap[stop.stopId],
+                        trackedEtaTimestamp = trackingResult.trackedEtaMap[stop.stopId],
+                        activeBaseStopId = trackingResult.activeBaseStopId,
+                        activeBaseEtaTimestamp = trackingResult.activeBaseEtaTimestamp,
                         onBookmarkClick = { onToggleBookmark(stop) },
                         onTrackVehicleClick = { eta ->
                             onToggleTrackVehicle(stop.stopId, stop.sequence, eta.etaTimestamp)
@@ -108,6 +119,8 @@ private fun StopDetailItem(
     isBookmarked: Boolean,
     trackedVehicle: TrackedVehicleInfo?,
     trackedEtaTimestamp: String?,
+    activeBaseStopId: String?,
+    activeBaseEtaTimestamp: String?,
     onBookmarkClick: () -> Unit,
     onTrackVehicleClick: (TransitEta) -> Unit
 ) {
@@ -170,8 +183,10 @@ private fun StopDetailItem(
                 etas.forEach { eta ->
                     val etaMinutes = getEtaMinutes(eta.etaTimestamp)
                     val clockTime = formatEtaTimeClock(eta.etaTimestamp)
-                    val isTrackedIcon = trackedVehicle?.stopId == stop.stopId &&
-                            trackedVehicle.etaTimestamp == eta.etaTimestamp
+
+                    // 判斷是否為當前最前方的「有效追蹤起點」 Icon 點
+                    val isActiveBaseTrackedIcon = activeBaseStopId == stop.stopId &&
+                            activeBaseEtaTimestamp == eta.etaTimestamp
 
                     // 判斷是否屬於「追蹤目標班次」（包含起點站與鏈式比對到的下游車站）
                     val isHighlighted = trackedEtaTimestamp != null && trackedEtaTimestamp == eta.etaTimestamp
@@ -229,16 +244,17 @@ private fun StopDetailItem(
                             }
                         }
 
-                        // 右側：追蹤車輛 Icon (未選擇時全顯示；已選擇時僅顯示被選中的 Icon，其餘 Hide)
-                        if (trackedVehicle == null || isTrackedIcon) {
+                        // 右側：追蹤車輛 Icon
+                        // 未追蹤時全顯示；已追蹤時，僅在「當前最新有效起點」顯示 Icon 供取消控制，其餘 Hide
+                        if (trackedVehicle == null || isActiveBaseTrackedIcon) {
                             IconButton(
                                 onClick = { onTrackVehicleClick(eta) },
                                 modifier = Modifier.size(28.dp)
                             ) {
                                 Icon(
-                                    imageVector = if (isTrackedIcon) Icons.Filled.MyLocation else Icons.Outlined.MyLocation,
+                                    imageVector = if (isActiveBaseTrackedIcon) Icons.Filled.MyLocation else Icons.Outlined.MyLocation,
                                     contentDescription = "追蹤車輛",
-                                    tint = if (isTrackedIcon) Color(0xFF1976D2) else Color(0xFF78909C),
+                                    tint = if (isActiveBaseTrackedIcon) Color(0xFF1976D2) else Color(0xFF78909C),
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
@@ -255,53 +271,91 @@ private fun StopDetailItem(
 
 /**
  * 計算全路線被追蹤車輛的跨車站鏈式 (Chain Reaction) ETA 時間表
+ * 支援舊起點站到站離去後，自動順移起點至下一個下游相關車站
  */
 private fun calculateTrackedEtaMap(
     routeStops: List<TransitStop>,
     stopEtaMap: Map<String, List<TransitEta>>,
     trackedVehicle: TrackedVehicleInfo?
-): Map<String, String> {
+): TrackingCalculationResult {
     if (trackedVehicle == null || trackedVehicle.etaTimestamp.isNullOrEmpty()) {
-        return emptyMap()
+        return TrackingCalculationResult(emptyMap(), null, null)
     }
 
-    val baseTime = parseZonedDateTime(trackedVehicle.etaTimestamp) ?: return emptyMap()
     val resultMap = mutableMapOf<String, String>()
     
-    // 紀錄起點站
-    resultMap[trackedVehicle.stopId] = trackedVehicle.etaTimestamp
+    // 檢查原本記錄的起點車站與 ETA 時間是否依然有效（未到站完結）
+    val originalStopEtas = stopEtaMap[trackedVehicle.stopId] ?: emptyList()
+    val isOriginalStillValid = originalStopEtas.any { it.etaTimestamp == trackedVehicle.etaTimestamp }
 
-    // lastValidTime 隨每一站鏈式遞補更新 (Chain Reaction)
-    var lastValidTime = baseTime
+    var activeBaseStopId: String? = null
+    var activeBaseEtaTimestamp: String? = null
+    var lastValidTime: ZonedDateTime? = null
 
-    // 依序掃描車站列表
+    if (isOriginalStillValid) {
+        // 情況 1: 原始起點站班車尚未離站，以原始點作為有效起點
+        activeBaseStopId = trackedVehicle.stopId
+        activeBaseEtaTimestamp = trackedVehicle.etaTimestamp
+        resultMap[trackedVehicle.stopId] = trackedVehicle.etaTimestamp
+        lastValidTime = parseZonedDateTime(trackedVehicle.etaTimestamp)
+    }
+
+    // 依序掃描車站列表（尋找新起點或進行連鎖推進）
     routeStops.forEach { stop ->
-        // 只計算起點站之後（下游）的車站
         if (stop.sequence > trackedVehicle.stopSequence) {
             val etas = stopEtaMap[stop.stopId] ?: emptyList()
-            
-            // 在當前車站尋找第一個時間大於等於「上一個成功匹配車站時間 (lastValidTime)」的 ETA
-            val matchedEta = etas.mapNotNull { eta ->
-                val timestamp = eta.etaTimestamp
-                if (timestamp != null) {
-                    val time = parseZonedDateTime(timestamp)
-                    if (time != null) Triple(eta, timestamp, time) else null
-                } else null
-            }.filter { (_, _, time) ->
-                !time.isBefore(lastValidTime)
-            }.minByOrNull { (_, _, time) ->
-                time.toInstant().toEpochMilli()
-            }
 
-            if (matchedEta != null) {
-                resultMap[stop.stopId] = matchedEta.second
-                // 連鎖反應核心：將最新車站的時間更新為下一站的比對基準
-                lastValidTime = matchedEta.third
+            if (lastValidTime == null) {
+                // 情況 2: 原始起點站已離站，順移尋找下一個下游的第一班符合條件車輛作為「新起點」
+                val initialBaseTime = parseZonedDateTime(trackedVehicle.etaTimestamp)
+                if (initialBaseTime != null) {
+                    val matchedNewBase = etas.mapNotNull { eta ->
+                        val timestamp = eta.etaTimestamp
+                        if (timestamp != null) {
+                            val time = parseZonedDateTime(timestamp)
+                            if (time != null) Triple(eta, timestamp, time) else null
+                        } else null
+                    }.filter { (_, _, time) ->
+                        !time.isBefore(initialBaseTime)
+                    }.minByOrNull { (_, _, time) ->
+                        time.toInstant().toEpochMilli()
+                    }
+
+                    if (matchedNewBase != null) {
+                        activeBaseStopId = stop.stopId
+                        activeBaseEtaTimestamp = matchedNewBase.second
+                        resultMap[stop.stopId] = matchedNewBase.second
+                        lastValidTime = matchedNewBase.third
+                    }
+                }
+            } else {
+                // 進行鏈式連鎖遞推 (Chain Reaction)
+                val currentBaseTime = lastValidTime ?: return@forEach
+                val matchedEta = etas.mapNotNull { eta ->
+                    val timestamp = eta.etaTimestamp
+                    if (timestamp != null) {
+                        val time = parseZonedDateTime(timestamp)
+                        if (time != null) Triple(eta, timestamp, time) else null
+                    } else null
+                }.filter { (_, _, time) ->
+                    !time.isBefore(currentBaseTime)
+                }.minByOrNull { (_, _, time) ->
+                    time.toInstant().toEpochMilli()
+                }
+
+                if (matchedEta != null) {
+                    resultMap[stop.stopId] = matchedEta.second
+                    lastValidTime = matchedEta.third
+                }
             }
         }
     }
 
-    return resultMap
+    return TrackingCalculationResult(
+        trackedEtaMap = resultMap,
+        activeBaseStopId = activeBaseStopId,
+        activeBaseEtaTimestamp = activeBaseEtaTimestamp
+    )
 }
 
 private fun parseZonedDateTime(timeStr: String?): ZonedDateTime? {
