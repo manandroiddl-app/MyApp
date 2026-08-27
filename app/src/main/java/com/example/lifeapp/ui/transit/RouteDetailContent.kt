@@ -64,7 +64,7 @@ fun RouteDetailContent(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         } else {
-            // 計算跨車站追蹤地圖：Map<StopId, TrackedEtaTimestamp>
+            // 計算跨車站鏈式追蹤地圖：Map<StopId, TrackedEtaTimestamp>
             val trackedEtaMap = calculateTrackedEtaMap(
                 routeStops = uiState.routeStops,
                 stopEtaMap = uiState.selectedStopEtaMap,
@@ -173,7 +173,7 @@ private fun StopDetailItem(
                     val isTrackedIcon = trackedVehicle?.stopId == stop.stopId &&
                             trackedVehicle.etaTimestamp == eta.etaTimestamp
 
-                    // 判斷是否屬於「追蹤目標班次」（包含起點站與匹配到的下游車站）
+                    // 判斷是否屬於「追蹤目標班次」（包含起點站與鏈式比對到的下游車站）
                     val isHighlighted = trackedEtaTimestamp != null && trackedEtaTimestamp == eta.etaTimestamp
 
                     Row(
@@ -203,7 +203,7 @@ private fun StopDetailItem(
 
                             Spacer(modifier = Modifier.width(8.dp))
 
-                            // 精確到達時刻與格仔旗 Icon (被追蹤的車輛改為深藍底白字)
+                            // 精確到達時刻與格仔旗 Icon (被追蹤的班次改為深藍底白字)
                             Surface(
                                 color = if (isHighlighted) Color(0xFF0D47A1) else Color(0xFFBBDEFB),
                                 shape = RoundedCornerShape(4.dp)
@@ -229,17 +229,22 @@ private fun StopDetailItem(
                             }
                         }
 
-                        // 右側：追蹤車輛 Icon
-                        IconButton(
-                            onClick = { onTrackVehicleClick(eta) },
-                            modifier = Modifier.size(28.dp)
-                        ) {
-                            Icon(
-                                imageVector = if (isTrackedIcon) Icons.Filled.MyLocation else Icons.Outlined.MyLocation,
-                                contentDescription = "追蹤車輛",
-                                tint = if (isTrackedIcon) Color(0xFF1976D2) else Color(0xFF78909C),
-                                modifier = Modifier.size(20.dp)
-                            )
+                        // 右側：追蹤車輛 Icon (未選擇時全顯示；已選擇時僅顯示被選中的 Icon，其餘 Hide)
+                        if (trackedVehicle == null || isTrackedIcon) {
+                            IconButton(
+                                onClick = { onTrackVehicleClick(eta) },
+                                modifier = Modifier.size(28.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (isTrackedIcon) Icons.Filled.MyLocation else Icons.Outlined.MyLocation,
+                                    contentDescription = "追蹤車輛",
+                                    tint = if (isTrackedIcon) Color(0xFF1976D2) else Color(0xFF78909C),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        } else {
+                            // 當其他 Icon 隱藏時保持空位防止 Layout 跳動
+                            Spacer(modifier = Modifier.size(28.dp))
                         }
                     }
                 }
@@ -249,7 +254,7 @@ private fun StopDetailItem(
 }
 
 /**
- * 計算全路線被追蹤車輛的跨車站 ETA 時間表
+ * 計算全路線被追蹤車輛的跨車站鏈式 (Chain Reaction) ETA 時間表
  */
 private fun calculateTrackedEtaMap(
     routeStops: List<TransitStop>,
@@ -266,6 +271,7 @@ private fun calculateTrackedEtaMap(
     // 紀錄起點站
     resultMap[trackedVehicle.stopId] = trackedVehicle.etaTimestamp
 
+    // lastValidTime 隨每一站鏈式遞補更新 (Chain Reaction)
     var lastValidTime = baseTime
 
     // 依序掃描車站列表
@@ -274,7 +280,7 @@ private fun calculateTrackedEtaMap(
         if (stop.sequence > trackedVehicle.stopSequence) {
             val etas = stopEtaMap[stop.stopId] ?: emptyList()
             
-            // 尋找第一個時間大於等於前一站時間的 ETA
+            // 在當前車站尋找第一個時間大於等於「上一個成功匹配車站時間 (lastValidTime)」的 ETA
             val matchedEta = etas.mapNotNull { eta ->
                 val timestamp = eta.etaTimestamp
                 if (timestamp != null) {
@@ -289,6 +295,7 @@ private fun calculateTrackedEtaMap(
 
             if (matchedEta != null) {
                 resultMap[stop.stopId] = matchedEta.second
+                // 連鎖反應核心：將最新車站的時間更新為下一站的比對基準
                 lastValidTime = matchedEta.third
             }
         }
