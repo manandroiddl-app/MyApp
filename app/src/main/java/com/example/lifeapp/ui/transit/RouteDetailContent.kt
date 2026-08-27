@@ -276,17 +276,20 @@ private fun calculateTrackedEtaMap(
             
             // 尋找第一個時間大於等於前一站時間的 ETA
             val matchedEta = etas.mapNotNull { eta ->
-                val time = parseZonedDateTime(eta.etaTimestamp)
-                if (time != null) eta to time else null
-            }.filter { (_, time) ->
+                val timestamp = eta.etaTimestamp
+                if (timestamp != null) {
+                    val time = parseZonedDateTime(timestamp)
+                    if (time != null) Triple(eta, timestamp, time) else null
+                } else null
+            }.filter { (_, _, time) ->
                 !time.isBefore(lastValidTime)
-            }.minByOrNull { (_, time) ->
+            }.minByOrNull { (_, _, time) ->
                 time.toInstant().toEpochMilli()
             }
 
             if (matchedEta != null) {
-                resultMap[stop.stopId] = matchedEta.first.etaTimestamp
-                lastValidTime = matchedEta.second
+                resultMap[stop.stopId] = matchedEta.second
+                lastValidTime = matchedEta.third
             }
         }
     }
