@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.lifeapp.data.model.TransitEta
 import com.example.lifeapp.data.model.TransitStop
+import java.time.ZonedDateTime
 
 @Composable
 fun RouteDetailContent(
@@ -63,6 +64,13 @@ fun RouteDetailContent(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         } else {
+            // 計算跨車站追蹤地圖：Map<StopId, TrackedEtaTimestamp>
+            val trackedEtaMap = calculateTrackedEtaMap(
+                routeStops = uiState.routeStops,
+                stopEtaMap = uiState.selectedStopEtaMap,
+                trackedVehicle = uiState.trackedVehicle
+            )
+
             LazyColumn(
                 modifier = Modifier.fillMaxSize()
             ) {
@@ -81,6 +89,7 @@ fun RouteDetailContent(
                         etas = etas,
                         isBookmarked = isBookmarked,
                         trackedVehicle = uiState.trackedVehicle,
+                        trackedEtaTimestamp = trackedEtaMap[stop.stopId],
                         onBookmarkClick = { onToggleBookmark(stop) },
                         onTrackVehicleClick = { eta ->
                             onToggleTrackVehicle(stop.stopId, stop.sequence, eta.etaTimestamp)
@@ -98,10 +107,10 @@ private fun StopDetailItem(
     etas: List<TransitEta>,
     isBookmarked: Boolean,
     trackedVehicle: TrackedVehicleInfo?,
+    trackedEtaTimestamp: String?,
     onBookmarkClick: () -> Unit,
     onTrackVehicleClick: (TransitEta) -> Unit
 ) {
-    // 1) 車站卡片改用藍色系背景
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -150,7 +159,7 @@ private fun StopDetailItem(
                 color = Color(0xFFBBDEFB)
             )
 
-            // 2) ETA 資訊 Layout 調整 (左: 倒數分鐘 + 🏁 到達時刻 | 右: 追蹤 Icon)
+            // ETA 資訊 Layout
             if (etas.isEmpty()) {
                 Text(
                     text = "暫無到站時間數據",
@@ -161,8 +170,11 @@ private fun StopDetailItem(
                 etas.forEach { eta ->
                     val etaMinutes = getEtaMinutes(eta.etaTimestamp)
                     val clockTime = formatEtaTimeClock(eta.etaTimestamp)
-                    val isTracked = trackedVehicle?.stopId == stop.stopId &&
+                    val isTrackedIcon = trackedVehicle?.stopId == stop.stopId &&
                             trackedVehicle.etaTimestamp == eta.etaTimestamp
+
+                    // 判斷是否屬於「追蹤目標班次」（包含起點站與匹配到的下游車站）
+                    val isHighlighted = trackedEtaTimestamp != null && trackedEtaTimestamp == eta.etaTimestamp
 
                     Row(
                         modifier = Modifier
@@ -180,14 +192,20 @@ private fun StopDetailItem(
                                 text = formatEtaDisplay(etaMinutes, eta.remarkZh),
                                 style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = FontWeight.Bold,
-                                color = if (etaMinutes != null && etaMinutes <= 3) Color(0xFFD32F2F) else Color(0xFF0D47A1)
+                                color = if (isHighlighted) {
+                                    Color(0xFF0D47A1)
+                                } else if (etaMinutes != null && etaMinutes <= 3) {
+                                    Color(0xFFD32F2F)
+                                } else {
+                                    Color(0xFF0D47A1)
+                                }
                             )
 
                             Spacer(modifier = Modifier.width(8.dp))
 
-                            // 精確到達時刻與格仔旗 Icon
+                            // 精確到達時刻與格仔旗 Icon (被追蹤的車輛改為深藍底白字)
                             Surface(
-                                color = Color(0xFFBBDEFB),
+                                color = if (isHighlighted) Color(0xFF0D47A1) else Color(0xFFBBDEFB),
                                 shape = RoundedCornerShape(4.dp)
                             ) {
                                 Row(
@@ -197,15 +215,15 @@ private fun StopDetailItem(
                                     Icon(
                                         imageVector = Icons.Default.SportsScore,
                                         contentDescription = "到達時刻",
-                                        tint = Color(0xFF1565C0),
+                                        tint = if (isHighlighted) Color.White else Color(0xFF1565C0),
                                         modifier = Modifier.size(16.dp)
                                     )
                                     Spacer(modifier = Modifier.width(4.dp))
                                     Text(
                                         text = clockTime,
                                         fontSize = 13.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = Color(0xFF1565C0)
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isHighlighted) Color.White else Color(0xFF1565C0)
                                     )
                                 }
                             }
@@ -217,9 +235,9 @@ private fun StopDetailItem(
                             modifier = Modifier.size(28.dp)
                         ) {
                             Icon(
-                                imageVector = if (isTracked) Icons.Filled.MyLocation else Icons.Outlined.MyLocation,
+                                imageVector = if (isTrackedIcon) Icons.Filled.MyLocation else Icons.Outlined.MyLocation,
                                 contentDescription = "追蹤車輛",
-                                tint = if (isTracked) Color(0xFF1976D2) else Color(0xFF78909C),
+                                tint = if (isTrackedIcon) Color(0xFF1976D2) else Color(0xFF78909C),
                                 modifier = Modifier.size(20.dp)
                             )
                         }
@@ -227,5 +245,60 @@ private fun StopDetailItem(
                 }
             }
         }
+    }
+}
+
+/**
+ * 計算全路線被追蹤車輛的跨車站 ETA 時間表
+ */
+private fun calculateTrackedEtaMap(
+    routeStops: List<TransitStop>,
+    stopEtaMap: Map<String, List<TransitEta>>,
+    trackedVehicle: TrackedVehicleInfo?
+): Map<String, String> {
+    if (trackedVehicle == null || trackedVehicle.etaTimestamp.isNullOrEmpty()) {
+        return emptyMap()
+    }
+
+    val baseTime = parseZonedDateTime(trackedVehicle.etaTimestamp) ?: return emptyMap()
+    val resultMap = mutableMapOf<String, String>()
+    
+    // 紀錄起點站
+    resultMap[trackedVehicle.stopId] = trackedVehicle.etaTimestamp
+
+    var lastValidTime = baseTime
+
+    // 依序掃描車站列表
+    routeStops.forEach { stop ->
+        // 只計算起點站之後（下游）的車站
+        if (stop.sequence > trackedVehicle.stopSequence) {
+            val etas = stopEtaMap[stop.stopId] ?: emptyList()
+            
+            // 尋找第一個時間大於等於前一站時間的 ETA
+            val matchedEta = etas.mapNotNull { eta ->
+                val time = parseZonedDateTime(eta.etaTimestamp)
+                if (time != null) eta to time else null
+            }.filter { (_, time) ->
+                !time.isBefore(lastValidTime)
+            }.minByOrNull { (_, time) ->
+                time.toInstant().toEpochMilli()
+            }
+
+            if (matchedEta != null) {
+                resultMap[stop.stopId] = matchedEta.first.etaTimestamp
+                lastValidTime = matchedEta.second
+            }
+        }
+    }
+
+    return resultMap
+}
+
+private fun parseZonedDateTime(timeStr: String?): ZonedDateTime? {
+    if (timeStr.isNullOrEmpty()) return null
+    return try {
+        ZonedDateTime.parse(timeStr)
+    } catch (_: Exception) {
+        null
     }
 }
