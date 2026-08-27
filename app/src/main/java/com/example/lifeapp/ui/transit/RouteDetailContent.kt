@@ -17,6 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.MyLocation
+import androidx.compose.material.icons.filled.SportsScore
 import androidx.compose.material.icons.outlined.MyLocation
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -149,7 +150,7 @@ private fun StopDetailItem(
                 color = Color(0xFFBBDEFB)
             )
 
-            // 2) ETA 資訊 Layout 調整 (左: 倒數時間 | 中: 到達時刻 | 右: 追蹤 Icon)
+            // 2) ETA 資訊 Layout 調整 (左: 倒數分鐘 + 🏁 到達時刻 | 右: 追蹤 Icon)
             if (etas.isEmpty()) {
                 Text(
                     text = "暫無到站時間數據",
@@ -169,32 +170,48 @@ private fun StopDetailItem(
                             .padding(vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // 左欄：倒數分鐘 (例如 "5 分鐘" / "即將到站")
-                        Text(
-                            text = formatEtaDisplay(etaMinutes, eta.remarkZh),
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = if (etaMinutes != null && etaMinutes <= 3) Color(0xFFD32F2F) else Color(0xFF0D47A1),
-                            modifier = Modifier.weight(1.2f)
-                        )
-
-                        // 中欄：精確到達時刻 (例如 "[23:53]" / "[00:03]")
-                        Surface(
-                            color = Color(0xFFBBDEFB),
-                            shape = RoundedCornerShape(4.dp)
+                        // 左側區塊：倒數分鐘 + 格仔旗與到達時刻
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
                         ) {
+                            // 倒數分鐘 (例如 "5 分鐘" / "即將到站")
                             Text(
-                                text = "[$clockTime]",
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = Color(0xFF1565C0),
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                text = formatEtaDisplay(etaMinutes, eta.remarkZh),
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = if (etaMinutes != null && etaMinutes <= 3) Color(0xFFD32F2F) else Color(0xFF0D47A1)
                             )
+
+                            Spacer(modifier = Modifier.width(8.dp))
+
+                            // 精確到達時刻與格仔旗 Icon
+                            Surface(
+                                color = Color(0xFFBBDEFB),
+                                shape = RoundedCornerShape(4.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.SportsScore,
+                                        contentDescription = "到達時刻",
+                                        tint = Color(0xFF1565C0),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = clockTime,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = Color(0xFF1565C0)
+                                    )
+                                }
+                            }
                         }
 
-                        Spacer(modifier = Modifier.width(12.dp))
-
-                        // 右欄：追蹤車輛 Icon
+                        // 右側：追蹤車輛 Icon
                         IconButton(
                             onClick = { onTrackVehicleClick(eta) },
                             modifier = Modifier.size(28.dp)
