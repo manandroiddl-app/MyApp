@@ -9,6 +9,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Backspace
 import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.SportsScore
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -262,7 +263,7 @@ fun BookmarkTabContent(
                             .fillMaxWidth()
                             .padding(12.dp)
                     ) {
-                        // 1. 頂部列：<公司名> <路線編號> <起點> ➔ <終點>
+                        // 1. 頂部列：[公司] 路線名稱 起點 ➔ 終點
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.fillMaxWidth()
@@ -300,7 +301,7 @@ fun BookmarkTabContent(
                             color = Color(0xFFEEEEEE)
                         )
 
-                        // 2. 車站名稱 與 Bookmark Icon (靠右同步)
+                        // 2. 車站名稱 與 書籤 Icon (右對齊)
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -330,7 +331,7 @@ fun BookmarkTabContent(
                             color = Color(0xFFEEEEEE)
                         )
 
-                        // 3. 底部 ETA 分欄 Layout (ETA 2, 3 在左 | ETA 1 突出放大在右)
+                        // 3. 底部分欄 Layout (左側 0.9f: ETA 2 & 3 | 右側 1.1f: ETA 1 巨型大字)
                         if (etaList.isEmpty()) {
                             Text(
                                 text = "載入中或沒有預計班次",
@@ -343,72 +344,135 @@ fun BookmarkTabContent(
                                 modifier = Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                // 左側：ETA 2 與 ETA 3
+                                // --- 左側：ETA 2 與 ETA 3 ( weight 0.9f 中間偏左 ) ---
                                 Column(
                                     modifier = Modifier
-                                        .weight(1f)
-                                        .padding(end = 8.dp),
-                                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                                        .weight(0.9f)
+                                        .padding(end = 6.dp),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
                                     val eta2 = etaList.getOrNull(1)
                                     val eta3 = etaList.getOrNull(2)
 
-                                    if (eta2 != null) {
-                                        val minutes2 = getEtaMinutes(eta2.etaTimestamp)
-                                        Text(
-                                            text = "ETA 2  ${formatEtaDisplay(minutes2, eta2.remarkZh)}",
-                                            fontSize = 12.sp,
-                                            color = Color.DarkGray
-                                        )
-                                    } else {
-                                        Text(text = "ETA 2  --", fontSize = 12.sp, color = Color.LightGray)
+                                    // ETA 2 列
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        if (eta2 != null) {
+                                            val minutes2 = getEtaMinutes(eta2.etaTimestamp)
+                                            val clockTime2 = formatEtaTimeClock(eta2.etaTimestamp)
+                                            
+                                            Text(
+                                                text = formatEtaDisplay(minutes2, eta2.remarkZh),
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color.DarkGray
+                                            )
+                                            if (!eta2.etaTimestamp.isNullOrEmpty()) {
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Icon(
+                                                    imageVector = Icons.Default.SportsScore,
+                                                    contentDescription = null,
+                                                    tint = Color(0xFF1565C0),
+                                                    modifier = Modifier.size(14.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(2.dp))
+                                                Text(
+                                                    text = clockTime2,
+                                                    fontSize = 12.sp,
+                                                    color = Color.DarkGray
+                                                )
+                                            }
+                                        } else {
+                                            Text(text = "--", fontSize = 12.sp, color = Color.LightGray)
+                                        }
                                     }
 
-                                    if (eta3 != null) {
-                                        val minutes3 = getEtaMinutes(eta3.etaTimestamp)
-                                        Text(
-                                            text = "ETA 3  ${formatEtaDisplay(minutes3, eta3.remarkZh)}",
-                                            fontSize = 12.sp,
-                                            color = Color.DarkGray
-                                        )
-                                    } else {
-                                        Text(text = "ETA 3  --", fontSize = 12.sp, color = Color.LightGray)
+                                    // ETA 3 列
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        if (eta3 != null) {
+                                            val minutes3 = getEtaMinutes(eta3.etaTimestamp)
+                                            val clockTime3 = formatEtaTimeClock(eta3.etaTimestamp)
+                                            
+                                            Text(
+                                                text = formatEtaDisplay(minutes3, eta3.remarkZh),
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color.DarkGray
+                                            )
+                                            if (!eta3.etaTimestamp.isNullOrEmpty()) {
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Icon(
+                                                    imageVector = Icons.Default.SportsScore,
+                                                    contentDescription = null,
+                                                    tint = Color(0xFF1565C0),
+                                                    modifier = Modifier.size(14.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(2.dp))
+                                                Text(
+                                                    text = clockTime3,
+                                                    fontSize = 12.sp,
+                                                    color = Color.DarkGray
+                                                )
+                                            }
+                                        } else {
+                                            Text(text = "--", fontSize = 12.sp, color = Color.LightGray)
+                                        }
                                     }
                                 }
 
                                 VerticalDivider(
                                     modifier = Modifier
-                                        .height(48.dp)
-                                        .padding(horizontal = 4.dp),
+                                        .height(44.dp)
+                                        .padding(horizontal = 2.dp),
                                     color = Color(0xFFEEEEEE)
                                 )
 
-                                // 右側：ETA 1 (突出放大顯示)
+                                // --- 右側：ETA 1 ( weight 1.1f 巨型字體 ) ---
                                 val eta1 = etaList.firstOrNull()
                                 Column(
                                     modifier = Modifier
                                         .weight(1.1f)
                                         .padding(start = 8.dp),
-                                    horizontalAlignment = Alignment.Start
+                                    horizontalAlignment = Alignment.Start,
+                                    verticalArrangement = Arrangement.Center
                                 ) {
                                     if (eta1 != null) {
                                         val minutes1 = getEtaMinutes(eta1.etaTimestamp)
-                                        Text(
-                                            text = "ETA 1",
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = BluePrimary
-                                        )
+                                        val clockTime1 = formatEtaTimeClock(eta1.etaTimestamp)
+
+                                        // 上層：倒數分鐘巨型字體 (例如 "1 分鐘" 或 "即將到達")
                                         Text(
                                             text = formatEtaDisplay(minutes1, eta1.remarkZh),
-                                            fontSize = 16.sp,
-                                            fontWeight = FontWeight.ExtraBold,
+                                            fontSize = 20.sp,
+                                            fontWeight = FontWeight.Black,
                                             color = BluePrimary
                                         )
+
+                                        // 下層：格仔旗 Icon + 精確時間 (例如 🏁 12:28)
+                                        if (!eta1.etaTimestamp.isNullOrEmpty()) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                modifier = Modifier.padding(top = 2.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.SportsScore,
+                                                    contentDescription = "到達時間",
+                                                    tint = BluePrimary,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Text(
+                                                    text = clockTime1,
+                                                    fontSize = 14.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = BluePrimary
+                                                )
+                                            }
+                                        }
                                     } else {
                                         Text(
-                                            text = "ETA 1  --",
-                                            fontSize = 14.sp,
+                                            text = "--",
+                                            fontSize = 18.sp,
+                                            fontWeight = FontWeight.Bold,
                                             color = Color.Gray
                                         )
                                     }
