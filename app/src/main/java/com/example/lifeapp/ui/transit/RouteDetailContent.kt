@@ -172,8 +172,12 @@ private fun StopDetailItem(
                 color = Color(0xFFBBDEFB)
             )
 
+            // 檢查是否有任何有效的時間戳記或 API 回傳的 Remark (例如 "尾班車已開出")
+            val hasAnyContent = etas.any { !it.etaTimestamp.isNullOrEmpty() || !it.remarkZh.isNullOrEmpty() }
+
             // ETA 資訊 Layout
-            if (etas.isEmpty()) {
+            if (!hasAnyContent) {
+                // 完全沒有任何時間與 Remark 時，顯示預設空狀態提示（不顯示追蹤 Icon）
                 Text(
                     text = "暫無到站時間數據",
                     style = MaterialTheme.typography.bodySmall,
@@ -198,12 +202,12 @@ private fun StopDetailItem(
                             .padding(vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // 左側區塊：倒數分鐘 + 格仔旗與到達時刻
+                        // 左側區塊：倒數分鐘/API 備註 + 格仔旗與到達時刻
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.weight(1f)
                         ) {
-                            // 倒數分鐘 (例如 "5 分鐘" / "即將到站")
+                            // 倒數分鐘 (例如 "5 分鐘" / "即將到站" / API 官方備註如 "尾班車已開出")
                             Text(
                                 text = formatEtaDisplay(etaMinutes, eta.remarkZh),
                                 style = MaterialTheme.typography.bodyMedium,
@@ -217,7 +221,7 @@ private fun StopDetailItem(
                                 }
                             )
 
-                            // 只有在有有效 ETA 時間時才顯示時刻 Card
+                            // 只有在存在有效 ETA 時間時才顯示時刻 Card (若僅有 "尾班車已開出" 則不顯示時刻)
                             if (hasValidEtaTime) {
                                 Spacer(modifier = Modifier.width(8.dp))
 
@@ -249,7 +253,7 @@ private fun StopDetailItem(
                         }
 
                         // 右側：追蹤車輛 Icon
-                        // 條件：必須存在有效 ETA 時間才允許顯示追蹤按鈕
+                        // 條件：必須存在有效 ETA 時間才允許顯示追蹤按鈕 (例如 "尾班車已開出" 無時間時不顯示 Icon)
                         if (hasValidEtaTime) {
                             // 未追蹤時全顯示；已追蹤時，僅在「當前最新有效起點」顯示 Icon 供取消控制，其餘 Hide
                             if (trackedVehicle == null || isActiveBaseTrackedIcon) {
