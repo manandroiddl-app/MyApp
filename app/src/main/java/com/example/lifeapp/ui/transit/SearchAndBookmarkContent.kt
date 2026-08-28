@@ -8,7 +8,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Backspace
-import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -237,12 +237,12 @@ fun BookmarkTabContent(
     } else {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(8.dp)
+            contentPadding = PaddingValues(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             items(uiState.bookmarks) { bookmark ->
-                val etaList = uiState.selectedStopEtaMap[bookmark.stopId] ?: emptyList()
+                val etaList = uiState.bookmarkEtaMap[bookmark.bookmarkId] ?: emptyList()
                 
-                // 將 String 安全轉換成 OperatorCompany 枚舉
                 val operatorCompany = try {
                     OperatorCompany.valueOf(bookmark.company)
                 } catch (_: Exception) {
@@ -252,76 +252,168 @@ fun BookmarkTabContent(
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 4.dp)
                         .clickable { viewModel.selectBookmarkRoute(bookmark) },
                     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White)
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    shape = RoundedCornerShape(12.dp)
                 ) {
-                    Row(
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                            .padding(12.dp)
                     ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Surface(
-                                    color = BlueContainer,
-                                    shape = RoundedCornerShape(4.dp)
-                                ) {
-                                    Text(
-                                        text = "${formatCompanyDisplayName(operatorCompany)} ${bookmark.routeName}",
-                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                        fontWeight = FontWeight.Bold,
-                                        color = BlueOnContainer
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(8.dp))
+                        // 1. 頂部列：<公司名> <路線編號> <起點> ➔ <終點>
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Surface(
+                                color = BlueContainer,
+                                shape = RoundedCornerShape(4.dp)
+                            ) {
                                 Text(
-                                    text = "往 ${bookmark.destinationZh}",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = Color.Gray
+                                    text = formatCompanyDisplayName(operatorCompany),
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                    color = BlueOnContainer
                                 )
                             }
-
-                            Spacer(modifier = Modifier.height(4.dp))
-
+                            Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = "車站：${bookmark.stopNameZh}",
-                                style = MaterialTheme.typography.titleMedium,
+                                text = bookmark.routeName,
                                 fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp,
                                 color = PrimaryDarkBlue
                             )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "${bookmark.originZh} ➔ ${bookmark.destinationZh}",
+                                fontSize = 13.sp,
+                                color = Color.Gray,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
 
-                            Spacer(modifier = Modifier.height(4.dp))
+                        HorizontalDivider(
+                            modifier = Modifier.padding(vertical = 8.dp),
+                            color = Color(0xFFEEEEEE)
+                        )
 
-                            if (etaList.isEmpty()) {
-                                Text(
-                                    text = "載入中或沒有預計班次",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = Color.Gray
+                        // 2. 車站名稱 與 Bookmark Icon (靠右同步)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = bookmark.stopNameZh,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = PrimaryDarkBlue,
+                                modifier = Modifier.weight(1f)
+                            )
+                            IconButton(
+                                onClick = { viewModel.removeBookmark(bookmark.bookmarkId) },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Bookmark,
+                                    contentDescription = "Remove Bookmark",
+                                    tint = PrimaryDarkBlue
                                 )
-                            } else {
-                                etaList.take(3).forEach { eta ->
-                                    val etaMinutes = getEtaMinutes(eta.etaTimestamp)
-                                    val display = formatEtaDisplay(etaMinutes, eta.remarkZh)
-
-                                    Text(
-                                        text = display,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = BluePrimary,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
-                                }
                             }
                         }
 
-                        IconButton(onClick = { viewModel.removeBookmark(bookmark.bookmarkId) }) {
-                            Icon(
-                                imageVector = Icons.Filled.Star,
-                                contentDescription = "Remove Bookmark",
-                                tint = Color(0xFFFFC107)
+                        HorizontalDivider(
+                            modifier = Modifier.padding(vertical = 8.dp),
+                            color = Color(0xFFEEEEEE)
+                        )
+
+                        // 3. 底部 ETA 分欄 Layout (ETA 2, 3 在左 | ETA 1 突出放大在右)
+                        if (etaList.isEmpty()) {
+                            Text(
+                                text = "載入中或沒有預計班次",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color.Gray,
+                                modifier = Modifier.padding(vertical = 4.dp)
                             )
+                        } else {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                // 左側：ETA 2 與 ETA 3
+                                Column(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .padding(end = 8.dp),
+                                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    val eta2 = etaList.getOrNull(1)
+                                    val eta3 = etaList.getOrNull(2)
+
+                                    if (eta2 != null) {
+                                        val minutes2 = getEtaMinutes(eta2.etaTimestamp)
+                                        Text(
+                                            text = "ETA 2  ${formatEtaDisplay(minutes2, eta2.remarkZh)}",
+                                            fontSize = 12.sp,
+                                            color = Color.DarkGray
+                                        )
+                                    } else {
+                                        Text(text = "ETA 2  --", fontSize = 12.sp, color = Color.LightGray)
+                                    }
+
+                                    if (eta3 != null) {
+                                        val minutes3 = getEtaMinutes(eta3.etaTimestamp)
+                                        Text(
+                                            text = "ETA 3  ${formatEtaDisplay(minutes3, eta3.remarkZh)}",
+                                            fontSize = 12.sp,
+                                            color = Color.DarkGray
+                                        )
+                                    } else {
+                                        Text(text = "ETA 3  --", fontSize = 12.sp, color = Color.LightGray)
+                                    }
+                                }
+
+                                VerticalDivider(
+                                    modifier = Modifier
+                                        .height(48.dp)
+                                        .padding(horizontal = 4.dp),
+                                    color = Color(0xFFEEEEEE)
+                                )
+
+                                // 右側：ETA 1 (突出放大顯示)
+                                val eta1 = etaList.firstOrNull()
+                                Column(
+                                    modifier = Modifier
+                                        .weight(1.1f)
+                                        .padding(start = 8.dp),
+                                    horizontalAlignment = Alignment.Start
+                                ) {
+                                    if (eta1 != null) {
+                                        val minutes1 = getEtaMinutes(eta1.etaTimestamp)
+                                        Text(
+                                            text = "ETA 1",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = BluePrimary
+                                        )
+                                        Text(
+                                            text = formatEtaDisplay(minutes1, eta1.remarkZh),
+                                            fontSize = 16.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = BluePrimary
+                                        )
+                                    } else {
+                                        Text(
+                                            text = "ETA 1  --",
+                                            fontSize = 14.sp,
+                                            color = Color.Gray
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
                 }
