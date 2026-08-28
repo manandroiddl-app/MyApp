@@ -41,6 +41,7 @@ data class TransitUiState(
     val routeStops: List<TransitStop> = emptyList(),
     val isLoadingStops: Boolean = false,
     val selectedStopEtaMap: Map<String, List<TransitEta>> = emptyMap(),
+    val bookmarkEtaMap: Map<String, List<TransitEta>> = emptyMap(), // 獨立管理收藏頁面的 ETA[cite: 13]
     val bookmarkedStopIds: Set<String> = emptySet(),
     
     val trackedVehicle: TrackedVehicleInfo? = null
@@ -54,7 +55,6 @@ class TransitSearchViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(TransitUiState())
     val uiState: StateFlow<TransitUiState> = _uiState.asStateFlow()
 
-    // 使用 common 模組的 AutoRefreshDelegate，設定 30 秒輪詢
     private val autoRefreshDelegate = AutoRefreshDelegate(
         scope = viewModelScope,
         intervalMillis = 30000L,
@@ -66,9 +66,6 @@ class TransitSearchViewModel @Inject constructor(
         observeBookmarks()
     }
 
-    /**
-     * 當 App 切回前景 / 解鎖螢幕時由 AutoRefreshLifecycleHandler 觸發
-     */
     fun onResumeRefresh() {
         refreshCurrentEtasImmediately()
         autoRefreshDelegate.start()
@@ -259,6 +256,8 @@ class TransitSearchViewModel @Inject constructor(
                 trackedVehicle = null
             )
         }
+        // 返回列表頁時重新觸發 ETA 載入，確保已收藏頁面數據不為空[cite: 13]
+        refreshCurrentEtasImmediately()
     }
 
     fun toggleTrackVehicle(stopId: String, stopSequence: Int, etaTimestamp: String?) {
@@ -317,9 +316,9 @@ class TransitSearchViewModel @Inject constructor(
                 }
 
                 _uiState.update { currentState ->
-                    val currentMap = currentState.selectedStopEtaMap.toMutableMap()
-                    currentMap[bookmark.stopId] = if (filteredEtaList.isNotEmpty()) filteredEtaList else rawEtaList
-                    currentState.copy(selectedStopEtaMap = currentMap)
+                    val currentMap = currentState.bookmarkEtaMap.toMutableMap()
+                    currentMap[bookmark.bookmarkId] = if (filteredEtaList.isNotEmpty()) filteredEtaList else rawEtaList
+                    currentState.copy(bookmarkEtaMap = currentMap)
                 }
             } catch (_: Exception) {}
         }
