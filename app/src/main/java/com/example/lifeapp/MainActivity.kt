@@ -35,6 +35,7 @@ import com.example.lifeapp.ui.theme.*
 import com.example.lifeapp.ui.traffic.TrafficScreen
 import com.example.lifeapp.ui.traffic.TrafficViewModel
 import com.example.lifeapp.ui.transit.TransitSearchScreen
+import com.example.lifeapp.ui.transit.TransitSearchViewModel
 import com.example.lifeapp.ui.weather.WeatherScreen
 import com.example.lifeapp.ui.weather.WeatherViewModel
 import com.example.lifeapp.util.DbExportHelper
@@ -88,7 +89,8 @@ fun MainAppLayout(
     appConfigRepository: AppConfigRepository,
     appDatabase: AppDatabase,
     weatherViewModel: WeatherViewModel = hiltViewModel(),
-    trafficViewModel: TrafficViewModel = hiltViewModel()
+    trafficViewModel: TrafficViewModel = hiltViewModel(),
+    transitViewModel: TransitSearchViewModel = hiltViewModel()
 ) {
     var currentScreen by rememberSaveable { mutableStateOf(Screen.HUB) }
     
@@ -123,7 +125,8 @@ fun MainAppLayout(
                                 Toast.makeText(context, "已更新交通消息", Toast.LENGTH_SHORT).show()
                             }
                             Screen.BUS_SEARCH -> {
-                                Toast.makeText(context, "可以在搜尋頁輸入路線重新搜尋", Toast.LENGTH_SHORT).show()
+                                transitViewModel.refreshCurrentEtasImmediately()
+                                Toast.makeText(context, "已更新到站時間", Toast.LENGTH_SHORT).show()
                             }
                         }
                     }
@@ -146,7 +149,7 @@ fun MainAppLayout(
                     )
                     Screen.WEATHER -> WeatherScreen(viewModel = weatherViewModel)
                     Screen.TRAFFIC -> TrafficScreen(viewModel = trafficViewModel)
-                    Screen.BUS_SEARCH -> TransitSearchScreen()
+                    Screen.BUS_SEARCH -> TransitSearchScreen(viewModel = transitViewModel)
                 }
             }
         }
