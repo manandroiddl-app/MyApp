@@ -181,6 +181,7 @@ private fun StopDetailItem(
                 )
             } else {
                 etas.forEach { eta ->
+                    val hasValidEtaTime = !eta.etaTimestamp.isNullOrEmpty()
                     val etaMinutes = getEtaMinutes(eta.etaTimestamp)
                     val clockTime = formatEtaTimeClock(eta.etaTimestamp)
 
@@ -216,51 +217,57 @@ private fun StopDetailItem(
                                 }
                             )
 
-                            Spacer(modifier = Modifier.width(8.dp))
+                            // 只有在有有效 ETA 時間時才顯示時刻 Card
+                            if (hasValidEtaTime) {
+                                Spacer(modifier = Modifier.width(8.dp))
 
-                            // 精確到達時刻與格仔旗 Icon (被追蹤的班次改為深藍底白字)
-                            Surface(
-                                color = if (isHighlighted) Color(0xFF0D47A1) else Color(0xFFBBDEFB),
-                                shape = RoundedCornerShape(4.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                    verticalAlignment = Alignment.CenterVertically
+                                // 精確到達時刻與格仔旗 Icon (被追蹤的班次改為深藍底白字)
+                                Surface(
+                                    color = if (isHighlighted) Color(0xFF0D47A1) else Color(0xFFBBDEFB),
+                                    shape = RoundedCornerShape(4.dp)
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Default.SportsScore,
-                                        contentDescription = "到達時刻",
-                                        tint = if (isHighlighted) Color.White else Color(0xFF1565C0),
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(
-                                        text = clockTime,
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (isHighlighted) Color.White else Color(0xFF1565C0)
-                                    )
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.SportsScore,
+                                            contentDescription = "到達時刻",
+                                            tint = if (isHighlighted) Color.White else Color(0xFF1565C0),
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            text = clockTime,
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (isHighlighted) Color.White else Color(0xFF1565C0)
+                                        )
+                                    }
                                 }
                             }
                         }
 
                         // 右側：追蹤車輛 Icon
-                        // 未追蹤時全顯示；已追蹤時，僅在「當前最新有效起點」顯示 Icon 供取消控制，其餘 Hide
-                        if (trackedVehicle == null || isActiveBaseTrackedIcon) {
-                            IconButton(
-                                onClick = { onTrackVehicleClick(eta) },
-                                modifier = Modifier.size(28.dp)
-                            ) {
-                                Icon(
-                                    imageVector = if (isActiveBaseTrackedIcon) Icons.Filled.MyLocation else Icons.Outlined.MyLocation,
-                                    contentDescription = "追蹤車輛",
-                                    tint = if (isActiveBaseTrackedIcon) Color(0xFF1976D2) else Color(0xFF78909C),
-                                    modifier = Modifier.size(20.dp)
-                                )
+                        // 條件：必須存在有效 ETA 時間才允許顯示追蹤按鈕
+                        if (hasValidEtaTime) {
+                            // 未追蹤時全顯示；已追蹤時，僅在「當前最新有效起點」顯示 Icon 供取消控制，其餘 Hide
+                            if (trackedVehicle == null || isActiveBaseTrackedIcon) {
+                                IconButton(
+                                    onClick = { onTrackVehicleClick(eta) },
+                                    modifier = Modifier.size(28.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = if (isActiveBaseTrackedIcon) Icons.Filled.MyLocation else Icons.Outlined.MyLocation,
+                                        contentDescription = "追蹤車輛",
+                                        tint = if (isActiveBaseTrackedIcon) Color(0xFF1976D2) else Color(0xFF78909C),
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            } else {
+                                // 當其他 Icon 隱藏時保持空位防止 Layout 跳動
+                                Spacer(modifier = Modifier.size(28.dp))
                             }
-                        } else {
-                            // 當其他 Icon 隱藏時保持空位防止 Layout 跳動
-                            Spacer(modifier = Modifier.size(28.dp))
                         }
                     }
                 }
