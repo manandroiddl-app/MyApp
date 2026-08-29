@@ -227,9 +227,9 @@ private fun StopDetailItem(
                             if (hasValidEtaTime) {
                                 Spacer(modifier = Modifier.width(8.dp))
 
-                                // 精確到達時刻與格仔旗 Icon (被追蹤的班次改為深藍底白字)
+                                // 精確到達時刻與格仔旗 Icon (底色改為白色，被追蹤時維持深藍底)
                                 Surface(
-                                    color = if (isHighlighted) Color(0xFF0D47A1) else Color(0xFFBBDEFB),
+                                    color = if (isHighlighted) Color(0xFF0D47A1) else Color.White,
                                     shape = RoundedCornerShape(4.dp)
                                 ) {
                                     Row(
