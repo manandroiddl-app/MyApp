@@ -331,12 +331,15 @@ fun BookmarkTabContent(
                             color = Color(0xFFEEEEEE)
                         )
 
-                        // 3. 底部分欄 Layout (左側 0.9f: ETA 2 & 3 | 右側 1.1f: ETA 1 巨型大字)
-                        if (etaList.isEmpty()) {
+                        // 3. 底部分欄 Layout (對齊詳細頁面邏輯與字體規格)
+                        val hasAnyContent = etaList.any { !it.etaTimestamp.isNullOrEmpty() || !it.remarkZh.isNullOrEmpty() }
+
+                        if (!hasAnyContent) {
+                            // 無數據時對齊詳細頁面提示
                             Text(
-                                text = "載入中或沒有預計班次",
+                                text = "暫無到站時間數據",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = Color.Gray,
+                                color = Color(0xFF5C6BC0),
                                 modifier = Modifier.padding(vertical = 4.dp)
                             )
                         } else {
@@ -344,7 +347,7 @@ fun BookmarkTabContent(
                                 modifier = Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                // --- 左側：ETA 2 與 ETA 3 ( weight 0.9f 中間偏左 ) ---
+                                // --- 左側：ETA 2 與 ETA 3 ( weight 0.9f ) ---
                                 Column(
                                     modifier = Modifier
                                         .weight(0.9f)
@@ -360,14 +363,15 @@ fun BookmarkTabContent(
                                             val minutes2 = getEtaMinutes(eta2.etaTimestamp)
                                             val clockTime2 = formatEtaTimeClock(eta2.etaTimestamp)
                                             
+                                            // 字體 Size 對齊詳細頁面 bodyMedium (14sp/Bold) + 紅字邏輯 (<=3分)
                                             Text(
                                                 text = formatEtaDisplay(minutes2, eta2.remarkZh),
-                                                fontSize = 12.sp,
+                                                style = MaterialTheme.typography.bodyMedium,
                                                 fontWeight = FontWeight.Bold,
-                                                color = Color.DarkGray
+                                                color = if (minutes2 != null && minutes2 <= 3) Color(0xFFD32F2F) else Color(0xFF0D47A1)
                                             )
                                             if (!eta2.etaTimestamp.isNullOrEmpty()) {
-                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Spacer(modifier = Modifier.width(6.dp))
                                                 Icon(
                                                     imageVector = Icons.Default.SportsScore,
                                                     contentDescription = null,
@@ -375,14 +379,16 @@ fun BookmarkTabContent(
                                                     modifier = Modifier.size(14.dp)
                                                 )
                                                 Spacer(modifier = Modifier.width(2.dp))
+                                                // 到站時間對齊詳細頁面 13.sp
                                                 Text(
                                                     text = clockTime2,
-                                                    fontSize = 12.sp,
-                                                    color = Color.DarkGray
+                                                    fontSize = 13.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color(0xFF1565C0)
                                                 )
                                             }
                                         } else {
-                                            Text(text = "--", fontSize = 12.sp, color = Color.LightGray)
+                                            Text(text = "--", style = MaterialTheme.typography.bodyMedium, color = Color.LightGray)
                                         }
                                     }
 
@@ -394,12 +400,12 @@ fun BookmarkTabContent(
                                             
                                             Text(
                                                 text = formatEtaDisplay(minutes3, eta3.remarkZh),
-                                                fontSize = 12.sp,
+                                                style = MaterialTheme.typography.bodyMedium,
                                                 fontWeight = FontWeight.Bold,
-                                                color = Color.DarkGray
+                                                color = if (minutes3 != null && minutes3 <= 3) Color(0xFFD32F2F) else Color(0xFF0D47A1)
                                             )
                                             if (!eta3.etaTimestamp.isNullOrEmpty()) {
-                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Spacer(modifier = Modifier.width(6.dp))
                                                 Icon(
                                                     imageVector = Icons.Default.SportsScore,
                                                     contentDescription = null,
@@ -409,12 +415,13 @@ fun BookmarkTabContent(
                                                 Spacer(modifier = Modifier.width(2.dp))
                                                 Text(
                                                     text = clockTime3,
-                                                    fontSize = 12.sp,
-                                                    color = Color.DarkGray
+                                                    fontSize = 13.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color(0xFF1565C0)
                                                 )
                                             }
                                         } else {
-                                            Text(text = "--", fontSize = 12.sp, color = Color.LightGray)
+                                            Text(text = "--", style = MaterialTheme.typography.bodyMedium, color = Color.LightGray)
                                         }
                                     }
                                 }
@@ -426,7 +433,7 @@ fun BookmarkTabContent(
                                     color = Color(0xFFEEEEEE)
                                 )
 
-                                // --- 右側：ETA 1 ( weight 1.1f 巨型字體 ) ---
+                                // --- 右側：ETA 1 ( weight 1.1f，ETA1 與 到站時間1 同一行，巨型字體佔雙行高 ) ---
                                 val eta1 = etaList.firstOrNull()
                                 Column(
                                     modifier = Modifier
@@ -438,40 +445,41 @@ fun BookmarkTabContent(
                                     if (eta1 != null) {
                                         val minutes1 = getEtaMinutes(eta1.etaTimestamp)
                                         val clockTime1 = formatEtaTimeClock(eta1.etaTimestamp)
+                                        val eta1Color = if (minutes1 != null && minutes1 <= 3) Color(0xFFD32F2F) else Color(0xFF0D47A1)
 
-                                        // 上層：倒數分鐘巨型字體 (例如 "1 分鐘" 或 "即將到達")
-                                        Text(
-                                            text = formatEtaDisplay(minutes1, eta1.remarkZh),
-                                            fontSize = 20.sp,
-                                            fontWeight = FontWeight.Black,
-                                            color = BluePrimary
-                                        )
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            // 倒數分鐘 (例如 "1 分鐘" / "即將到站")
+                                            Text(
+                                                text = formatEtaDisplay(minutes1, eta1.remarkZh),
+                                                fontSize = 20.sp,
+                                                fontWeight = FontWeight.Black,
+                                                color = eta1Color
+                                            )
 
-                                        // 下層：格仔旗 Icon + 精確時間 (例如 🏁 12:28)
-                                        if (!eta1.etaTimestamp.isNullOrEmpty()) {
-                                            Row(
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                modifier = Modifier.padding(top = 2.dp)
-                                            ) {
+                                            // 同一行顯示 <格仔旗> <到站時間1>
+                                            if (!eta1.etaTimestamp.isNullOrEmpty()) {
+                                                Spacer(modifier = Modifier.width(6.dp))
                                                 Icon(
                                                     imageVector = Icons.Default.SportsScore,
                                                     contentDescription = "到達時間",
-                                                    tint = BluePrimary,
-                                                    modifier = Modifier.size(16.dp)
+                                                    tint = eta1Color,
+                                                    modifier = Modifier.size(18.dp)
                                                 )
-                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Spacer(modifier = Modifier.width(2.dp))
                                                 Text(
                                                     text = clockTime1,
-                                                    fontSize = 14.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = BluePrimary
+                                                    fontSize = 20.sp,
+                                                    fontWeight = FontWeight.Black,
+                                                    color = eta1Color
                                                 )
                                             }
                                         }
                                     } else {
                                         Text(
                                             text = "--",
-                                            fontSize = 18.sp,
+                                            fontSize = 20.sp,
                                             fontWeight = FontWeight.Bold,
                                             color = Color.Gray
                                         )
