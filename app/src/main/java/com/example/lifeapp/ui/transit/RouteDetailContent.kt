@@ -22,7 +22,7 @@ import androidx.compose.material.icons.outlined.MyLocation
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Divider
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.lifeapp.data.model.TransitEta
 import com.example.lifeapp.data.model.TransitStop
+import com.example.lifeapp.ui.theme.PrimaryDarkBlue
 import java.time.ZonedDateTime
 
 /**
@@ -129,8 +130,9 @@ private fun StopDetailItem(
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 6.dp),
         shape = RoundedCornerShape(12.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         colors = CardDefaults.cardColors(
-            containerColor = Color(0xFFE3F2FD) // 柔和淺藍色背景
+            containerColor = Color.White
         )
     ) {
         Column(
@@ -147,13 +149,13 @@ private fun StopDetailItem(
                         text = stop.nameZh ?: "",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF0D47A1)
+                        color = PrimaryDarkBlue
                     )
                     if (!stop.nameEn.isNullOrEmpty()) {
                         Text(
                             text = stop.nameEn,
                             style = MaterialTheme.typography.bodySmall,
-                            color = Color(0xFF1565C0)
+                            color = Color.Gray
                         )
                     }
                 }
@@ -162,14 +164,14 @@ private fun StopDetailItem(
                     Icon(
                         imageVector = if (isBookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
                         contentDescription = "書籤",
-                        tint = if (isBookmarked) Color(0xFF1976D2) else Color(0xFF5C6BC0)
+                        tint = PrimaryDarkBlue
                     )
                 }
             }
 
-            Divider(
+            HorizontalDivider(
                 modifier = Modifier.padding(vertical = 8.dp),
-                color = Color(0xFFBBDEFB)
+                color = Color(0xFFEEEEEE)
             )
 
             // 檢查是否有任何有效的時間戳記或 API 回傳的 Remark (例如 "尾班車已開出")
