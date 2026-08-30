@@ -92,7 +92,7 @@ class TransitSearchViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoadingRoutes = true) }
             try {
-                val routes = busRepository.getKmbRoutes()
+                val routes = busRepository.getAllRoutes()
                 _uiState.update { 
                     it.copy(
                         allRoutes = routes,
@@ -199,11 +199,7 @@ class TransitSearchViewModel @Inject constructor(
 
         viewModelScope.launch {
             try {
-                val stops = busRepository.getKmbRouteStops(
-                    route = route.routeName,
-                    bound = route.bound ?: "O",
-                    serviceType = route.serviceType ?: "1"
-                )
+                val stops = busRepository.getRouteStops(route)
 
                 _uiState.update { currentState ->
                     currentState.copy(
@@ -230,9 +226,10 @@ class TransitSearchViewModel @Inject constructor(
         val targetRoute = _uiState.value.allRoutes.find { route ->
             route.routeName == bookmark.routeName &&
                     route.bound == bookmark.bound &&
-                    route.serviceType == bookmark.serviceType
+                    route.serviceType == bookmark.serviceType &&
+                    route.company == operatorCompany
         } ?: TransitRoute(
-            routeId = "KMB_${bookmark.routeName}_${bookmark.bound}_${bookmark.serviceType}",
+            routeId = "${operatorCompany.name}_${bookmark.routeName}_${bookmark.bound}_${bookmark.serviceType}",
             routeName = bookmark.routeName,
             transitType = TransitType.BUS,
             company = operatorCompany,
@@ -281,9 +278,10 @@ class TransitSearchViewModel @Inject constructor(
         val route = _uiState.value.selectedRoute ?: return
         viewModelScope.launch {
             try {
-                val rawEtaList = busRepository.getKmbEta(
+                val rawEtaList = busRepository.getEta(
+                    company = route.company,
                     stopId = stopId,
-                    route = route.routeName,
+                    routeName = route.routeName,
                     serviceType = route.serviceType ?: "1"
                 )
 
@@ -303,11 +301,18 @@ class TransitSearchViewModel @Inject constructor(
     }
 
     private fun fetchBookmarkEta(bookmark: TransitBookmarkEntity) {
+        val operatorCompany = try {
+            OperatorCompany.valueOf(bookmark.company)
+        } catch (_: Exception) {
+            OperatorCompany.KMB
+        }
+
         viewModelScope.launch {
             try {
-                val rawEtaList = busRepository.getKmbEta(
+                val rawEtaList = busRepository.getEta(
+                    company = operatorCompany,
                     stopId = bookmark.stopId,
-                    route = bookmark.routeName,
+                    routeName = bookmark.routeName,
                     serviceType = bookmark.serviceType
                 )
 
@@ -326,7 +331,7 @@ class TransitSearchViewModel @Inject constructor(
 
     fun toggleBookmark(stop: TransitStop) {
         val route = _uiState.value.selectedRoute ?: return
-        val bookmarkId = "KMB_${route.routeName}_${route.bound}_${route.serviceType}_${stop.stopId}"
+        val bookmarkId = "${route.company.name}_${route.routeName}_${route.bound ?: "O"}_${route.serviceType ?: "1"}_${stop.stopId}"
 
         viewModelScope.launch {
             if (_uiState.value.bookmarkedStopIds.contains(bookmarkId)) {
@@ -335,7 +340,7 @@ class TransitSearchViewModel @Inject constructor(
                 val entity = TransitBookmarkEntity(
                     bookmarkId = bookmarkId,
                     routeName = route.routeName,
-                    company = OperatorCompany.KMB.name,
+                    company = route.company.name,
                     bound = route.bound ?: "O",
                     serviceType = route.serviceType ?: "1",
                     originZh = route.originZh ?: "",
