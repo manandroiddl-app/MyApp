@@ -233,12 +233,7 @@ class TransitSearchViewModel @Inject constructor(
                     route.bound == bookmark.bound &&
                     route.serviceType == bookmark.serviceType
         } ?: TransitRoute(
-            routeId = TransitRoute.generateRouteId(
-                company = operatorCompany,
-                routeName = bookmark.routeName,
-                bound = bookmark.bound,
-                serviceType = bookmark.serviceType
-            ),
+            routeId = "${operatorCompany.name}_${bookmark.routeName}_${bookmark.bound ?: "O"}_${bookmark.serviceType ?: "1"}",
             routeName = bookmark.routeName,
             transitType = TransitType.BUS,
             company = operatorCompany,
@@ -335,8 +330,8 @@ class TransitSearchViewModel @Inject constructor(
         val bookmarkId = TransitBookmarkEntity.generateBookmarkId(
             company = route.company.name,
             routeName = route.routeName,
-            bound = route.bound,
-            serviceType = route.serviceType,
+            bound = route.bound ?: "O",
+            serviceType = route.serviceType ?: "1",
             stopId = stop.stopId
         )
 
