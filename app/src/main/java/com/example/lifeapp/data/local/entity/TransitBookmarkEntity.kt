@@ -15,8 +15,7 @@ data class TransitBookmarkEntity(
     val destinationZh: String,
     val stopId: String,
     val stopNameZh: String,
-    val sequence: Int,
-    val createdAt: Long = System.currentTimeMillis()
+    val sequence: Int
 ) {
     companion object {
         fun generateBookmarkId(
