@@ -2,6 +2,7 @@ package com.example.lifeapp.di
 
 import com.example.lifeapp.data.api.AppConfigApiService
 import com.example.lifeapp.data.api.BusApiService
+import com.example.lifeapp.data.api.CtbApiService
 import com.example.lifeapp.data.api.HkoApiService
 import com.example.lifeapp.data.api.TdApiService
 import dagger.Module
@@ -64,5 +65,16 @@ object NetworkModule {
             .addConverterFactory(GsonConverterFactory.create())
             .build()
             .create(BusApiService::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideCtbApiService(okHttpClient: OkHttpClient): CtbApiService {
+        return Retrofit.Builder()
+            .baseUrl("https://rt.data.gov.hk/")
+            .client(okHttpClient)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+            .create(CtbApiService::class.java)
     }
 }
