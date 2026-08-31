@@ -55,21 +55,21 @@ class BusRepository @Inject constructor(
     }
 
     /**
-     * 獲取指定車站與路線的實時 ETA 到站時間（帶入營運商分流）
+     * 獲取指定車站與路線的實時 ETA 到站時間（帶入營運商與 bound 分流）
      */
-    suspend fun getEta(company: OperatorCompany, stopId: String, route: String, serviceType: String): List<TransitEta> {
+    suspend fun getEta(company: OperatorCompany, stopId: String, route: String, serviceType: String, bound: String? = null): List<TransitEta> {
         return when (company) {
-            OperatorCompany.CTB -> ctbDataSource.getEta(stopId, route, serviceType)
+            OperatorCompany.CTB -> ctbDataSource.getEta(stopId, route, serviceType, bound)
             else -> kmbDataSource.getEta(stopId, route, serviceType)
         }
     }
 
     /**
-     * 獲取指定車站與路線的實時 ETA 到站時間（向下相容）
+     * 獲取指定車站與路線的實時 ETA 到站時間（帶入 bound 方向，預設為 null 以確保向下相容）
      */
-    suspend fun getEta(stopId: String, route: String, serviceType: String): List<TransitEta> = coroutineScope {
+    suspend fun getEta(stopId: String, route: String, serviceType: String, bound: String? = null): List<TransitEta> = coroutineScope {
         val kmbEtaDeferred = async { runCatching { kmbDataSource.getEta(stopId, route, serviceType) }.getOrDefault(emptyList()) }
-        val ctbEtaDeferred = async { runCatching { ctbDataSource.getEta(stopId, route, serviceType) }.getOrDefault(emptyList()) }
+        val ctbEtaDeferred = async { runCatching { ctbDataSource.getEta(stopId, route, serviceType, bound) }.getOrDefault(emptyList()) }
 
         val kmbList = kmbEtaDeferred.await()
         val ctbList = ctbEtaDeferred.await()
