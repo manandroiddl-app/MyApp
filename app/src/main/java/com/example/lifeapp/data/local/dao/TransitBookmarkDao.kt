@@ -13,7 +13,7 @@ interface TransitBookmarkDao {
     /**
      * 監聽所有收藏的交通車站
      */
-    @Query("SELECT * FROM transit_bookmarks ORDER BY createdAt DESC")
+    @Query("SELECT * FROM transit_bookmarks")
     fun getAllBookmarks(): Flow<List<TransitBookmarkEntity>>
 
     /**
