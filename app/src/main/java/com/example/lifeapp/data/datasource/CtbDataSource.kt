@@ -38,12 +38,12 @@ class CtbDataSource @Inject constructor(
                     routeName = routeName,
                     transitType = TransitType.BUS,
                     company = OperatorCompany.CTB,
-                    bound = "O",
-                    serviceType = "1",
                     originZh = dto.origTc ?: "",
-                    originEn = dto.origEn ?: "",
+                    originEn = dto.origEn,
                     destinationZh = dto.destTc ?: "",
-                    destinationEn = dto.destEn ?: ""
+                    destinationEn = dto.destEn,
+                    bound = "O",
+                    serviceType = "1"
                 )
             )
 
@@ -54,12 +54,12 @@ class CtbDataSource @Inject constructor(
                     routeName = routeName,
                     transitType = TransitType.BUS,
                     company = OperatorCompany.CTB,
-                    bound = "I",
-                    serviceType = "1",
                     originZh = dto.destTc ?: "",
-                    originEn = dto.destEn ?: "",
+                    originEn = dto.destEn,
                     destinationZh = dto.origTc ?: "",
-                    destinationEn = dto.origEn ?: ""
+                    destinationEn = dto.origEn,
+                    bound = "I",
+                    serviceType = "1"
                 )
             )
         }
@@ -87,9 +87,9 @@ class CtbDataSource @Inject constructor(
 
                 TransitStop(
                     stopId = stopId,
+                    sequence = rs.seq ?: 0,
                     nameZh = stopInfo?.nameTc ?: "車站 $stopId",
                     nameEn = stopInfo?.nameEn ?: "Stop $stopId",
-                    sequence = rs.seq ?: 0,
                     latitude = stopInfo?.lat?.toDoubleOrNull() ?: 0.0,
                     longitude = stopInfo?.long?.toDoubleOrNull() ?: 0.0
                 )
@@ -124,13 +124,12 @@ class CtbDataSource @Inject constructor(
             } else null
 
             TransitEta(
-                company = OperatorCompany.CTB,
                 routeName = dto.route ?: route,
+                company = OperatorCompany.CTB,
                 destinationZh = dto.destTc ?: "",
-                destinationEn = dto.destEn ?: "",
                 etaTimestamp = etaStr,
-                minutesLeft = minutesLeft,
-                remark = dto.rmkTc ?: ""
+                remarkZh = dto.rmkTc ?: "",
+                minutesLeft = minutesLeft
             )
         }.sortedBy { it.minutesLeft ?: Int.MAX_VALUE }
     }
