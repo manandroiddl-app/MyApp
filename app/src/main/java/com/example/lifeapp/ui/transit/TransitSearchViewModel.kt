@@ -309,7 +309,7 @@ class TransitSearchViewModel @Inject constructor(
                 val rawEtaList = busRepository.getEta(
                     stopId = bookmark.stopId,
                     route = bookmark.routeName,
-                    serviceType = bookmark.serviceType
+                    serviceType = bookmark.serviceType ?: "1"
                 )
 
                 val filteredEtaList = rawEtaList.filter { eta ->
