@@ -99,9 +99,9 @@ class CtbDataSource @Inject constructor(
     }
 
     /**
-     * 獲取指定車站與路線的實時 ETA 到站時間
+     * 獲取指定車站與路線的實時 ETA 到站時間 (支援 bound 方向過濾)
      */
-    suspend fun getEta(stopId: String, route: String, serviceType: String): List<TransitEta> {
+    suspend fun getEta(stopId: String, route: String, serviceType: String, bound: String? = null): List<TransitEta> {
         val response = ctbApiService.getCtbEta(
             companyId = "CTB",
             stopId = stopId,
@@ -115,6 +115,11 @@ class CtbDataSource @Inject constructor(
         val currentTime = System.currentTimeMillis()
 
         return etaDtoList.mapNotNull { dto ->
+            // 方向過濾：若指定了 bound，則僅保留 dto.dir 相符的班次 (如 "O" 或 "I")
+            if (!bound.isNullOrEmpty() && dto.dir != null && !dto.dir.equals(bound, ignoreCase = true)) {
+                return@mapNotNull null
+            }
+
             val etaStr = dto.eta ?: return@mapNotNull null
             val etaTime = runCatching { dateFormat.parse(etaStr)?.time }.getOrNull()
 
