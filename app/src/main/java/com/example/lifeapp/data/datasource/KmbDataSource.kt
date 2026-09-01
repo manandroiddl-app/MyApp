@@ -148,6 +148,7 @@ class KmbDataSource @Inject constructor() : BusDataSource {
                 val destTc = obj.optString("dest_tc", "")
                 val rName = obj.optString("route", route)
                 val rkZh = obj.optString("rmk_tc", "")
+                val etaSeq = if (obj.has("eta_seq") && !obj.isNull("eta_seq")) obj.optInt("eta_seq") else null
 
                 var minsLeft: Int? = null
                 if (etaTimeStr.isNotEmpty() && etaTimeStr != "null") {
@@ -167,11 +168,12 @@ class KmbDataSource @Inject constructor() : BusDataSource {
                         destinationZh = destTc,
                         etaTimestamp = if (etaTimeStr == "null") "" else etaTimeStr,
                         minutesLeft = minsLeft,
-                        remarkZh = rkZh
+                        remarkZh = rkZh,
+                        etaSeq = etaSeq
                     )
                 )
             }
-            list
+            list.sortedBy { it.etaSeq ?: Int.MAX_VALUE }
         } catch (e: Exception) {
             emptyList()
         } finally {
