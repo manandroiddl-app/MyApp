@@ -16,6 +16,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.lifeapp.data.model.OperatorCompany
@@ -250,6 +251,9 @@ fun BookmarkTabContent(
                     OperatorCompany.KMB
                 }
 
+                val serviceTypeInt = bookmark.serviceType?.toIntOrNull() ?: 1
+                val isKmbSpecialService = operatorCompany == OperatorCompany.KMB && serviceTypeInt > 1
+
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -263,7 +267,7 @@ fun BookmarkTabContent(
                             .fillMaxWidth()
                             .padding(12.dp)
                     ) {
-                        // 1. 頂部列：[公司] 路線名稱 起點 ➔ 終點
+                        // 1. 頂部列：[公司] 路線名稱 起點 ➔ 終點  [特別班次(靠右)]
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.fillMaxWidth()
@@ -292,8 +296,27 @@ fun BookmarkTabContent(
                                 text = "${bookmark.originZh} ➔ ${bookmark.destinationZh}",
                                 fontSize = 13.sp,
                                 color = Color.Gray,
-                                modifier = Modifier.weight(1f)
+                                modifier = Modifier.weight(1f),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
+
+                            // 九巴特別班次標籤（放在同一行最右側）
+                            if (isKmbSpecialService) {
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Surface(
+                                    color = Color(0xFFFFE0B2),
+                                    shape = RoundedCornerShape(4.dp)
+                                ) {
+                                    Text(
+                                        text = "特別班次",
+                                        color = Color(0xFFE65100),
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
                         }
 
                         HorizontalDivider(
