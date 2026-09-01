@@ -74,7 +74,7 @@ class BusRepository @Inject constructor(
         val kmbList = kmbEtaDeferred.await()
         val ctbList = ctbEtaDeferred.await()
 
-        (kmbList + ctbList).sortedBy { it.minutesLeft ?: Int.MAX_VALUE }
+        (kmbList + ctbList).sortedBy { it.etaSeq ?: Int.MAX_VALUE }
     }
 
     // =========================================================================
