@@ -21,6 +21,12 @@ import javax.inject.Inject
 
 enum class TransitTab { SEARCH, BOOKMARK }
 
+enum class SearchMode(val label: String) {
+    EXACT("精準搜尋"),
+    PREFIX("字頭搜尋"),
+    FUZZY("模糊搜尋")
+}
+
 data class TrackedVehicleInfo(
     val stopId: String,
     val stopSequence: Int,
@@ -30,6 +36,9 @@ data class TrackedVehicleInfo(
 data class TransitUiState(
     val currentTab: TransitTab = TransitTab.SEARCH,
     val searchQuery: String = "",
+    val searchMode: SearchMode = SearchMode.FUZZY,
+    val selectedCompany: OperatorCompany? = null,
+    val availableCompanies: List<OperatorCompany> = emptyList(),
     val numericChips: List<Char> = emptyList(),
     val letterChips: List<Char> = emptyList(),
     val allRoutes: List<TransitRoute> = emptyList(),
@@ -93,9 +102,11 @@ class TransitSearchViewModel @Inject constructor(
             _uiState.update { it.copy(isLoadingRoutes = true) }
             try {
                 val routes = busRepository.getRoutes()
+                val companies = routes.map { it.company }.distinct()
                 _uiState.update { 
                     it.copy(
                         allRoutes = routes,
+                        availableCompanies = companies,
                         isLoadingRoutes = false
                     )
                 }
@@ -145,21 +156,45 @@ class TransitSearchViewModel @Inject constructor(
         updateFilteredRoutes(upperQuery)
     }
 
+    fun setSearchMode(mode: SearchMode) {
+        _uiState.update { it.copy(searchMode = mode) }
+        updateFilteredRoutes(_uiState.value.searchQuery)
+    }
+
+    fun selectCompany(company: OperatorCompany?) {
+        _uiState.update { it.copy(selectedCompany = company) }
+        updateFilteredRoutes(_uiState.value.searchQuery)
+    }
+
     private fun updateFilteredRoutes(query: String) {
         val all = _uiState.value.allRoutes
+        val mode = _uiState.value.searchMode
+        val companyFilter = _uiState.value.selectedCompany
         
-        val filtered = if (query.isEmpty()) {
-            all
-        } else {
-            all.filter { it.routeName.contains(query, ignoreCase = true) }
+        val filtered = all.filter { route ->
+            val matchesCompany = companyFilter == null || route.company == companyFilter
+            val matchesQuery = if (query.isEmpty()) {
+                true
+            } else {
+                when (mode) {
+                    SearchMode.EXACT -> route.routeName.equals(query, ignoreCase = true)
+                    SearchMode.PREFIX -> route.routeName.startsWith(query, ignoreCase = true)
+                    SearchMode.FUZZY -> route.routeName.contains(query, ignoreCase = true)
+                }
+            }
+            matchesCompany && matchesQuery
         }
 
         val nextChars = filtered.mapNotNull { route ->
             val name = route.routeName.uppercase()
-            val index = name.indexOf(query, ignoreCase = true)
-            if (index != -1 && index + query.length < name.length) {
-                name[index + query.length]
-            } else null
+            if (query.isEmpty()) {
+                if (name.isNotEmpty()) name[0] else null
+            } else {
+                val index = name.indexOf(query, ignoreCase = true)
+                if (index != -1 && index + query.length < name.length) {
+                    name[index + query.length]
+                } else null
+            }
         }.distinct().sorted()
 
         val defaultLetters = if (query.isEmpty()) {
