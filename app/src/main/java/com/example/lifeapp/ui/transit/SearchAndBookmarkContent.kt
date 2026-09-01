@@ -7,11 +7,14 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Backspace
 import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.SportsScore
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -27,11 +30,14 @@ private val BluePrimary = Color(0xFF1976D2)
 private val BlueContainer = Color(0xFFE3F2FD)
 private val BlueOnContainer = Color(0xFF0D47A1)
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SearchTabContent(
     uiState: TransitUiState,
     viewModel: TransitSearchViewModel
 ) {
+    var showCompanySheet by remember { mutableStateOf(false) }
+
     Column(modifier = Modifier.fillMaxSize()) {
         Box(modifier = Modifier.weight(1f)) {
             if (uiState.isLoadingRoutes) {
@@ -120,22 +126,62 @@ fun SearchTabContent(
                     .fillMaxWidth()
                     .padding(start = 8.dp, end = 8.dp, top = 6.dp, bottom = 6.dp)
             ) {
-                Surface(
+                // 搜尋列與公司過濾按鈕放在同一列
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(8.dp),
-                    color = Color.White
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                    Surface(
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(8.dp),
+                        color = Color.White
                     ) {
-                        Text(
-                            text = uiState.searchQuery.ifEmpty { "請點擊下方按鈕輸入路線..." },
-                            style = MaterialTheme.typography.bodyLarge,
-                            fontWeight = if (uiState.searchQuery.isNotEmpty()) FontWeight.Bold else FontWeight.Normal,
-                            color = if (uiState.searchQuery.isEmpty()) Color.Gray else PrimaryDarkBlue,
-                            modifier = Modifier.weight(1f)
-                        )
+                        Row(
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = uiState.searchQuery.ifEmpty { "請點擊下方按鈕輸入路線..." },
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = if (uiState.searchQuery.isNotEmpty()) FontWeight.Bold else FontWeight.Normal,
+                                color = if (uiState.searchQuery.isEmpty()) Color.Gray else PrimaryDarkBlue,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    // 右側選取公司 Filter 按鈕
+                    Surface(
+                        onClick = { showCompanySheet = true },
+                        shape = RoundedCornerShape(8.dp),
+                        color = Color.White,
+                        tonalElevation = 2.dp
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.FilterList,
+                                contentDescription = "Filter Company",
+                                tint = BluePrimary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = uiState.selectedCompany?.let { formatCompanyDisplayName(it) } ?: "全部公司",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp,
+                                color = PrimaryDarkBlue
+                            )
+                            Icon(
+                                imageVector = Icons.Default.ArrowDropDown,
+                                contentDescription = null,
+                                tint = PrimaryDarkBlue
+                            )
+                        }
                     }
                 }
 
@@ -221,6 +267,73 @@ fun SearchTabContent(
                             modifier = Modifier.size(20.dp)
                         )
                     }
+                }
+            }
+        }
+    }
+
+    // 向上彈出的公司選擇 ModalBottomSheet
+    if (showCompanySheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showCompanySheet = false },
+            containerColor = Color.White
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 24.dp, top = 8.dp)
+            ) {
+                Text(
+                    text = "選擇交通公司",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = PrimaryDarkBlue,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                )
+
+                HorizontalDivider(color = Color(0xFFEEEEEE))
+
+                // 「全部」選項
+                ListItem(
+                    headlineContent = {
+                        Text(
+                            text = "全部公司",
+                            fontWeight = if (uiState.selectedCompany == null) FontWeight.Bold else FontWeight.Normal,
+                            color = if (uiState.selectedCompany == null) BluePrimary else Color.Black
+                        )
+                    },
+                    trailingContent = {
+                        if (uiState.selectedCompany == null) {
+                            Icon(imageVector = Icons.Default.Check, contentDescription = null, tint = BluePrimary)
+                        }
+                    },
+                    modifier = Modifier.clickable {
+                        viewModel.selectCompany(null)
+                        showCompanySheet = false
+                    }
+                )
+
+                // 動態公司選項
+                uiState.availableCompanies.forEach { company ->
+                    val isSelected = uiState.selectedCompany == company
+                    ListItem(
+                        headlineContent = {
+                            Text(
+                                text = formatCompanyDisplayName(company),
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                color = if (isSelected) BluePrimary else Color.Black
+                            )
+                        },
+                        trailingContent = {
+                            if (isSelected) {
+                                Icon(imageVector = Icons.Default.Check, contentDescription = null, tint = BluePrimary)
+                            }
+                        },
+                        modifier = Modifier.clickable {
+                            viewModel.selectCompany(company)
+                            showCompanySheet = false
+                        }
+                    )
                 }
             }
         }
