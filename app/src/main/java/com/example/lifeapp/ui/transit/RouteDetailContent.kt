@@ -90,8 +90,8 @@ fun RouteDetailContent(
                 ) { stop ->
                     val etas = uiState.selectedStopEtaMap[stop.stopId] ?: emptyList()
 
-                    // 生成與 ViewModel 一致的 Bookmark ID 進行比對
-                    val expectedBookmarkId = "KMB_${route.routeName}_${route.bound ?: "O"}_${route.serviceType ?: "1"}_${stop.stopId}"
+                    // 生成與 ViewModel 一致的 Bookmark ID 進行比對（支援動態營運商前綴如 CTB / KMB）
+                    val expectedBookmarkId = "${route.company.name}_${route.routeName}_${route.bound ?: "O"}_${route.serviceType ?: "1"}_${stop.stopId}"
                     val isBookmarked = uiState.bookmarkedStopIds.contains(expectedBookmarkId)
 
                     StopDetailItem(
