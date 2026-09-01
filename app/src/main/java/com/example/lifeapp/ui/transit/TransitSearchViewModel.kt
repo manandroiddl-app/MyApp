@@ -200,6 +200,7 @@ class TransitSearchViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 val stops = busRepository.getRouteStops(
+                    company = route.company,
                     route = route.routeName,
                     bound = route.bound ?: "O",
                     serviceType = route.serviceType ?: "1"
@@ -282,21 +283,17 @@ class TransitSearchViewModel @Inject constructor(
         val route = _uiState.value.selectedRoute ?: return
         viewModelScope.launch {
             try {
-                val rawEtaList = busRepository.getEta(
+                val etaList = busRepository.getEta(
+                    company = route.company,
                     stopId = stopId,
                     route = route.routeName,
-                    serviceType = route.serviceType ?: "1"
+                    serviceType = route.serviceType ?: "1",
+                    bound = route.bound ?: "O"
                 )
-
-                val filteredEtaList = rawEtaList.filter { eta ->
-                    route.destinationZh.isNullOrEmpty() || 
-                    eta.destinationZh.isEmpty() || 
-                    eta.destinationZh == route.destinationZh
-                }
 
                 _uiState.update { currentState ->
                     val currentMap = currentState.selectedStopEtaMap.toMutableMap()
-                    currentMap[stopId] = if (filteredEtaList.isNotEmpty()) filteredEtaList else rawEtaList
+                    currentMap[stopId] = etaList
                     currentState.copy(selectedStopEtaMap = currentMap)
                 }
             } catch (_: Exception) {}
@@ -306,19 +303,23 @@ class TransitSearchViewModel @Inject constructor(
     private fun fetchBookmarkEta(bookmark: TransitBookmarkEntity) {
         viewModelScope.launch {
             try {
-                val rawEtaList = busRepository.getEta(
+                val operatorCompany = try {
+                    OperatorCompany.valueOf(bookmark.company)
+                } catch (_: Exception) {
+                    OperatorCompany.KMB
+                }
+
+                val etaList = busRepository.getEta(
+                    company = operatorCompany,
                     stopId = bookmark.stopId,
                     route = bookmark.routeName,
-                    serviceType = bookmark.serviceType ?: "1"
+                    serviceType = bookmark.serviceType ?: "1",
+                    bound = bookmark.bound ?: "O"
                 )
-
-                val filteredEtaList = rawEtaList.filter { eta ->
-                    bookmark.destinationZh.isEmpty() || eta.destinationZh == bookmark.destinationZh
-                }
 
                 _uiState.update { currentState ->
                     val currentMap = currentState.bookmarkEtaMap.toMutableMap()
-                    currentMap[bookmark.bookmarkId] = if (filteredEtaList.isNotEmpty()) filteredEtaList else rawEtaList
+                    currentMap[bookmark.bookmarkId] = etaList
                     currentState.copy(bookmarkEtaMap = currentMap)
                 }
             } catch (_: Exception) {}
