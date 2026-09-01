@@ -7,11 +7,13 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropUp
 import androidx.compose.material.icons.filled.Backspace
 import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.SportsScore
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -27,11 +29,15 @@ private val BluePrimary = Color(0xFF1976D2)
 private val BlueContainer = Color(0xFFE3F2FD)
 private val BlueOnContainer = Color(0xFF0D47A1)
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SearchTabContent(
     uiState: TransitUiState,
     viewModel: TransitSearchViewModel
 ) {
+    var showModeSheet by remember { mutableStateOf(false) }
+    var showCompanySheet by remember { mutableStateOf(false) }
+
     Column(modifier = Modifier.fillMaxSize()) {
         Box(modifier = Modifier.weight(1f)) {
             if (uiState.isLoadingRoutes) {
@@ -120,22 +126,82 @@ fun SearchTabContent(
                     .fillMaxWidth()
                     .padding(start = 8.dp, end = 8.dp, top = 6.dp, bottom = 6.dp)
             ) {
-                Surface(
+                // 搜尋控制列 (輸入框 + 搜尋模式 + 公司篩選)
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(8.dp),
-                    color = Color.White
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                    Surface(
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(8.dp),
+                        color = Color.White
                     ) {
-                        Text(
-                            text = uiState.searchQuery.ifEmpty { "請點擊下方按鈕輸入路線..." },
-                            style = MaterialTheme.typography.bodyLarge,
-                            fontWeight = if (uiState.searchQuery.isNotEmpty()) FontWeight.Bold else FontWeight.Normal,
-                            color = if (uiState.searchQuery.isEmpty()) Color.Gray else PrimaryDarkBlue,
-                            modifier = Modifier.weight(1f)
-                        )
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = uiState.searchQuery.ifEmpty { "請輸入路線..." },
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = if (uiState.searchQuery.isNotEmpty()) FontWeight.Bold else FontWeight.Normal,
+                                color = if (uiState.searchQuery.isEmpty()) Color.Gray else PrimaryDarkBlue,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+
+                    // 搜尋模式按鈕 (向上彈出)
+                    Surface(
+                        onClick = { showModeSheet = true },
+                        shape = RoundedCornerShape(8.dp),
+                        color = Color.White,
+                        border = ButtonDefaults.outlinedButtonBorder
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = uiState.searchMode.label,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = PrimaryDarkBlue
+                            )
+                            Icon(
+                                imageVector = Icons.Default.ArrowDropUp,
+                                contentDescription = "Choose Mode",
+                                tint = PrimaryDarkBlue,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+
+                    // 公司篩選按鈕 (向上彈出)
+                    Surface(
+                        onClick = { showCompanySheet = true },
+                        shape = RoundedCornerShape(8.dp),
+                        color = Color.White,
+                        border = ButtonDefaults.outlinedButtonBorder
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = uiState.selectedCompany?.let { formatCompanyDisplayName(it) } ?: "全部公司",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = PrimaryDarkBlue
+                            )
+                            Icon(
+                                imageVector = Icons.Default.ArrowDropUp,
+                                contentDescription = "Choose Company",
+                                tint = PrimaryDarkBlue,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
                     }
                 }
 
@@ -221,6 +287,126 @@ fun SearchTabContent(
                             modifier = Modifier.size(20.dp)
                         )
                     }
+                }
+            }
+        }
+    }
+
+    // 向上彈出：搜尋模式選擇 Sheet
+    if (showModeSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showModeSheet = false },
+            sheetState = rememberModalBottomSheetState()
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 24.dp, top = 8.dp)
+            ) {
+                Text(
+                    text = "選擇搜尋方式",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = PrimaryDarkBlue,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                )
+                HorizontalDivider()
+                SearchMode.values().forEach { mode ->
+                    ListItem(
+                        headlineContent = {
+                            Text(
+                                text = mode.label,
+                                fontWeight = if (uiState.searchMode == mode) FontWeight.Bold else FontWeight.Normal,
+                                color = if (uiState.searchMode == mode) PrimaryDarkBlue else Color.Black
+                            )
+                        },
+                        trailingContent = {
+                            if (uiState.searchMode == mode) {
+                                Icon(
+                                    imageVector = Icons.Default.Check,
+                                    contentDescription = null,
+                                    tint = PrimaryDarkBlue
+                                )
+                            }
+                        },
+                        modifier = Modifier.clickable {
+                            viewModel.setSearchMode(mode)
+                            showModeSheet = false
+                        }
+                    )
+                }
+            }
+        }
+    }
+
+    // 向上彈出：公司篩選選擇 Sheet
+    if (showCompanySheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showCompanySheet = false },
+            sheetState = rememberModalBottomSheetState()
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 24.dp, top = 8.dp)
+            ) {
+                Text(
+                    text = "選擇營運公司",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = PrimaryDarkBlue,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                )
+                HorizontalDivider()
+                
+                // 全部公司選項
+                ListItem(
+                    headlineContent = {
+                        Text(
+                            text = "全部公司",
+                            fontWeight = if (uiState.selectedCompany == null) FontWeight.Bold else FontWeight.Normal,
+                            color = if (uiState.selectedCompany == null) PrimaryDarkBlue else Color.Black
+                        )
+                    },
+                    trailingContent = {
+                        if (uiState.selectedCompany == null) {
+                            Icon(
+                                imageVector = Icons.Default.Check,
+                                contentDescription = null,
+                                tint = PrimaryDarkBlue
+                            )
+                        }
+                    },
+                    modifier = Modifier.clickable {
+                        viewModel.selectCompany(null)
+                        showCompanySheet = false
+                    }
+                )
+
+                // 動態各公司選項
+                uiState.availableCompanies.forEach { company ->
+                    ListItem(
+                        headlineContent = {
+                            Text(
+                                text = formatCompanyDisplayName(company),
+                                fontWeight = if (uiState.selectedCompany == company) FontWeight.Bold else FontWeight.Normal,
+                                color = if (uiState.selectedCompany == company) PrimaryDarkBlue else Color.Black
+                            )
+                        },
+                        trailingContent = {
+                            if (uiState.selectedCompany == company) {
+                                Icon(
+                                    imageVector = Icons.Default.Check,
+                                    contentDescription = null,
+                                    tint = PrimaryDarkBlue
+                                )
+                            }
+                        },
+                        modifier = Modifier.clickable {
+                            viewModel.selectCompany(company)
+                            showCompanySheet = false
+                        }
+                    )
                 }
             }
         }
