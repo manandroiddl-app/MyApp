@@ -178,12 +178,4 @@ class KmbDataSource @Inject constructor() : BusDataSource {
             connection.disconnect()
         }
     }
-
-    override suspend fun getEta(
-        stopId: String,
-        route: String,
-        serviceType: String
-    ): List<TransitEta> {
-        return getEta(stopId, route, serviceType, null)
-    }
 }
