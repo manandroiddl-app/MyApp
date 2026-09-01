@@ -123,7 +123,8 @@ class KmbDataSource @Inject constructor() : BusDataSource {
     override suspend fun getEta(
         stopId: String,
         route: String,
-        serviceType: String
+        serviceType: String,
+        bound: String?
     ): List<TransitEta> = withContext(Dispatchers.IO) {
         val url = URL("https://data.etabus.gov.hk/v1/transport/kmb/eta/$stopId/$route/$serviceType")
         val connection = url.openConnection() as HttpURLConnection
@@ -136,6 +137,13 @@ class KmbDataSource @Inject constructor() : BusDataSource {
 
             for (i in 0 until dataArray.length()) {
                 val obj = dataArray.getJSONObject(i)
+                val dir = obj.optString("dir", "")
+                
+                // 若有帶入 bound 參數（"I" 或 "O"），則進行方向過濾，排除反方向的過多 ETA
+                if (!bound.isNullOrEmpty() && dir.isNotEmpty() && !dir.equals(bound, ignoreCase = true)) {
+                    continue
+                }
+
                 val etaTimeStr = obj.optString("eta", "")
                 val destTc = obj.optString("dest_tc", "")
                 val rName = obj.optString("route", route)
@@ -169,5 +177,13 @@ class KmbDataSource @Inject constructor() : BusDataSource {
         } finally {
             connection.disconnect()
         }
+    }
+
+    override suspend fun getEta(
+        stopId: String,
+        route: String,
+        serviceType: String
+    ): List<TransitEta> {
+        return getEta(stopId, route, serviceType, null)
     }
 }
