@@ -151,13 +151,6 @@ private fun StopDetailItem(
                         fontWeight = FontWeight.Bold,
                         color = PrimaryDarkBlue
                     )
-                    if (!stop.nameEn.isNullOrEmpty()) {
-                        Text(
-                            text = stop.nameEn,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color.Gray
-                        )
-                    }
                 }
 
                 IconButton(onClick = onBookmarkClick) {
