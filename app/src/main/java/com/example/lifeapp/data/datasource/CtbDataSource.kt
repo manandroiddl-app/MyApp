@@ -134,8 +134,9 @@ class CtbDataSource @Inject constructor(
                 destinationZh = dto.destTc ?: "",
                 etaTimestamp = etaStr,
                 remarkZh = dto.rmkTc ?: "",
-                minutesLeft = minutesLeft
+                minutesLeft = minutesLeft,
+                etaSeq = dto.etaSeq
             )
-        }.sortedBy { it.minutesLeft ?: Int.MAX_VALUE }
+        }.sortedBy { it.etaSeq ?: Int.MAX_VALUE }
     }
 }
