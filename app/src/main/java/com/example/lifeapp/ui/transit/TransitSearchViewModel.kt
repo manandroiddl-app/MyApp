@@ -30,6 +30,8 @@ data class TrackedVehicleInfo(
 data class TransitUiState(
     val currentTab: TransitTab = TransitTab.SEARCH,
     val searchQuery: String = "",
+    val selectedCompany: OperatorCompany? = null,
+    val availableCompanies: List<OperatorCompany> = emptyList(),
     val numericChips: List<Char> = emptyList(),
     val letterChips: List<Char> = emptyList(),
     val allRoutes: List<TransitRoute> = emptyList(),
@@ -93,9 +95,11 @@ class TransitSearchViewModel @Inject constructor(
             _uiState.update { it.copy(isLoadingRoutes = true) }
             try {
                 val routes = busRepository.getRoutes()
+                val companies = routes.map { it.company }.distinct()
                 _uiState.update { 
                     it.copy(
                         allRoutes = routes,
+                        availableCompanies = companies,
                         isLoadingRoutes = false
                     )
                 }
@@ -145,13 +149,23 @@ class TransitSearchViewModel @Inject constructor(
         updateFilteredRoutes(upperQuery)
     }
 
+    fun selectCompany(company: OperatorCompany?) {
+        _uiState.update { it.copy(selectedCompany = company) }
+        updateFilteredRoutes(_uiState.value.searchQuery)
+    }
+
     private fun updateFilteredRoutes(query: String) {
         val all = _uiState.value.allRoutes
+        val companyFilter = _uiState.value.selectedCompany
         
-        val filtered = if (query.isEmpty()) {
-            all
-        } else {
-            all.filter { it.routeName.contains(query, ignoreCase = true) }
+        val filtered = all.filter { route ->
+            val matchesCompany = companyFilter == null || route.company == companyFilter
+            val matchesQuery = if (query.isEmpty()) {
+                true
+            } else {
+                route.routeName.contains(query, ignoreCase = true)
+            }
+            matchesCompany && matchesQuery
         }
 
         val nextChars = filtered.mapNotNull { route ->
@@ -163,7 +177,7 @@ class TransitSearchViewModel @Inject constructor(
         }.distinct().sorted()
 
         val defaultLetters = if (query.isEmpty()) {
-            all.flatMap { route ->
+            filtered.flatMap { route ->
                 route.routeName.uppercase().filter { it.isLetter() }.toList()
             }.distinct().sorted()
         } else {
