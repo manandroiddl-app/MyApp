@@ -61,7 +61,8 @@ data class TransitEta(
     val destinationZh: String,
     val etaTimestamp: String?,         // ISO 8601 到站時間字串
     val remarkZh: String?,             // 備註 (例: "原定班次", "最後班次")
-    val minutesLeft: Int? = null       // 離到站剩餘分鐘數
+    val minutesLeft: Int? = null,      // 離到站剩餘分鐘數
+    val etaSeq: Int? = null            // 到站班次序號 (由 API eta_seq 驅動)
 )
 
 // ==========================================
@@ -127,6 +128,7 @@ data class KmbEtaDto(
     @SerializedName("route") val route: String? = null,
     @SerializedName("dir") val dir: String? = null,
     @SerializedName("seq") val sequence: Int? = null,
+    @SerializedName("eta_seq") val etaSeq: Int? = null,
     @SerializedName("stop") val stopId: String? = null,
     @SerializedName("dest_tc") val destTc: String? = null,
     @SerializedName("eta") val etaTimestamp: String? = null,
