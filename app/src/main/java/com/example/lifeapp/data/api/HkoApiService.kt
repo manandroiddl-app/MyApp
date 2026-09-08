@@ -51,4 +51,10 @@ interface HkoApiService {
     // 7. 本港分區 10 分鐘平均風速 CSV
     @GET("weatherAPI/hko_data/regional-weather/latest_10min_wind_uc.csv")
     suspend fun getRegionalWindCsv(): ResponseBody
+
+    // 8. 暑熱警告 (hsww)
+    @GET("weatherAPI/opendata/hsww.php")
+    suspend fun getHeatStressWarningRaw(
+        @Query("lang") lang: String = "tc"
+    ): JsonElement
 }
