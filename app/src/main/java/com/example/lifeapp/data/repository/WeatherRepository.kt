@@ -119,6 +119,7 @@ class WeatherRepository @Inject constructor(
             val rawWarningSum = runCatching { hkoApiService.getWarningSummaryRaw() }.getOrNull()
             val rawWarningDetail = runCatching { hkoApiService.getWarningInfoRaw() }.getOrNull()
             val rawSwt = runCatching { hkoApiService.getSpecialWeatherTipsRaw() }.getOrNull()
+            val rawHsww = runCatching { hkoApiService.getHeatStressWarningRaw() }.getOrNull() // [新增此處]
             val rawWindCsv = runCatching { hkoApiService.getRegionalWindCsv().string() }.getOrNull()
 
             val windSpeedMap = parseWindCsv(rawWindCsv)
@@ -179,6 +180,35 @@ class WeatherRepository @Inject constructor(
                         )
                     }
                 } catch (e: Exception) { Log.e("WeatherRepo", "SWT parse error", e) }
+            }
+
+            // 🎯 [新增暑熱警告 (HSWW) 解析邏輯]
+            if (rawHsww?.isJsonObject == true && rawHsww.asJsonObject.has("hsww")) {
+                try {
+                    val hswwObj = rawHsww.asJsonObject.getAsJsonObject("hsww")
+                    val actionCode = if (hswwObj.has("actionCode")) hswwObj.get("actionCode").asString else ""
+                    val warningLevel = if (hswwObj.has("warningLevel")) hswwObj.get("warningLevel").asString else ""
+                    val issueTime = if (hswwObj.has("issueTime")) hswwObj.get("issueTime").asString else ""
+
+                    if (actionCode != "CANCEL" && warningLevel.isNotBlank()) {
+                        val levelName = when (warningLevel) {
+                            "AMBER" -> "黃色暑熱警告"
+                            "RED" -> "紅色暑熱警告"
+                            "BLACK" -> "黑色暑熱警告"
+                            else -> "暑熱警告"
+                        }
+                        val codeKey = "WHSWW_$warningLevel"
+                        val detailMsg = "香港天文台在 $issueTime 發出 $levelName。\n\n暑熱警告表示本港工作或活動環境的暑熱壓力高，請採取適當的防暑措施，補充足夠水分，避免過度勞累。"
+
+                        warnings.add(
+                            WeatherWarningItem(
+                                code = codeKey,
+                                name = levelName,
+                                details = detailMsg
+                            )
+                        )
+                    }
+                } catch (e: Exception) { Log.e("WeatherRepo", "HSWW parse error", e) }
             }
 
             val districtList = mutableListOf<DistrictTemperature>()
