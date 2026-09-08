@@ -41,32 +41,39 @@ data class WeatherWarningItem(
 
     // 取得警告圖示 URL
     fun getIconUrl(): String? {
-        val iconName = when (code) {
-            "WFROST" -> "frost"
-            "WHOT" -> "vhot"
-            "WCOLD" -> "cold"
-            "WMSGNL" -> "sms"
-            "WFNTSA" -> "ntfl"
-            "WL" -> "landslip"
-            "WTMW" -> "tsunami-warn"
-            "WTS" -> "ts"
-            "WFIREY" -> "firey"
-            "WFIRER" -> "firer"
-            "TC1" -> "tc1"
-            "TC3" -> "tc3"
-            "TC8NE" -> "tc8ne"
-            "TC8SE" -> "tc8b"
-            "TC8SW" -> "tc8c"
-            "TC8NW" -> "tc8d"
-            "TC9" -> "tc9"
-            "TC10" -> "tc10"
-            "WRAINA" -> "raina"
-            "WRAINR" -> "rainr"
-            "WRAINB" -> "rainb"
-            "WTCPRE8" -> "tc8ne" // 特別預警使用 8 號球圖示替代
-            else -> null
+        return when (code) {
+            "WHSWW_AMBER" -> "https://noheatstress.hk/wp-content/themes/flatsome-child/images/hot-warning-yellow3.png"
+            "WHSWW_RED" -> "https://noheatstress.hk/wp-content/themes/flatsome-child/images/hot-warning-red3.png"
+            "WHSWW_BLACK" -> "https://noheatstress.hk/wp-content/themes/flatsome-child/images/hot-warning-black3.png"
+            else -> {
+                val iconName = when (code) {
+                    "WFROST" -> "frost"
+                    "WHOT" -> "vhot"
+                    "WCOLD" -> "cold"
+                    "WMSGNL" -> "sms"
+                    "WFNTSA" -> "ntfl"
+                    "WL" -> "landslip"
+                    "WTMW" -> "tsunami-warn"
+                    "WTS" -> "ts"
+                    "WFIREY" -> "firey"
+                    "WFIRER" -> "firer"
+                    "TC1" -> "tc1"
+                    "TC3" -> "tc3"
+                    "TC8NE" -> "tc8ne"
+                    "TC8SE" -> "tc8b"
+                    "TC8SW" -> "tc8c"
+                    "TC8NW" -> "tc8d"
+                    "TC9" -> "tc9"
+                    "TC10" -> "tc10"
+                    "WRAINA" -> "raina"
+                    "WRAINR" -> "rainr"
+                    "WRAINB" -> "rainb"
+                    "WTCPRE8" -> "tc8ne" // 特別預警使用 8 號球圖示替代
+                    else -> null
+                }
+                iconName?.let { "https://www.hko.gov.hk/tc/wxinfo/dailywx/images/$it.gif" }
+            }
         }
-        return iconName?.let { "https://www.hko.gov.hk/tc/wxinfo/dailywx/images/$it.gif" }
     }
 }
 
@@ -117,4 +124,16 @@ data class ForecastRhRange(
     val minrh: Int = 0,
     val maxrh: Int = 0,
     val unit: String = "%"
+)
+
+// 7. 暑熱警告 API DTO
+data class HswwResponseDto(
+    val hsww: HswwWarningDto? = null
+)
+
+data class HswwWarningDto(
+    val actionCode: String? = null, // ISSUE, CANCEL, REISSUE
+    val warningLevel: String? = null, // AMBER, RED, BLACK
+    val issueTime: String? = null,
+    val updateTime: String? = null
 )
