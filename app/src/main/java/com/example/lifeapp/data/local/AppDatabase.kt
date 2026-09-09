@@ -5,6 +5,7 @@ import androidx.room.RoomDatabase
 import com.example.lifeapp.data.local.dao.TransitBookmarkDao
 import com.example.lifeapp.data.local.dao.TransitDao
 import com.example.lifeapp.data.local.entity.TransitBookmarkEntity
+import com.example.lifeapp.data.local.entity.TransitLastUpdateEntity
 import com.example.lifeapp.data.local.entity.TransitRouteEntity
 import com.example.lifeapp.data.local.entity.TransitRouteStopEntity
 import com.example.lifeapp.data.local.entity.TransitStopEntity
@@ -15,7 +16,8 @@ import com.example.lifeapp.data.local.entity.TransitStopEntity
         TransitBookmarkEntity::class,
         TransitRouteEntity::class,
         TransitStopEntity::class,
-        TransitRouteStopEntity::class
+        TransitRouteStopEntity::class,
+        TransitLastUpdateEntity::class
     ],
     version = 5,
     exportSchema = false
