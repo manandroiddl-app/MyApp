@@ -5,6 +5,7 @@ import androidx.room.Room
 import com.example.lifeapp.data.local.AppDatabase
 import com.example.lifeapp.data.local.GenericCacheDao
 import com.example.lifeapp.data.local.dao.TransitBookmarkDao
+import com.example.lifeapp.data.local.dao.TransitDao
 import com.google.gson.Gson
 import dagger.Module
 import dagger.Provides
@@ -39,5 +40,10 @@ object DatabaseModule {
     @Provides
     fun provideTransitBookmarkDao(database: AppDatabase): TransitBookmarkDao {
         return database.transitBookmarkDao()
+    }
+
+    @Provides
+    fun provideTransitDao(database: AppDatabase): TransitDao {
+        return database.transitDao()
     }
 }
