@@ -2,6 +2,7 @@ package com.example.lifeapp.ui.transit
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.lifeapp.data.local.dao.TransitDao
 import com.example.lifeapp.data.local.entity.TransitBookmarkEntity
 import com.example.lifeapp.data.model.OperatorCompany
 import com.example.lifeapp.data.model.TransitEta
@@ -9,7 +10,9 @@ import com.example.lifeapp.data.model.TransitRoute
 import com.example.lifeapp.data.model.TransitStop
 import com.example.lifeapp.data.model.TransitType
 import com.example.lifeapp.data.repository.BusRepository
+import com.example.lifeapp.data.repository.transit.TransitSyncManager
 import com.example.lifeapp.ui.common.AutoRefreshDelegate
+import com.example.lifeapp.util.TransitDateUtils
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -46,12 +49,18 @@ data class TransitUiState(
     val bookmarkEtaMap: Map<String, List<TransitEta>> = emptyMap(),
     val bookmarkedStopIds: Set<String> = emptySet(),
     
-    val trackedVehicle: TrackedVehicleInfo? = null
+    val trackedVehicle: TrackedVehicleInfo? = null,
+
+    // Phase 2 新增：Batch Sync 與最後更新時間狀態
+    val lastUpdateTimeFormatted: String? = null,
+    val isSyncing: Boolean = false
 )
 
 @HiltViewModel
 class TransitSearchViewModel @Inject constructor(
-    private val busRepository: BusRepository
+    private val busRepository: BusRepository,
+    private val transitSyncManager: TransitSyncManager,
+    private val transitDao: TransitDao
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(TransitUiState())
@@ -66,6 +75,52 @@ class TransitSearchViewModel @Inject constructor(
     init {
         loadAllRoutes()
         observeBookmarks()
+        observeSyncState()
+        observeLastUpdateTime()
+        checkAndAutoSync()
+    }
+
+    private fun observeSyncState() {
+        viewModelScope.launch {
+            transitSyncManager.isSyncing.collectLatest { syncing ->
+                _uiState.update { it.copy(isSyncing = syncing) }
+                if (!syncing) {
+                    refreshLastUpdateTime()
+                }
+            }
+        }
+    }
+
+    private fun observeLastUpdateTime() {
+        viewModelScope.launch {
+            refreshLastUpdateTime()
+        }
+    }
+
+    private suspend fun refreshLastUpdateTime() {
+        val lastUpdateRecord = transitDao.getLastUpdate()
+        val formattedTime = lastUpdateRecord?.let {
+            TransitDateUtils.formatLastUpdateTime(it.lastUpdateTime)
+        }
+        _uiState.update { it.copy(lastUpdateTimeFormatted = formattedTime) }
+    }
+
+    fun checkAndAutoSync() {
+        viewModelScope.launch {
+            val updated = transitSyncManager.checkAndAutoSync()
+            if (updated) {
+                loadAllRoutes()
+            }
+        }
+    }
+
+    fun onManualSyncClick() {
+        viewModelScope.launch {
+            val updated = transitSyncManager.forceSync()
+            if (updated) {
+                loadAllRoutes()
+            }
+        }
     }
 
     fun onResumeRefresh() {
