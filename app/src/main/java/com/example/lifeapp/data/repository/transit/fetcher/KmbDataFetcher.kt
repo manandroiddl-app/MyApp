@@ -28,46 +28,56 @@ class KmbDataFetcher @Inject constructor(
             TransitRouteEntity(
                 co = "KMB",
                 routeName = raw.routeName,
-                bound = raw.bound ?: "O",
-                boundDesc = if ((raw.bound ?: "O").equals("I", ignoreCase = true)) "inbound" else "outbound",
-                otherKey = raw.serviceType ?: "1",
+                bound = raw.bound,
+                boundDesc = if (raw.bound.equals("I", ignoreCase = true)) "inbound" else "outbound",
+                otherKey = raw.serviceType,
                 otherKeyDesc = "service_type",
-                oriTc = raw.orig_tc ?: "",
-                oriEng = raw.orig_en ?: "",
-                destTc = raw.dest_tc ?: "",
-                destEng = raw.dest_en ?: ""
+                oriTc = raw.originZh,
+                oriEng = raw.originEn,
+                destTc = raw.destinationZh,
+                destEng = raw.destinationEn
             )
         }
 
-        // 2. 抓取全量 Stop
-        val rawStops = kmbDataSource.getAllStops()
-        val stopEntities = rawStops.map { raw ->
-            TransitStopEntity(
-                co = "KMB",
-                stopId = raw.stop,
-                nameTc = raw.name_tc ?: "",
-                nameEn = raw.name_en ?: "",
-                lat = raw.lat?.toDoubleOrNull() ?: 0.0,
-                lng = raw.long?.toDoubleOrNull() ?: 0.0
-            )
-        }
+        // 2 & 3. 透過路線疊代抓取對應車站與 RouteStop 關聯
+        val stopMap = mutableMapOf<String, TransitStopEntity>()
+        val routeStopEntities = mutableListOf<TransitRouteStopEntity>()
 
-        // 3. 抓取全量 Route-Stop 關聯
-        val rawRouteStops = kmbDataSource.getAllRouteStops()
-        val routeStopEntities = rawRouteStops.map { raw ->
-            TransitRouteStopEntity(
-                co = "KMB",
-                routeName = raw.route ?: "",
-                bound = raw.bound ?: "O",
-                otherKey = raw.service_type ?: "1",
-                seq = raw.seq ?: 0,
-                stopId = raw.stop ?: ""
+        for (route in rawRoutes) {
+            val stops = kmbDataSource.getRouteStops(
+                route = route.routeName,
+                bound = route.bound,
+                serviceType = route.serviceType
             )
+
+            for (stop in stops) {
+                if (!stopMap.containsKey(stop.stopId)) {
+                    stopMap[stop.stopId] = TransitStopEntity(
+                        co = "KMB",
+                        stopId = stop.stopId,
+                        nameTc = stop.nameZh,
+                        nameEn = stop.nameEn,
+                        lat = stop.latitude,
+                        lng = stop.longitude
+                    )
+                }
+
+                routeStopEntities.add(
+                    TransitRouteStopEntity(
+                        co = "KMB",
+                        routeName = route.routeName,
+                        bound = route.bound,
+                        otherKey = route.serviceType,
+                        seq = stop.sequence,
+                        stopId = stop.stopId
+                    )
+                )
+            }
         }
 
         return KmbDataBatchResult(
             routes = routeEntities,
-            stops = stopEntities,
+            stops = stopMap.values.toList(),
             routeStops = routeStopEntities
         )
     }
