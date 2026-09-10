@@ -2,10 +2,13 @@ package com.example.lifeapp.di
 
 import android.content.Context
 import androidx.room.Room
+import com.example.lifeapp.data.datasource.KmbDataSource
 import com.example.lifeapp.data.local.AppDatabase
 import com.example.lifeapp.data.local.GenericCacheDao
 import com.example.lifeapp.data.local.dao.TransitBookmarkDao
 import com.example.lifeapp.data.local.dao.TransitDao
+import com.example.lifeapp.data.repository.transit.TransitSyncManager
+import com.example.lifeapp.data.repository.transit.fetcher.KmbDataFetcher
 import com.google.gson.Gson
 import dagger.Module
 import dagger.Provides
@@ -45,5 +48,21 @@ object DatabaseModule {
     @Provides
     fun provideTransitDao(database: AppDatabase): TransitDao {
         return database.transitDao()
+    }
+
+    @Provides
+    @Singleton
+    fun provideKmbDataFetcher(kmbDataSource: KmbDataSource): KmbDataFetcher {
+        return KmbDataFetcher(kmbDataSource)
+    }
+
+    @Provides
+    @Singleton
+    fun provideTransitSyncManager(
+        database: AppDatabase,
+        transitDao: TransitDao,
+        kmbDataFetcher: KmbDataFetcher
+    ): TransitSyncManager {
+        return TransitSyncManager(database, transitDao, kmbDataFetcher)
     }
 }
