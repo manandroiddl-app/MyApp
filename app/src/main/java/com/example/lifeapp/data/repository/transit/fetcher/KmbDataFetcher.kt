@@ -28,9 +28,9 @@ class KmbDataFetcher @Inject constructor(
             TransitRouteEntity(
                 co = "KMB",
                 routeName = raw.routeName,
-                bound = raw.bound,
-                boundDesc = if (raw.bound.equals("I", ignoreCase = true)) "inbound" else "outbound",
-                otherKey = raw.serviceType,
+                bound = raw.bound ?: "O",
+                boundDesc = if ((raw.bound ?: "O").equals("I", ignoreCase = true)) "inbound" else "outbound",
+                otherKey = raw.serviceType ?: "1",
                 otherKeyDesc = "service_type",
                 oriTc = raw.originZh,
                 oriEng = raw.originEn,
@@ -46,8 +46,8 @@ class KmbDataFetcher @Inject constructor(
         for (route in rawRoutes) {
             val stops = kmbDataSource.getRouteStops(
                 route = route.routeName,
-                bound = route.bound,
-                serviceType = route.serviceType
+                bound = route.bound ?: "O",
+                serviceType = route.serviceType ?: "1"
             )
 
             for (stop in stops) {
@@ -66,8 +66,8 @@ class KmbDataFetcher @Inject constructor(
                     TransitRouteStopEntity(
                         co = "KMB",
                         routeName = route.routeName,
-                        bound = route.bound,
-                        otherKey = route.serviceType,
+                        bound = route.bound ?: "O",
+                        otherKey = route.serviceType ?: "1",
                         seq = stop.sequence,
                         stopId = stop.stopId
                     )
