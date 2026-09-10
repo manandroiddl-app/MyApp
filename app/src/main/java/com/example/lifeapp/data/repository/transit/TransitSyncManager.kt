@@ -1,5 +1,6 @@
 package com.example.lifeapp.data.repository.transit
 
+import androidx.room.withTransaction
 import com.example.lifeapp.data.local.AppDatabase
 import com.example.lifeapp.data.local.dao.TransitDao
 import com.example.lifeapp.data.local.entity.TransitLastUpdateEntity
@@ -58,11 +59,11 @@ class TransitSyncManager @Inject constructor(
             _isSyncing.value = true
 
             try {
-                // 1. Fetch 各營運商資料 (目前 Phase 2 先接入 KMB)
+                // 1. Fetch 各營運商資料
                 val kmbData = kmbDataFetcher.fetchAllKmbData()
 
-                // 2. 在 Room Transaction 內進行全量寫入與版本記錄，確保原子性
-                appDatabase.runInTransaction {
+                // 2. 在 Room Coroutine Transaction (withTransaction) 內進行全量寫入與版本記錄，確保原子性
+                appDatabase.withTransaction {
                     // 寫入 Routes, Stops, RouteStops
                     transitDao.insertRoutes(kmbData.routes)
                     transitDao.insertStops(kmbData.stops)
