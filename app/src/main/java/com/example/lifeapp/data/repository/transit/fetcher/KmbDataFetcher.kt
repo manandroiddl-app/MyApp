@@ -27,41 +27,41 @@ class KmbDataFetcher @Inject constructor(
         val routeEntities = rawRoutes.map { raw ->
             TransitRouteEntity(
                 co = "KMB",
-                routeName = raw.route,
-                bound = raw.bound,
-                boundDesc = if (raw.bound.equals("I", ignoreCase = true)) "inbound" else "outbound",
+                routeName = raw.routeName,
+                bound = raw.bound ?: "O",
+                boundDesc = if ((raw.bound ?: "O").equals("I", ignoreCase = true)) "inbound" else "outbound",
                 otherKey = raw.serviceType ?: "1",
                 otherKeyDesc = "service_type",
-                oriTc = raw.origTc,
-                oriEng = raw.origEn,
-                destTc = raw.destTc,
-                destEng = raw.destEn
+                oriTc = raw.orig_tc ?: "",
+                oriEng = raw.orig_en ?: "",
+                destTc = raw.dest_tc ?: "",
+                destEng = raw.dest_en ?: ""
             )
         }
 
         // 2. 抓取全量 Stop
-        val rawStops = kmbDataSource.getStops()
+        val rawStops = kmbDataSource.getAllStops()
         val stopEntities = rawStops.map { raw ->
             TransitStopEntity(
                 co = "KMB",
                 stopId = raw.stop,
-                nameTc = raw.nameTc,
-                nameEn = raw.nameEn,
+                nameTc = raw.name_tc ?: "",
+                nameEn = raw.name_en ?: "",
                 lat = raw.lat?.toDoubleOrNull() ?: 0.0,
                 lng = raw.long?.toDoubleOrNull() ?: 0.0
             )
         }
 
         // 3. 抓取全量 Route-Stop 關聯
-        val rawRouteStops = kmbDataSource.getRouteStops()
+        val rawRouteStops = kmbDataSource.getAllRouteStops()
         val routeStopEntities = rawRouteStops.map { raw ->
             TransitRouteStopEntity(
                 co = "KMB",
-                routeName = raw.route,
-                bound = raw.bound,
-                otherKey = raw.serviceType ?: "1",
-                seq = raw.seq,
-                stopId = raw.stop
+                routeName = raw.route ?: "",
+                bound = raw.bound ?: "O",
+                otherKey = raw.service_type ?: "1",
+                seq = raw.seq ?: 0,
+                stopId = raw.stop ?: ""
             )
         }
 
