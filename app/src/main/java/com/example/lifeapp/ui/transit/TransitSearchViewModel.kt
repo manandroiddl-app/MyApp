@@ -110,6 +110,10 @@ class TransitSearchViewModel @Inject constructor(
             val updated = transitSyncManager.checkAndAutoSync()
             if (updated) {
                 loadAllRoutes()
+                val currentRoute = _uiState.value.selectedRoute
+                if (currentRoute != null) {
+                    selectRoute(currentRoute)
+                }
             }
         }
     }
@@ -119,6 +123,10 @@ class TransitSearchViewModel @Inject constructor(
             val updated = transitSyncManager.forceSync()
             if (updated) {
                 loadAllRoutes()
+                val currentRoute = _uiState.value.selectedRoute
+                if (currentRoute != null) {
+                    selectRoute(currentRoute)
+                }
             }
         }
     }
