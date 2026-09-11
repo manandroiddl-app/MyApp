@@ -52,6 +52,7 @@ class TransitSyncManager @Inject constructor(
 
     /**
      * 手動觸發 Batch Update (用於 UI 按鈕 trigger)
+     * 無條件無視舊版本號，強制進行 Network Fetch 並覆蓋 DB
      * @return true 代表成功更新，false 代表正在更新中或更新失敗
      */
     suspend fun forceSync(): Boolean {
@@ -66,8 +67,14 @@ class TransitSyncManager @Inject constructor(
             _isSyncing.value = true
 
             try {
-                // 1. Fetch 各營運商資料
+                // 1. Fetch 各營運商資料 (在進入 DB Transaction 之前執行，確保 Fetch 成功才動 DB)
                 val kmbData = kmbDataFetcher.fetchAllKmbData()
+
+                // 安全檢查：若 Fetch 回傳空資料，直接終止，避免誤刪 DB
+                if (kmbData.routes.isEmpty() && kmbData.stops.isEmpty()) {
+                    Log.e(TAG, "Batch sync failed: Fetched data is empty")
+                    return@withLock false
+                }
 
                 // 2. 在 Room Coroutine Transaction (withTransaction) 內進行全量寫入與版本記錄，確保原子性
                 appDatabase.withTransaction {
