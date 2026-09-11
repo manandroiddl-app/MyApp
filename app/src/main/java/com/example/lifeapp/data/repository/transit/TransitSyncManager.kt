@@ -1,16 +1,19 @@
 package com.example.lifeapp.data.repository.transit
 
+import android.util.Log
 import androidx.room.withTransaction
 import com.example.lifeapp.data.local.AppDatabase
 import com.example.lifeapp.data.local.dao.TransitDao
 import com.example.lifeapp.data.local.entity.TransitLastUpdateEntity
 import com.example.lifeapp.data.repository.transit.fetcher.KmbDataFetcher
 import com.example.lifeapp.util.TransitDateUtils
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -20,6 +23,10 @@ class TransitSyncManager @Inject constructor(
     private val transitDao: TransitDao,
     private val kmbDataFetcher: KmbDataFetcher
 ) {
+
+    companion object {
+        private const val TAG = "TransitSyncManager"
+    }
 
     private val _isSyncing = MutableStateFlow(false)
     val isSyncing: StateFlow<Boolean> = _isSyncing.asStateFlow()
@@ -53,9 +60,9 @@ class TransitSyncManager @Inject constructor(
         return performBatchSync(targetVersion)
     }
 
-    private suspend fun performBatchSync(targetVersion: String): Boolean {
-        return syncMutex.withLock {
-            if (_isSyncing.value) return false
+    private suspend fun performBatchSync(targetVersion: String): Boolean = withContext(Dispatchers.IO) {
+        return@withContext syncMutex.withLock {
+            if (_isSyncing.value) return@withLock false
             _isSyncing.value = true
 
             try {
@@ -64,6 +71,11 @@ class TransitSyncManager @Inject constructor(
 
                 // 2. 在 Room Coroutine Transaction (withTransaction) 內進行全量寫入與版本記錄，確保原子性
                 appDatabase.withTransaction {
+                    // 寫入前先清空相關 Table，確保廢棄或舊格式資料不殘留
+                    transitDao.clearRoutes()
+                    transitDao.clearStops()
+                    transitDao.clearRouteStops()
+
                     // 寫入 Routes, Stops, RouteStops
                     transitDao.insertRoutes(kmbData.routes)
                     transitDao.insertStops(kmbData.stops)
@@ -80,7 +92,8 @@ class TransitSyncManager @Inject constructor(
                 }
 
                 true
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                Log.e(TAG, "Batch sync failed", e)
                 false
             } finally {
                 _isSyncing.value = false
