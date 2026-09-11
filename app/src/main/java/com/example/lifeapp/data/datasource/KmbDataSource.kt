@@ -18,10 +18,17 @@ import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
 
+private data class KmbStopDetailCache(
+    val nameZh: String,
+    val nameEn: String,
+    val lat: Double,
+    val lng: Double
+)
+
 @Singleton
 class KmbDataSource @Inject constructor() : BusDataSource {
 
-    private val stopNameCache = ConcurrentHashMap<String, String>()
+    private val stopDetailCache = ConcurrentHashMap<String, KmbStopDetailCache>()
 
     override suspend fun getRoutes(): List<TransitRoute> = withContext(Dispatchers.IO) {
         val url = URL("https://data.etabus.gov.hk/v1/transport/kmb/route")
@@ -78,26 +85,25 @@ class KmbDataSource @Inject constructor() : BusDataSource {
                 rawStops.add(Pair(obj.optString("stop"), obj.optInt("seq")))
             }
 
-            val missingStopIds = rawStops.map { it.first }.filter { !stopNameCache.containsKey("KMB_${it}") }.distinct()
+            val missingStopIds = rawStops.map { it.first }.filter { !stopDetailCache.containsKey("KMB_${it}") }.distinct()
             if (missingStopIds.isNotEmpty()) {
                 missingStopIds.map { stopId ->
                     async {
-                        val name = fetchStopNameFromApi(stopId)
-                        if (name.isNotEmpty()) {
-                            stopNameCache["KMB_${stopId}"] = name
-                        }
+                        val detail = fetchStopDetailFromApi(stopId)
+                        stopDetailCache["KMB_${stopId}"] = detail
                     }
                 }.awaitAll()
             }
 
             rawStops.map { (stopId, seq) ->
+                val cachedDetail = stopDetailCache["KMB_${stopId}"]
                 TransitStop(
                     stopId = stopId,
                     sequence = seq,
-                    nameZh = stopNameCache["KMB_${stopId}"] ?: "車站 $seq",
-                    nameEn = "",
-                    latitude = 0.0,
-                    longitude = 0.0
+                    nameZh = cachedDetail?.nameZh ?: "車站 $seq",
+                    nameEn = cachedDetail?.nameEn ?: "",
+                    latitude = cachedDetail?.lat ?: 0.0,
+                    longitude = cachedDetail?.lng ?: 0.0
                 )
             }
         } catch (e: Exception) {
@@ -107,16 +113,26 @@ class KmbDataSource @Inject constructor() : BusDataSource {
         }
     }
 
-    private fun fetchStopNameFromApi(stopId: String): String {
+    private fun fetchStopDetailFromApi(stopId: String): KmbStopDetailCache {
         return try {
             val url = URL("https://data.etabus.gov.hk/v1/transport/kmb/stop/$stopId")
             val conn = url.openConnection() as HttpURLConnection
             val jsonStr = conn.inputStream.bufferedReader().use { it.readText() }
             conn.disconnect()
             val dataObj = JSONObject(jsonStr).getJSONObject("data")
-            dataObj.optString("name_tc")
+            KmbStopDetailCache(
+                nameZh = dataObj.optString("name_tc"),
+                nameEn = dataObj.optString("name_en"),
+                lat = dataObj.optString("lat").toDoubleOrNull() ?: 0.0,
+                lng = dataObj.optString("long").toDoubleOrNull() ?: 0.0
+            )
         } catch (e: Exception) {
-            ""
+            KmbStopDetailCache(
+                nameZh = "",
+                nameEn = "",
+                lat = 0.0,
+                lng = 0.0
+            )
         }
     }
 
