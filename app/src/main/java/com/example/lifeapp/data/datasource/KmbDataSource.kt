@@ -77,6 +77,7 @@ class KmbDataSource @Inject constructor() : BusDataSource {
             }
             list
         } catch (e: Exception) {
+            e.printStackTrace()
             emptyList()
         } finally {
             connection.disconnect()
@@ -115,6 +116,7 @@ class KmbDataSource @Inject constructor() : BusDataSource {
             }
             list
         } catch (e: Exception) {
+            e.printStackTrace()
             emptyList()
         } finally {
             connection.disconnect()
@@ -132,8 +134,7 @@ class KmbDataSource @Inject constructor() : BusDataSource {
             for (i in 0 until dataArray.length()) {
                 val obj = dataArray.getJSONObject(i)
                 val routeName = obj.optString("route")
-                val rawBound = obj.optString("bound")
-                val bound = if (rawBound.equals("outbound", ignoreCase = true)) "O" else if (rawBound.equals("inbound", ignoreCase = true)) "I" else rawBound
+                val bound = obj.optString("bound")
                 val serviceType = obj.optString("service_type", "1")
 
                 list.add(
@@ -153,6 +154,7 @@ class KmbDataSource @Inject constructor() : BusDataSource {
             }
             list
         } catch (e: Exception) {
+            e.printStackTrace()
             emptyList()
         } finally {
             connection.disconnect()
@@ -199,6 +201,7 @@ class KmbDataSource @Inject constructor() : BusDataSource {
                 )
             }
         } catch (e: Exception) {
+            e.printStackTrace()
             emptyList()
         } finally {
             connection.disconnect()
@@ -283,6 +286,7 @@ class KmbDataSource @Inject constructor() : BusDataSource {
             }
             list.sortedBy { it.etaSeq ?: Int.MAX_VALUE }
         } catch (e: Exception) {
+            e.printStackTrace()
             emptyList()
         } finally {
             connection.disconnect()
