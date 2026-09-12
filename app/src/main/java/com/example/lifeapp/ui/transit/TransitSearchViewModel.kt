@@ -83,11 +83,18 @@ class TransitSearchViewModel @Inject constructor(
 
     private fun observeSyncState() {
         viewModelScope.launch {
+            var wasSyncing = false
             transitSyncManager.isSyncing.collectLatest { syncing ->
                 _uiState.update { it.copy(isSyncing = syncing) }
-                if (!syncing) {
+                if (wasSyncing && !syncing) {
                     refreshLastUpdateTime()
+                    loadAllRoutes()
+                    val currentRoute = _uiState.value.selectedRoute
+                    if (currentRoute != null) {
+                        selectRoute(currentRoute)
+                    }
                 }
+                wasSyncing = syncing
             }
         }
     }
