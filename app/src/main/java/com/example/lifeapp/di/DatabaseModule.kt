@@ -59,10 +59,11 @@ object DatabaseModule {
     @Provides
     @Singleton
     fun provideTransitSyncManager(
+        @ApplicationContext context: Context,
         database: AppDatabase,
         transitDao: TransitDao,
         kmbDataFetcher: KmbDataFetcher
     ): TransitSyncManager {
-        return TransitSyncManager(database, transitDao, kmbDataFetcher)
+        return TransitSyncManager(context, database, transitDao, kmbDataFetcher)
     }
 }
