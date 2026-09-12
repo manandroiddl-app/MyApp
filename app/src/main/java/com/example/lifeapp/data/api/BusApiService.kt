@@ -16,6 +16,18 @@ interface BusApiService {
     suspend fun getKmbRoutes(): KmbRouteResponse
 
     /**
+     * 取得九巴全量車站列表
+     */
+    @GET("v1/transport/kmb/stop")
+    suspend fun getKmbAllStops(): KmbStopDetailResponse
+
+    /**
+     * 取得九巴全量路線車站對照列表
+     */
+    @GET("v1/transport/kmb/route-stop")
+    suspend fun getKmbAllRouteStops(): KmbRouteStopResponse
+
+    /**
      * 取得特定路線的站順列表
      */
     @GET("v1/transport/kmb/route-stop/{route}/{bound}/{service_type}")
