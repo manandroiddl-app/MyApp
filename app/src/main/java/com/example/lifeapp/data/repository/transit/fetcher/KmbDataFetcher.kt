@@ -38,11 +38,12 @@ class KmbDataFetcher @Inject constructor(
 
             // 2. 轉換 Routes
             val routeEntities = rawRoutes.map { raw ->
+                val currentBound = raw.bound ?: "O"
                 TransitRouteEntity(
                     co = "KMB",
                     routeName = raw.routeName,
-                    bound = raw.bound ?: "O",
-                    boundDesc = if ((raw.bound ?: "O").equals("I", ignoreCase = true)) "inbound" else "outbound",
+                    bound = currentBound,
+                    boundDesc = if (currentBound.equals("I", ignoreCase = true)) "inbound" else "outbound",
                     otherKey = raw.serviceType ?: "1",
                     otherKeyDesc = "service_type",
                     oriTc = raw.originZh,
