@@ -1,12 +1,19 @@
 package com.example.lifeapp.data.repository.transit
 
+import android.content.Context
 import android.util.Log
 import androidx.room.withTransaction
+import androidx.work.Constraints
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.NetworkType
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
 import com.example.lifeapp.data.local.AppDatabase
 import com.example.lifeapp.data.local.dao.TransitDao
 import com.example.lifeapp.data.local.entity.TransitLastUpdateEntity
 import com.example.lifeapp.data.repository.transit.fetcher.KmbDataFetcher
 import com.example.lifeapp.util.TransitDateUtils
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -14,11 +21,13 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class TransitSyncManager @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val appDatabase: AppDatabase,
     private val transitDao: TransitDao,
     private val kmbDataFetcher: KmbDataFetcher
@@ -28,10 +37,31 @@ class TransitSyncManager @Inject constructor(
         private const val TAG = "TransitSyncManager"
     }
 
+    private val workManager = WorkManager.getInstance(context)
+
     private val _isSyncing = MutableStateFlow(false)
     val isSyncing: StateFlow<Boolean> = _isSyncing.asStateFlow()
 
     private val syncMutex = Mutex()
+
+    /**
+     * 啟動 WorkManager 每日定期 check version 自動更新任務 (開 App 時註冊)
+     */
+    fun schedulePeriodicSync() {
+        val constraints = Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.CONNECTED)
+            .build()
+
+        val periodicWorkRequest = PeriodicWorkRequestBuilder<TransitSyncWorker>(24, TimeUnit.HOURS)
+            .setConstraints(constraints)
+            .build()
+
+        workManager.enqueueUniquePeriodicWork(
+            TransitSyncWorker.WORK_NAME_PERIODIC,
+            ExistingPeriodicWorkPolicy.KEEP,
+            periodicWorkRequest
+        )
+    }
 
     /**
      * 檢查版本並在需要時執行 Batch Update (用於開 App 時 auto trigger)
@@ -47,6 +77,21 @@ class TransitSyncManager @Inject constructor(
             return false // 已是最新版本，跳過更新
         }
 
+        return performBatchSync(targetVersion)
+    }
+
+    /**
+     * 供 TransitSyncWorker 調用的內部自動檢查方法
+     */
+    suspend fun checkAndAutoSyncInternal(): Boolean {
+        return checkAndAutoSync()
+    }
+
+    /**
+     * 供 TransitSyncWorker 調用的無條件強制同步方法
+     */
+    suspend fun performBatchSyncDirectly(): Boolean {
+        val targetVersion = TransitDateUtils.calculateVersion()
         return performBatchSync(targetVersion)
     }
 
