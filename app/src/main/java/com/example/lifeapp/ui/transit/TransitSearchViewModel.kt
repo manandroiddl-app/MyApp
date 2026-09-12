@@ -78,6 +78,7 @@ class TransitSearchViewModel @Inject constructor(
         observeSyncState()
         observeLastUpdateTime()
         checkAndAutoSync()
+        transitSyncManager.schedulePeriodicSync()
     }
 
     private fun observeSyncState() {
