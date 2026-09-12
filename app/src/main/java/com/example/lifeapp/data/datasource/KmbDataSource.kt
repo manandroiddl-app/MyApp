@@ -18,6 +18,22 @@ import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
 
+data class KmbRawStop(
+    val stopId: String,
+    val nameZh: String,
+    val nameEn: String,
+    val lat: Double,
+    val lng: Double
+)
+
+data class KmbRawRouteStop(
+    val route: String,
+    val bound: String,
+    val serviceType: String,
+    val seq: Int,
+    val stopId: String
+)
+
 private data class KmbStopDetailCache(
     val nameZh: String,
     val nameEn: String,
@@ -29,6 +45,81 @@ private data class KmbStopDetailCache(
 class KmbDataSource @Inject constructor() : BusDataSource {
 
     private val stopDetailCache = ConcurrentHashMap<String, KmbStopDetailCache>()
+
+    /**
+     * 全量取得九巴所有車站詳情 (全量 3-Endpoint 方案)
+     */
+    suspend fun getAllStops(): List<KmbRawStop> = withContext(Dispatchers.IO) {
+        val url = URL("https://data.etabus.gov.hk/v1/transport/kmb/stop")
+        val connection = url.openConnection() as HttpURLConnection
+        try {
+            val jsonStr = connection.inputStream.bufferedReader().use { it.readText() }
+            val dataArray = JSONObject(jsonStr).getJSONArray("data")
+            val list = mutableListOf<KmbRawStop>()
+
+            for (i in 0 until dataArray.length()) {
+                val obj = dataArray.getJSONObject(i)
+                val stopId = obj.optString("stop")
+                val nameZh = obj.optString("name_tc")
+                val nameEn = obj.optString("name_en")
+                val lat = obj.optString("lat").toDoubleOrNull() ?: 0.0
+                val lng = obj.optString("long").toDoubleOrNull() ?: 0.0
+
+                list.add(
+                    KmbRawStop(
+                        stopId = stopId,
+                        nameZh = nameZh,
+                        nameEn = nameEn,
+                        lat = lat,
+                        lng = lng
+                    )
+                )
+            }
+            list
+        } catch (e: Exception) {
+            emptyList()
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    /**
+     * 全量取得九巴所有路線與車站的對照關係 (全量 3-Endpoint 方案)
+     */
+    suspend fun getAllRouteStops(): List<KmbRawRouteStop> = withContext(Dispatchers.IO) {
+        val url = URL("https://data.etabus.gov.hk/v1/transport/kmb/route-stop")
+        val connection = url.openConnection() as HttpURLConnection
+        try {
+            val jsonStr = connection.inputStream.bufferedReader().use { it.readText() }
+            val dataArray = JSONObject(jsonStr).getJSONArray("data")
+            val list = mutableListOf<KmbRawRouteStop>()
+
+            for (i in 0 until dataArray.length()) {
+                val obj = dataArray.getJSONObject(i)
+                val route = obj.optString("route")
+                val rawBound = obj.optString("bound")
+                val bound = if (rawBound.equals("outbound", ignoreCase = true)) "O" else if (rawBound.equals("inbound", ignoreCase = true)) "I" else rawBound
+                val serviceType = obj.optString("service_type", "1")
+                val seq = obj.optInt("seq")
+                val stopId = obj.optString("stop")
+
+                list.add(
+                    KmbRawRouteStop(
+                        route = route,
+                        bound = bound,
+                        serviceType = serviceType,
+                        seq = seq,
+                        stopId = stopId
+                    )
+                )
+            }
+            list
+        } catch (e: Exception) {
+            emptyList()
+        } finally {
+            connection.disconnect()
+        }
+    }
 
     override suspend fun getRoutes(): List<TransitRoute> = withContext(Dispatchers.IO) {
         val url = URL("https://data.etabus.gov.hk/v1/transport/kmb/route")
