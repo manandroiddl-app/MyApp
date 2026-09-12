@@ -132,7 +132,8 @@ class KmbDataSource @Inject constructor() : BusDataSource {
             for (i in 0 until dataArray.length()) {
                 val obj = dataArray.getJSONObject(i)
                 val routeName = obj.optString("route")
-                val bound = obj.optString("bound")
+                val rawBound = obj.optString("bound")
+                val bound = if (rawBound.equals("outbound", ignoreCase = true)) "O" else if (rawBound.equals("inbound", ignoreCase = true)) "I" else rawBound
                 val serviceType = obj.optString("service_type", "1")
 
                 list.add(
