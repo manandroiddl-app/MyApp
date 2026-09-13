@@ -23,7 +23,7 @@ import com.example.lifeapp.data.local.view.TransitRouteStopView
     views = [
         TransitRouteStopView::class
     ],
-    version = 6,
+    version = 7,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
