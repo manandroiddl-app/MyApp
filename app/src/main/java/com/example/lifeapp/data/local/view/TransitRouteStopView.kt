@@ -8,6 +8,7 @@ import androidx.room.DatabaseView
     value = """
         SELECT 
             r.co,
+            r.co_tc,
             r.route_name,
             r.bound,
             r.other_key,
@@ -31,6 +32,9 @@ import androidx.room.DatabaseView
 data class TransitRouteStopView(
     @ColumnInfo(name = "co")
     val co: String,
+
+    @ColumnInfo(name = "co_tc")
+    val coTc: String? = null,
 
     @ColumnInfo(name = "route_name")
     val routeName: String,
