@@ -1,9 +1,9 @@
 package com.example.lifeapp.data.datasource
 
 import com.example.lifeapp.data.api.CtbApiService
-import com.example.lifeapp.data.model.CtbRouteDto
-import com.example.lifeapp.data.model.CtbRouteStopDto
-import com.example.lifeapp.data.model.CtbStopInfoDto
+import com.example.lifeapp.data.api.CtbRouteDto
+import com.example.lifeapp.data.api.CtbRouteStopDto
+import com.example.lifeapp.data.api.CtbStopDto
 import com.example.lifeapp.data.model.OperatorCompany
 import com.example.lifeapp.data.model.TransitEta
 import com.example.lifeapp.data.model.TransitRoute
@@ -179,7 +179,7 @@ class CtbDataSource @Inject constructor(
     /**
      * 傳入去重後的 stop_id 集合，併發撈取車站詳細座標與名稱 (Phase 2 Batch Sync 專用)
      */
-    suspend fun getStopsParallel(stopIds: Set<String>): List<CtbStopInfoDto> = coroutineScope {
+    suspend fun getStopsParallel(stopIds: Set<String>): List<CtbStopDto> = coroutineScope {
         val deferredList = stopIds.map { stopId ->
             async {
                 semaphore.withPermit {
