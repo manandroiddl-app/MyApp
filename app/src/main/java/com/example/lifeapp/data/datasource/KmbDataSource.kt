@@ -52,6 +52,8 @@ class KmbDataSource @Inject constructor() : BusDataSource {
     suspend fun getAllStops(): List<KmbRawStop> = withContext(Dispatchers.IO) {
         val url = URL("https://data.etabus.gov.hk/v1/transport/kmb/stop")
         val connection = url.openConnection() as HttpURLConnection
+        connection.connectTimeout = 15000
+        connection.readTimeout = 15000
         try {
             val jsonStr = connection.inputStream.bufferedReader().use { it.readText() }
             val dataArray = JSONObject(jsonStr).getJSONArray("data")
@@ -90,6 +92,8 @@ class KmbDataSource @Inject constructor() : BusDataSource {
     suspend fun getAllRouteStops(): List<KmbRawRouteStop> = withContext(Dispatchers.IO) {
         val url = URL("https://data.etabus.gov.hk/v1/transport/kmb/route-stop")
         val connection = url.openConnection() as HttpURLConnection
+        connection.connectTimeout = 15000
+        connection.readTimeout = 15000
         try {
             val jsonStr = connection.inputStream.bufferedReader().use { it.readText() }
             val dataArray = JSONObject(jsonStr).getJSONArray("data")
@@ -126,6 +130,8 @@ class KmbDataSource @Inject constructor() : BusDataSource {
     override suspend fun getRoutes(): List<TransitRoute> = withContext(Dispatchers.IO) {
         val url = URL("https://data.etabus.gov.hk/v1/transport/kmb/route")
         val connection = url.openConnection() as HttpURLConnection
+        connection.connectTimeout = 15000
+        connection.readTimeout = 15000
         try {
             val jsonStr = connection.inputStream.bufferedReader().use { it.readText() }
             val dataArray = JSONObject(jsonStr).getJSONArray("data")
@@ -169,6 +175,8 @@ class KmbDataSource @Inject constructor() : BusDataSource {
         val boundParam = if (bound == "O") "outbound" else "inbound"
         val url = URL("https://data.etabus.gov.hk/v1/transport/kmb/route-stop/$route/$boundParam/$serviceType")
         val connection = url.openConnection() as HttpURLConnection
+        connection.connectTimeout = 15000
+        connection.readTimeout = 15000
         try {
             val jsonStr = connection.inputStream.bufferedReader().use { it.readText() }
             val dataArray = JSONObject(jsonStr).getJSONArray("data")
@@ -212,6 +220,8 @@ class KmbDataSource @Inject constructor() : BusDataSource {
         return try {
             val url = URL("https://data.etabus.gov.hk/v1/transport/kmb/stop/$stopId")
             val conn = url.openConnection() as HttpURLConnection
+            conn.connectTimeout = 15000
+            conn.readTimeout = 15000
             val jsonStr = conn.inputStream.bufferedReader().use { it.readText() }
             conn.disconnect()
             val dataObj = JSONObject(jsonStr).getJSONObject("data")
@@ -239,6 +249,8 @@ class KmbDataSource @Inject constructor() : BusDataSource {
     ): List<TransitEta> = withContext(Dispatchers.IO) {
         val url = URL("https://data.etabus.gov.hk/v1/transport/kmb/eta/$stopId/$route/$serviceType")
         val connection = url.openConnection() as HttpURLConnection
+        connection.connectTimeout = 15000
+        connection.readTimeout = 15000
         try {
             val jsonStr = connection.inputStream.bufferedReader().use { it.readText() }
             val dataArray = JSONObject(jsonStr).getJSONArray("data")
