@@ -44,6 +44,7 @@ class KmbDataFetcher @Inject constructor(
                 val currentBound = raw.bound ?: "O"
                 TransitRouteEntity(
                     co = "KMB",
+                    coTc = "九巴",
                     routeName = raw.routeName,
                     bound = currentBound,
                     boundDesc = if (currentBound.equals("I", ignoreCase = true)) "inbound" else "outbound",
