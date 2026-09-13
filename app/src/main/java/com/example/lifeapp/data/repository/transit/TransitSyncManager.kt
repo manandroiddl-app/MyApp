@@ -131,10 +131,10 @@ class TransitSyncManager @Inject constructor(
                     transitDao.clearStops()
                     transitDao.clearRouteStops()
 
-                    // 寫入 Routes, Stops, RouteStops
-                    transitDao.insertRoutes(kmbData.routes)
-                    transitDao.insertStops(kmbData.stops)
-                    transitDao.insertRouteStops(kmbData.routeStops)
+                    // 分批寫入 Routes, Stops, RouteStops，避免巨量資料塞爆 SQLite Binder/Cursor Window
+                    kmbData.routes.chunked(500).forEach { transitDao.insertRoutes(it) }
+                    kmbData.stops.chunked(500).forEach { transitDao.insertStops(it) }
+                    kmbData.routeStops.chunked(500).forEach { transitDao.insertRouteStops(it) }
 
                     // 更新版本記錄表
                     val nowMillis = System.currentTimeMillis()
