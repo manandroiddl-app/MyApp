@@ -1,6 +1,9 @@
 package com.example.lifeapp.data.datasource
 
 import com.example.lifeapp.data.api.CtbApiService
+import com.example.lifeapp.data.model.CtbRouteDto
+import com.example.lifeapp.data.model.CtbRouteStopDto
+import com.example.lifeapp.data.model.CtbStopInfoDto
 import com.example.lifeapp.data.model.OperatorCompany
 import com.example.lifeapp.data.model.TransitEta
 import com.example.lifeapp.data.model.TransitRoute
@@ -9,6 +12,8 @@ import com.example.lifeapp.data.model.TransitType
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.TimeZone
@@ -19,6 +24,8 @@ import javax.inject.Singleton
 class CtbDataSource @Inject constructor(
     private val ctbApiService: CtbApiService
 ) {
+
+    private val semaphore = Semaphore(20)
 
     /**
      * 獲取所有城巴路線 (自動拆解為去程/回程)
@@ -138,5 +145,51 @@ class CtbDataSource @Inject constructor(
                 etaSeq = dto.etaSeq
             )
         }.sortedBy { it.etaSeq ?: Int.MAX_VALUE }
+    }
+
+    /**
+     * 全量獲取城巴所有路線原始 DTO (Phase 2 Batch Sync 專用)
+     */
+    suspend fun getAllRoutesRaw(): List<CtbRouteDto> {
+        val response = ctbApiService.getCtbAllRoutes()
+        return response.data ?: emptyList()
+    }
+
+    /**
+     * 併發測試每條路線的 inbound 與 outbound 方向並獲取 RouteStop 列表 (Phase 2 Batch Sync 專用)
+     */
+    suspend fun getAllRouteStopsParallel(routes: List<CtbRouteDto>): List<CtbRouteStopDto> = coroutineScope {
+        val directions = listOf("inbound", "outbound")
+        val deferredList = routes.flatMap { routeDto ->
+            val routeName = routeDto.route ?: return@flatMap emptyList()
+            directions.map { dir ->
+                async {
+                    semaphore.withPermit {
+                        runCatching {
+                            val response = ctbApiService.getCtbRouteStops("CTB", routeName, dir)
+                            response.data ?: emptyList()
+                        }.getOrDefault(emptyList())
+                    }
+                }
+            }
+        }
+        deferredList.awaitAll().flatten()
+    }
+
+    /**
+     * 傳入去重後的 stop_id 集合，併發撈取車站詳細座標與名稱 (Phase 2 Batch Sync 專用)
+     */
+    suspend fun getStopsParallel(stopIds: Set<String>): List<CtbStopInfoDto> = coroutineScope {
+        val deferredList = stopIds.map { stopId ->
+            async {
+                semaphore.withPermit {
+                    runCatching {
+                        val response = ctbApiService.getCtbStopInfo(stopId)
+                        response.data
+                    }.getOrNull()
+                }
+            }
+        }
+        deferredList.awaitAll().filterNotNull()
     }
 }
