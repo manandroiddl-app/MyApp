@@ -8,6 +8,7 @@ import com.example.lifeapp.data.local.entity.TransitLastUpdateEntity
 import com.example.lifeapp.data.local.entity.TransitRouteEntity
 import com.example.lifeapp.data.local.entity.TransitRouteStopEntity
 import com.example.lifeapp.data.local.entity.TransitStopEntity
+import com.example.lifeapp.data.local.view.TransitRouteStopView
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -65,4 +66,15 @@ interface TransitDao {
 
     @Query("SELECT * FROM Transit_Stop WHERE co = :co AND stop_id = :stopId LIMIT 1")
     suspend fun getStopById(co: String, stopId: String): TransitStopEntity?
+
+    // ==========================================
+    // View Query Methods (Phase 3 頁面 View 查詢使用)
+    // ==========================================
+
+    @Query("""
+        SELECT * FROM vw_transit_route_stop 
+        WHERE co = :co AND route_name = :routeName AND bound = :bound AND other_key = :otherKey 
+        ORDER BY seq ASC
+    """)
+    fun getRouteStopsFromView(co: String, routeName: String, bound: String, otherKey: String = "1"): Flow<List<TransitRouteStopView>>
 }
