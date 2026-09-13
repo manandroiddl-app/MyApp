@@ -9,6 +9,7 @@ import com.example.lifeapp.data.local.entity.TransitLastUpdateEntity
 import com.example.lifeapp.data.local.entity.TransitRouteEntity
 import com.example.lifeapp.data.local.entity.TransitRouteStopEntity
 import com.example.lifeapp.data.local.entity.TransitStopEntity
+import com.example.lifeapp.data.local.view.TransitRouteStopView
 
 @Database(
     entities = [
@@ -19,7 +20,10 @@ import com.example.lifeapp.data.local.entity.TransitStopEntity
         TransitRouteStopEntity::class,
         TransitLastUpdateEntity::class
     ],
-    version = 5,
+    views = [
+        TransitRouteStopView::class
+    ],
+    version = 6,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
