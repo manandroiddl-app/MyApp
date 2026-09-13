@@ -11,10 +11,16 @@ import androidx.work.WorkManager
 import com.example.lifeapp.data.local.AppDatabase
 import com.example.lifeapp.data.local.dao.TransitDao
 import com.example.lifeapp.data.local.entity.TransitLastUpdateEntity
+import com.example.lifeapp.data.local.entity.TransitRouteEntity
+import com.example.lifeapp.data.local.entity.TransitRouteStopEntity
+import com.example.lifeapp.data.local.entity.TransitStopEntity
+import com.example.lifeapp.data.repository.transit.fetcher.CtbDataFetcher
 import com.example.lifeapp.data.repository.transit.fetcher.KmbDataFetcher
 import com.example.lifeapp.util.TransitDateUtils
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -30,7 +36,8 @@ class TransitSyncManager @Inject constructor(
     @ApplicationContext private val context: Context,
     private val appDatabase: AppDatabase,
     private val transitDao: TransitDao,
-    private val kmbDataFetcher: KmbDataFetcher
+    private val kmbDataFetcher: KmbDataFetcher,
+    private val ctbDataFetcher: CtbDataFetcher
 ) {
 
     companion object {
@@ -112,16 +119,37 @@ class TransitSyncManager @Inject constructor(
             _isSyncing.value = true
 
             try {
-                // 1. Fetch 各營運商資料 (在進入 DB Transaction 之前執行，確保 Fetch 成功才動 DB)
-                val kmbData = kmbDataFetcher.fetchAllKmbData()
+                // 1. 平行 Fetch KMB 與 CTB 資料 (在進入 DB Transaction 前執行)
+                val (kmbData, ctbData) = coroutineScope {
+                    val kmbDeferred = async { kmbDataFetcher.fetchAllKmbData() }
+                    val ctbDeferred = async { ctbDataFetcher.fetchAllCtbData() }
+                    Pair(kmbDeferred.await(), ctbDeferred.await())
+                }
 
                 Log.d(TAG, "Fetched KMB Data -> routes: ${kmbData.routes.size}, stops: ${kmbData.stops.size}, routeStops: ${kmbData.routeStops.size}")
+                Log.d(TAG, "Fetched CTB Data -> routes: ${ctbData.routes.size}, stops: ${ctbData.stops.size}, routeStops: ${ctbData.routeStops.size}")
 
-                // 安全檢查：若 Fetch 回傳空資料，直接終止，避免誤刪 DB
-                if (kmbData.routes.isEmpty() && kmbData.stops.isEmpty()) {
-                    Log.e(TAG, "Batch sync failed: Fetched data is empty")
+                // 嚴格安全檢查：只要任意一家營運商資料為空，立即終止以防止清理 DB 時遺失資料
+                if (kmbData.routes.isEmpty() || ctbData.routes.isEmpty()) {
+                    Log.e(TAG, "Batch sync failed: One or more operator data is empty. (KMB: ${kmbData.routes.size}, CTB: ${ctbData.routes.size})")
                     return@withLock false
                 }
+
+                // 合併兩家營運商全量資料
+                val allRoutes = mutableListOf<TransitRouteEntity>().apply {
+                    addAll(kmbData.routes)
+                    addAll(ctbData.routes)
+                }
+                val allStops = mutableListOf<TransitStopEntity>().apply {
+                    addAll(kmbData.stops)
+                    addAll(ctbData.stops)
+                }
+                val allRouteStops = mutableListOf<TransitRouteStopEntity>().apply {
+                    addAll(kmbData.routeStops)
+                    addAll(ctbData.routeStops)
+                }
+
+                Log.d(TAG, "Combined Total -> routes: ${allRoutes.size}, stops: ${allStops.size}, routeStops: ${allRouteStops.size}")
 
                 // 2. 在 Room Coroutine Transaction (withTransaction) 內進行全量寫入與版本記錄，確保原子性
                 Log.d(TAG, "Starting Room DB Transaction...")
@@ -132,9 +160,9 @@ class TransitSyncManager @Inject constructor(
                     transitDao.clearRouteStops()
 
                     // 分批寫入 Routes, Stops, RouteStops，避免巨量資料塞爆 SQLite Binder/Cursor Window
-                    kmbData.routes.chunked(500).forEach { transitDao.insertRoutes(it) }
-                    kmbData.stops.chunked(500).forEach { transitDao.insertStops(it) }
-                    kmbData.routeStops.chunked(500).forEach { transitDao.insertRouteStops(it) }
+                    allRoutes.chunked(500).forEach { transitDao.insertRoutes(it) }
+                    allStops.chunked(500).forEach { transitDao.insertStops(it) }
+                    allRouteStops.chunked(500).forEach { transitDao.insertRouteStops(it) }
 
                     // 更新版本記錄表
                     val nowMillis = System.currentTimeMillis()
