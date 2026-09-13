@@ -1,5 +1,6 @@
 package com.example.lifeapp.data.repository.transit.fetcher
 
+import android.util.Log
 import com.example.lifeapp.data.datasource.KmbDataSource
 import com.example.lifeapp.data.local.entity.TransitRouteEntity
 import com.example.lifeapp.data.local.entity.TransitRouteStopEntity
@@ -36,6 +37,8 @@ class KmbDataFetcher @Inject constructor(
             val rawStops = stopsDeferred.await()
             val rawRouteStops = routeStopsDeferred.await()
 
+            Log.d("KmbDataFetcher", "Fetched rawRoutes: ${rawRoutes.size}, rawStops: ${rawStops.size}, rawRouteStops: ${rawRouteStops.size}")
+
             // 2. 轉換 Routes
             val routeEntities = rawRoutes.map { raw ->
                 val currentBound = raw.bound ?: "O"
@@ -52,6 +55,8 @@ class KmbDataFetcher @Inject constructor(
                     destEng = raw.destinationEn
                 )
             }
+
+            Log.d("KmbDataFetcher", "Mapped routeEntities count: ${routeEntities.size}")
 
             // 3. 轉換 Stops
             val stopEntities = rawStops.map { stop ->
