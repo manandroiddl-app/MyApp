@@ -115,6 +115,8 @@ class TransitSyncManager @Inject constructor(
                 // 1. Fetch 各營運商資料 (在進入 DB Transaction 之前執行，確保 Fetch 成功才動 DB)
                 val kmbData = kmbDataFetcher.fetchAllKmbData()
 
+                Log.d(TAG, "Fetched KMB Data -> routes: ${kmbData.routes.size}, stops: ${kmbData.stops.size}, routeStops: ${kmbData.routeStops.size}")
+
                 // 安全檢查：若 Fetch 回傳空資料，直接終止，避免誤刪 DB
                 if (kmbData.routes.isEmpty() && kmbData.stops.isEmpty()) {
                     Log.e(TAG, "Batch sync failed: Fetched data is empty")
@@ -122,6 +124,7 @@ class TransitSyncManager @Inject constructor(
                 }
 
                 // 2. 在 Room Coroutine Transaction (withTransaction) 內進行全量寫入與版本記錄，確保原子性
+                Log.d(TAG, "Starting Room DB Transaction...")
                 appDatabase.withTransaction {
                     // 寫入前先清空相關 Table，確保廢棄或舊格式資料不殘留
                     transitDao.clearRoutes()
@@ -143,9 +146,11 @@ class TransitSyncManager @Inject constructor(
                     transitDao.insertOrUpdateLastUpdate(lastUpdateEntity)
                 }
 
+                Log.d(TAG, "Room DB Transaction completed successfully!")
+
                 true
             } catch (e: Exception) {
-                Log.e(TAG, "Batch sync failed", e)
+                Log.e(TAG, "Batch sync failed with Exception: ${e.message}", e)
                 false
             } finally {
                 _isSyncing.value = false
