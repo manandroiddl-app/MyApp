@@ -85,14 +85,16 @@ class TransitSearchViewModel @Inject constructor(
         viewModelScope.launch {
             var wasSyncing = false
             transitSyncManager.isSyncing.collectLatest { syncing ->
-                _uiState.update { it.copy(isSyncing = syncing) }
-                if (wasSyncing && !syncing) {
+                if (syncing) {
+                    _uiState.update { it.copy(isSyncing = true) }
+                } else if (wasSyncing) {
                     refreshLastUpdateTime()
-                    loadAllRoutes()
+                    loadAllRoutesInternal()
                     val currentRoute = _uiState.value.selectedRoute
                     if (currentRoute != null) {
-                        selectRoute(currentRoute)
+                        selectRouteInternal(currentRoute)
                     }
+                    _uiState.update { it.copy(isSyncing = false) }
                 }
                 wasSyncing = syncing
             }
@@ -117,10 +119,10 @@ class TransitSearchViewModel @Inject constructor(
         viewModelScope.launch {
             val updated = transitSyncManager.checkAndAutoSync()
             if (updated) {
-                loadAllRoutes()
+                loadAllRoutesInternal()
                 val currentRoute = _uiState.value.selectedRoute
                 if (currentRoute != null) {
-                    selectRoute(currentRoute)
+                    selectRouteInternal(currentRoute)
                 }
             }
         }
@@ -130,10 +132,10 @@ class TransitSearchViewModel @Inject constructor(
         viewModelScope.launch {
             val updated = transitSyncManager.forceSync()
             if (updated) {
-                loadAllRoutes()
+                loadAllRoutesInternal()
                 val currentRoute = _uiState.value.selectedRoute
                 if (currentRoute != null) {
-                    selectRoute(currentRoute)
+                    selectRouteInternal(currentRoute)
                 }
             }
         }
@@ -163,21 +165,25 @@ class TransitSearchViewModel @Inject constructor(
 
     private fun loadAllRoutes() {
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoadingRoutes = true) }
-            try {
-                val routes = busRepository.getRoutes()
-                val companies = routes.map { it.company }.distinct()
-                _uiState.update { 
-                    it.copy(
-                        allRoutes = routes,
-                        availableCompanies = companies,
-                        isLoadingRoutes = false
-                    )
-                }
-                updateFilteredRoutes(_uiState.value.searchQuery)
-            } catch (_: Exception) {
-                _uiState.update { it.copy(isLoadingRoutes = false) }
+            loadAllRoutesInternal()
+        }
+    }
+
+    private suspend fun loadAllRoutesInternal() {
+        _uiState.update { it.copy(isLoadingRoutes = true) }
+        try {
+            val routes = busRepository.getRoutes()
+            val companies = routes.map { it.company }.distinct()
+            _uiState.update { 
+                it.copy(
+                    allRoutes = routes,
+                    availableCompanies = companies,
+                    isLoadingRoutes = false
+                )
             }
+            updateFilteredRoutes(_uiState.value.searchQuery)
+        } catch (_: Exception) {
+            _uiState.update { it.copy(isLoadingRoutes = false) }
         }
     }
 
@@ -272,6 +278,12 @@ class TransitSearchViewModel @Inject constructor(
     }
 
     fun selectRoute(route: TransitRoute) {
+        viewModelScope.launch {
+            selectRouteInternal(route)
+        }
+    }
+
+    private suspend fun selectRouteInternal(route: TransitRoute) {
         _uiState.update { currentState ->
             currentState.copy(
                 selectedRoute = route,
@@ -282,27 +294,25 @@ class TransitSearchViewModel @Inject constructor(
             )
         }
 
-        viewModelScope.launch {
-            try {
-                val stops = busRepository.getRouteStops(
-                    company = route.company,
-                    route = route.routeName,
-                    bound = route.bound ?: "O",
-                    serviceType = route.serviceType ?: "1"
+        try {
+            val stops = busRepository.getRouteStops(
+                company = route.company,
+                route = route.routeName,
+                bound = route.bound ?: "O",
+                serviceType = route.serviceType ?: "1"
+            )
+
+            _uiState.update { currentState ->
+                currentState.copy(
+                    routeStops = stops,
+                    isLoadingStops = false
                 )
-
-                _uiState.update { currentState ->
-                    currentState.copy(
-                        routeStops = stops,
-                        isLoadingStops = false
-                    )
-                }
-
-                stops.forEach { fetchStopEta(it.stopId) }
-                autoRefreshDelegate.start()
-            } catch (_: Exception) {
-                _uiState.update { currentState -> currentState.copy(isLoadingStops = false) }
             }
+
+            stops.forEach { fetchStopEta(it.stopId) }
+            autoRefreshDelegate.start()
+        } catch (_: Exception) {
+            _uiState.update { currentState -> currentState.copy(isLoadingStops = false) }
         }
     }
 
