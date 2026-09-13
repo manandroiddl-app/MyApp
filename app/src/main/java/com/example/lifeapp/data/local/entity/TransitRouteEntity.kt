@@ -11,6 +11,9 @@ data class TransitRouteEntity(
     @ColumnInfo(name = "co")
     val co: String,
 
+    @ColumnInfo(name = "co_tc")
+    val coTc: String? = null,
+
     @ColumnInfo(name = "route_name")
     val routeName: String,
 
