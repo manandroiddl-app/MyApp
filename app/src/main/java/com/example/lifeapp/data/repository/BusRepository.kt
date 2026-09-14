@@ -3,14 +3,17 @@ package com.example.lifeapp.data.repository
 import com.example.lifeapp.data.datasource.CtbDataSource
 import com.example.lifeapp.data.datasource.KmbDataSource
 import com.example.lifeapp.data.local.dao.TransitBookmarkDao
+import com.example.lifeapp.data.local.dao.TransitDao
 import com.example.lifeapp.data.local.entity.TransitBookmarkEntity
 import com.example.lifeapp.data.model.OperatorCompany
 import com.example.lifeapp.data.model.TransitEta
 import com.example.lifeapp.data.model.TransitRoute
 import com.example.lifeapp.data.model.TransitStop
+import com.example.lifeapp.data.model.TransitType
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -18,8 +21,60 @@ import javax.inject.Singleton
 class BusRepository @Inject constructor(
     private val kmbDataSource: KmbDataSource,
     private val ctbDataSource: CtbDataSource,
-    private val bookmarkDao: TransitBookmarkDao
+    private val bookmarkDao: TransitBookmarkDao,
+    private val transitDao: TransitDao
 ) {
+
+    // ==========================================
+    // Phase 3 Room DB 本地查詢方法
+    // ==========================================
+
+    /**
+     * Phase 3 (a)(ii): 取出 Room DB 內現有的公司列表清單 (由 co_tc 欄位取出)
+     */
+    fun getDistinctCompaniesTcFromDb(): Flow<List<String>> {
+        return transitDao.getDistinctCompaniesTc()
+    }
+
+    /**
+     * Phase 3 (a)(i): 根據公司中文名稱 (co_tc) 從 Room DB 查詢路線清單
+     * 若 companyTc 為 null 則回傳全量路線
+     */
+    fun getRoutesByCompanyTcFromDb(companyTc: String?): Flow<List<TransitRoute>> {
+        return transitDao.getRoutesByCompanyTc(companyTc).map { entities ->
+            entities.map { entity ->
+                val operatorCompany = parseOperatorCompany(entity.co)
+                TransitRoute(
+                    routeId = "${entity.co}_${entity.routeName}_${entity.bound}_${entity.otherKey}",
+                    routeName = entity.routeName,
+                    transitType = TransitType.BUS,
+                    company = operatorCompany,
+                    bound = entity.bound,
+                    serviceType = entity.otherKey,
+                    originZh = entity.oriTc ?: entity.oriEn,
+                    originEn = entity.oriEn,
+                    destinationZh = entity.destTc ?: entity.destEn,
+                    destinationEn = entity.destEn
+                )
+            }
+        }
+    }
+
+    private fun parseOperatorCompany(coCode: String): OperatorCompany {
+        return when (coCode.uppercase()) {
+            "KMB" -> OperatorCompany.KMB
+            "CTB" -> OperatorCompany.CTB
+            "NLB" -> OperatorCompany.NLB
+            "GMB" -> OperatorCompany.GMB
+            "MTR", "LRT", "LRTFEEDER" -> OperatorCompany.MTR
+            "FERRY" -> OperatorCompany.FERRY
+            else -> OperatorCompany.KMB
+        }
+    }
+
+    // =========================================================================
+    // 既有網路 API 與數據源操作 (100% 原樣保留)
+    // =========================================================================
 
     /**
      * 獲取所有營運商路線（Phase 2: 併發合併 KMB 與 CTB 路線數據）
