@@ -55,6 +55,12 @@ object DatabaseModule {
 
     @Provides
     @Singleton
+    fun provideFileLogger(@ApplicationContext context: Context): FileLogger {
+        return FileLogger(context)
+    }
+
+    @Provides
+    @Singleton
     fun provideKmbDataFetcher(kmbDataSource: KmbDataSource): KmbDataFetcher {
         return KmbDataFetcher(kmbDataSource)
     }
