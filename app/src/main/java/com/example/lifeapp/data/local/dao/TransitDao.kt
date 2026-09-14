@@ -54,6 +54,23 @@ interface TransitDao {
     // Query Methods (Phase 3 頁面接入與查詢使用)
     // ==========================================
 
+    /**
+     * Phase 3 (a)(ii): 取出 Room DB 內現有的公司列表清單 (由 co_tc 欄位取出)
+     */
+    @Query("SELECT DISTINCT co_tc FROM Transit_Route WHERE co_tc IS NOT NULL AND co_tc != '' ORDER BY co_tc ASC")
+    fun getDistinctCompaniesTc(): Flow<List<String>>
+
+    /**
+     * Phase 3 (a)(i): 根據公司中文名稱過濾路線清單
+     * 若 companyTc 為 null 則查詢全部路線
+     */
+    @Query("""
+        SELECT * FROM Transit_Route 
+        WHERE (:companyTc IS NULL OR co_tc = :companyTc) 
+        ORDER BY route_name ASC
+    """)
+    fun getRoutesByCompanyTc(companyTc: String?): Flow<List<TransitRouteEntity>>
+
     @Query("SELECT * FROM Transit_Route WHERE co = :co AND route_name = :routeName")
     fun getRoutesByCoAndName(co: String, routeName: String): Flow<List<TransitRouteEntity>>
 
