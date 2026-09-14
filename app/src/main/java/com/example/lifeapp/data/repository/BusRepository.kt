@@ -51,10 +51,10 @@ class BusRepository @Inject constructor(
                     company = operatorCompany,
                     bound = entity.bound,
                     serviceType = entity.otherKey,
-                    originZh = entity.oriTc ?: entity.oriEn,
-                    originEn = entity.oriEn,
-                    destinationZh = entity.destTc ?: entity.destEn,
-                    destinationEn = entity.destEn
+                    originZh = entity.oriTc ?: entity.oriEng,
+                    originEn = entity.oriEng,
+                    destinationZh = entity.destTc ?: entity.destEng,
+                    destinationEn = entity.destEng
                 )
             }
         }
