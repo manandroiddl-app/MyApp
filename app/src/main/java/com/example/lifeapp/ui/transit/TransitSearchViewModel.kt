@@ -14,6 +14,7 @@ import com.example.lifeapp.data.repository.transit.TransitSyncManager
 import com.example.lifeapp.ui.common.AutoRefreshDelegate
 import com.example.lifeapp.util.TransitDateUtils
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -72,8 +73,11 @@ class TransitSearchViewModel @Inject constructor(
         onRefresh = { refreshCurrentEtasImmediately() }
     )
 
+    private var routesCollectJob: Job? = null
+
     init {
-        loadAllRoutes()
+        observeAvailableCompanies()
+        loadAllRoutesFromDb()
         observeBookmarks()
         observeSyncState()
         observeLastUpdateTime()
@@ -89,7 +93,7 @@ class TransitSearchViewModel @Inject constructor(
                     _uiState.update { it.copy(isSyncing = true) }
                 } else if (wasSyncing) {
                     refreshLastUpdateTime()
-                    loadAllRoutesInternal()
+                    loadAllRoutesFromDb()
                     val currentRoute = _uiState.value.selectedRoute
                     if (currentRoute != null) {
                         selectRouteInternal(currentRoute)
@@ -119,7 +123,7 @@ class TransitSearchViewModel @Inject constructor(
         viewModelScope.launch {
             val updated = transitSyncManager.checkAndAutoSync()
             if (updated) {
-                loadAllRoutesInternal()
+                loadAllRoutesFromDb()
                 val currentRoute = _uiState.value.selectedRoute
                 if (currentRoute != null) {
                     selectRouteInternal(currentRoute)
@@ -132,7 +136,7 @@ class TransitSearchViewModel @Inject constructor(
         viewModelScope.launch {
             val updated = transitSyncManager.forceSync()
             if (updated) {
-                loadAllRoutesInternal()
+                loadAllRoutesFromDb()
                 val currentRoute = _uiState.value.selectedRoute
                 if (currentRoute != null) {
                     selectRouteInternal(currentRoute)
@@ -163,27 +167,65 @@ class TransitSearchViewModel @Inject constructor(
         }
     }
 
-    private fun loadAllRoutes() {
+    /**
+     * 從 Room DB 訂閱可用的公司清單 (co_tc)
+     */
+    private fun observeAvailableCompanies() {
         viewModelScope.launch {
-            loadAllRoutesInternal()
+            busRepository.getDistinctCompaniesTcFromDb().collectLatest { coTcList ->
+                val companyEnumList = coTcList.map { coTc ->
+                    parseCoTcToOperatorCompany(coTc)
+                }.distinct()
+
+                _uiState.update { currentState ->
+                    currentState.copy(availableCompanies = companyEnumList)
+                }
+            }
         }
     }
 
-    private suspend fun loadAllRoutesInternal() {
-        _uiState.update { it.copy(isLoadingRoutes = true) }
-        try {
-            val routes = busRepository.getRoutes()
-            val companies = routes.map { it.company }.distinct()
-            _uiState.update { 
-                it.copy(
-                    allRoutes = routes,
-                    availableCompanies = companies,
-                    isLoadingRoutes = false
-                )
+    /**
+     * Phase 3 (a)(i): 根據所選公司 (selectedCompany) 從 Room DB 動態加載路線
+     */
+    private fun loadAllRoutesFromDb() {
+        routesCollectJob?.cancel()
+        routesCollectJob = viewModelScope.launch {
+            _uiState.update { it.copy(isLoadingRoutes = true) }
+            
+            val companyTcFilter = parseOperatorCompanyToCoTc(_uiState.value.selectedCompany)
+            busRepository.getRoutesByCompanyTcFromDb(companyTcFilter).collectLatest { routes ->
+                _uiState.update { 
+                    it.copy(
+                        allRoutes = routes,
+                        isLoadingRoutes = false
+                    )
+                }
+                updateFilteredRoutes(_uiState.value.searchQuery)
             }
-            updateFilteredRoutes(_uiState.value.searchQuery)
-        } catch (_: Exception) {
-            _uiState.update { it.copy(isLoadingRoutes = false) }
+        }
+    }
+
+    private fun parseCoTcToOperatorCompany(coTc: String): OperatorCompany {
+        return when (coTc) {
+            "九巴", "龍運", "九巴/龍運" -> OperatorCompany.KMB
+            "城巴" -> OperatorCompany.CTB
+            "新大嶼山巴士" -> OperatorCompany.NLB
+            "專線小巴" -> OperatorCompany.GMB
+            "港鐵巴士", "港鐵" -> OperatorCompany.MTR
+            "渡輪" -> OperatorCompany.FERRY
+            else -> OperatorCompany.KMB
+        }
+    }
+
+    private fun parseOperatorCompanyToCoTc(company: OperatorCompany?): String? {
+        return when (company) {
+            OperatorCompany.KMB -> "九巴"
+            OperatorCompany.CTB -> "城巴"
+            OperatorCompany.NLB -> "新大嶼山巴士"
+            OperatorCompany.GMB -> "專線小巴"
+            OperatorCompany.MTR -> "港鐵巴士"
+            OperatorCompany.FERRY -> "渡輪"
+            null -> null
         }
     }
 
@@ -228,28 +270,27 @@ class TransitSearchViewModel @Inject constructor(
 
     fun selectCompany(company: OperatorCompany?) {
         _uiState.update { it.copy(selectedCompany = company) }
-        updateFilteredRoutes(_uiState.value.searchQuery)
+        // 重新發起 Room DB SQL 查詢
+        loadAllRoutesFromDb()
     }
 
     private fun updateFilteredRoutes(query: String) {
         val all = _uiState.value.allRoutes
-        val companyFilter = _uiState.value.selectedCompany
         
         val filtered = all.filter { route ->
-            val matchesCompany = companyFilter == null || route.company == companyFilter
-            val matchesQuery = if (query.isEmpty()) {
+            if (query.isEmpty()) {
                 true
             } else {
-                route.routeName.contains(query, ignoreCase = true)
+                route.routeName.startsWith(query, ignoreCase = true)
             }
-            matchesCompany && matchesQuery
         }
 
         val nextChars = filtered.mapNotNull { route ->
             val name = route.routeName.uppercase()
-            val index = name.indexOf(query, ignoreCase = true)
-            if (index != -1 && index + query.length < name.length) {
-                name[index + query.length]
+            if (query.isEmpty()) {
+                if (name.isNotEmpty()) name[0] else null
+            } else if (name.startsWith(query, ignoreCase = true) && name.length > query.length) {
+                name[query.length]
             } else null
         }.distinct().sorted()
 
