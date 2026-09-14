@@ -16,6 +16,7 @@ import com.example.lifeapp.data.local.entity.TransitRouteStopEntity
 import com.example.lifeapp.data.local.entity.TransitStopEntity
 import com.example.lifeapp.data.repository.transit.fetcher.CtbDataFetcher
 import com.example.lifeapp.data.repository.transit.fetcher.KmbDataFetcher
+import com.example.lifeapp.util.FileLogger
 import com.example.lifeapp.util.TransitDateUtils
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -37,7 +38,8 @@ class TransitSyncManager @Inject constructor(
     private val appDatabase: AppDatabase,
     private val transitDao: TransitDao,
     private val kmbDataFetcher: KmbDataFetcher,
-    private val ctbDataFetcher: CtbDataFetcher
+    private val ctbDataFetcher: CtbDataFetcher,
+    private val fileLogger: FileLogger
 ) {
 
     companion object {
@@ -118,20 +120,37 @@ class TransitSyncManager @Inject constructor(
             if (_isSyncing.value) return@withLock false
             _isSyncing.value = true
 
+            fileLogger.clearLog()
+            fileLogger.log("=== Starting Batch Sync ===")
+            fileLogger.log("Log File Path: ${fileLogger.getLogFilePath()}")
+
             try {
+                val fetchStartTime = System.currentTimeMillis()
+                fileLogger.log("Starting Parallel Network Fetch (KMB & CTB)...")
+
                 // 1. 平行 Fetch KMB 與 CTB 資料 (在進入 DB Transaction 前執行)
                 val (kmbData, ctbData) = coroutineScope {
-                    val kmbDeferred = async { kmbDataFetcher.fetchAllKmbData() }
-                    val ctbDeferred = async { ctbDataFetcher.fetchAllCtbData() }
+                    val kmbDeferred = async {
+                        fileLogger.log("KMB Fetch initiated...")
+                        val res = kmbDataFetcher.fetchAllKmbData()
+                        fileLogger.log("KMB Fetch success -> routes: ${res.routes.size}, stops: ${res.stops.size}, routeStops: ${res.routeStops.size}")
+                        res
+                    }
+                    val ctbDeferred = async {
+                        fileLogger.log("CTB Fetch initiated...")
+                        val res = ctbDataFetcher.fetchAllCtbData()
+                        fileLogger.log("CTB Fetch success -> routes: ${res.routes.size}, stops: ${res.stops.size}, routeStops: ${res.routeStops.size}")
+                        res
+                    }
                     Pair(kmbDeferred.await(), ctbDeferred.await())
                 }
 
-                Log.d(TAG, "Fetched KMB Data -> routes: ${kmbData.routes.size}, stops: ${kmbData.stops.size}, routeStops: ${kmbData.routeStops.size}")
-                Log.d(TAG, "Fetched CTB Data -> routes: ${ctbData.routes.size}, stops: ${ctbData.stops.size}, routeStops: ${ctbData.routeStops.size}")
+                val fetchDuration = System.currentTimeMillis() - fetchStartTime
+                fileLogger.log("Network Fetch completed in ${fetchDuration}ms")
 
                 // 嚴格安全檢查：只要任意一家營運商資料為空，立即終止以防止清理 DB 時遺失資料
                 if (kmbData.routes.isEmpty() || ctbData.routes.isEmpty()) {
-                    Log.e(TAG, "Batch sync failed: One or more operator data is empty. (KMB: ${kmbData.routes.size}, CTB: ${ctbData.routes.size})")
+                    fileLogger.log("ERROR: Batch sync failed - One or more operator data is empty. (KMB: ${kmbData.routes.size}, CTB: ${ctbData.routes.size})")
                     return@withLock false
                 }
 
@@ -149,20 +168,22 @@ class TransitSyncManager @Inject constructor(
                     addAll(ctbData.routeStops)
                 }
 
-                Log.d(TAG, "Combined Total -> routes: ${allRoutes.size}, stops: ${allStops.size}, routeStops: ${allRouteStops.size}")
+                fileLogger.log("Combined Totals -> routes: ${allRoutes.size}, stops: ${allStops.size}, routeStops: ${allRouteStops.size}")
 
                 // 2. 在 Room Coroutine Transaction (withTransaction) 內進行全量寫入與版本記錄，確保原子性
-                Log.d(TAG, "Starting Room DB Transaction...")
+                val dbStartTime = System.currentTimeMillis()
+                fileLogger.log("Starting Room DB Transaction...")
+
                 appDatabase.withTransaction {
                     // 寫入前先清空相關 Table，確保廢棄或舊格式資料不殘留
                     transitDao.clearRoutes()
                     transitDao.clearStops()
                     transitDao.clearRouteStops()
 
-                    // 分批寫入 Routes, Stops, RouteStops，避免巨量資料塞爆 SQLite Binder/Cursor Window
-                    allRoutes.chunked(500).forEach { transitDao.insertRoutes(it) }
-                    allStops.chunked(500).forEach { transitDao.insertStops(it) }
-                    allRouteStops.chunked(500).forEach { transitDao.insertRouteStops(it) }
+                    // 分批寫入 Routes, Stops, RouteStops (1000 條/批)
+                    allRoutes.chunked(1000).forEach { transitDao.insertRoutes(it) }
+                    allStops.chunked(1000).forEach { transitDao.insertStops(it) }
+                    allRouteStops.chunked(1000).forEach { transitDao.insertRouteStops(it) }
 
                     // 更新版本記錄表
                     val nowMillis = System.currentTimeMillis()
@@ -174,14 +195,17 @@ class TransitSyncManager @Inject constructor(
                     transitDao.insertOrUpdateLastUpdate(lastUpdateEntity)
                 }
 
-                Log.d(TAG, "Room DB Transaction completed successfully!")
+                val dbDuration = System.currentTimeMillis() - dbStartTime
+                fileLogger.log("Room DB Transaction completed successfully in ${dbDuration}ms!")
 
                 true
             } catch (e: Exception) {
+                fileLogger.log("CRITICAL ERROR: Batch sync failed with Exception: ${e.message}\n${e.stackTraceToString()}")
                 Log.e(TAG, "Batch sync failed with Exception: ${e.message}", e)
                 false
             } finally {
                 _isSyncing.value = false
+                fileLogger.log("=== Batch Sync Finished ===")
             }
         }
     }
