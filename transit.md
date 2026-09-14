@@ -22,6 +22,18 @@ Phase 1: 設計及建立 table 和 view
 Phase 2: 建立 batch update load 去 room DB
 
 Phase 3: 將 room DB 裡的路線, 車站等資料接入頁面 (i.e. switch from API endpoint to Room DB) 
+phase 3 詳細 development:
+
+a) 路線搜尋頁面
+i) 接入 room db data 以顯示路線, 取代 API endpoint 方法
+ii) 公司列表名單 button, 取自 room db data 作為依據
+
+b) 詳細車站頁面
+會跟據唔同公司所支援的 API endpoint, 會有唔同處理方法
+
+c) bookmark 車站頁面
+會跟據唔同公司所支援的 API endpoint, 會有唔同處理方法
+
 
 ======================================================
 💡 技術細節提醒與潛在坑位 (Edge Cases)
