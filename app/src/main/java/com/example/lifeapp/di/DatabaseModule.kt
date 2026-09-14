@@ -11,10 +11,11 @@ import com.example.lifeapp.data.local.dao.TransitDao
 import com.example.lifeapp.data.repository.transit.TransitSyncManager
 import com.example.lifeapp.data.repository.transit.fetcher.CtbDataFetcher
 import com.example.lifeapp.data.repository.transit.fetcher.KmbDataFetcher
+import com.example.lifeapp.util.FileLogger
 import com.google.gson.Gson
 import dagger.Module
 import dagger.Provides
-import dagger.hilt.InstallIn
+import dagger.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
@@ -71,8 +72,9 @@ object DatabaseModule {
         database: AppDatabase,
         transitDao: TransitDao,
         kmbDataFetcher: KmbDataFetcher,
-        ctbDataFetcher: CtbDataFetcher
+        ctbDataFetcher: CtbDataFetcher,
+        fileLogger: FileLogger
     ): TransitSyncManager {
-        return TransitSyncManager(context, database, transitDao, kmbDataFetcher, ctbDataFetcher)
+        return TransitSyncManager(context, database, transitDao, kmbDataFetcher, ctbDataFetcher, fileLogger)
     }
 }
