@@ -285,6 +285,15 @@ class TransitSearchViewModel @Inject constructor(
             }
         }
 
+        // 根據目前 query 計算動態可用的公司清單
+        val dynamicCompanies = if (query.isEmpty()) {
+            all.map { it.company }.distinct()
+        } else {
+            all.filter { it.routeName.startsWith(query, ignoreCase = true) }
+                .map { it.company }
+                .distinct()
+        }
+
         val nextChars = filtered.mapNotNull { route ->
             val name = route.routeName.uppercase()
             if (query.isEmpty()) {
@@ -312,6 +321,7 @@ class TransitSearchViewModel @Inject constructor(
             currentState.copy(
                 searchQuery = query,
                 filteredRoutes = filtered,
+                availableCompanies = dynamicCompanies,
                 numericChips = defaultNums,
                 letterChips = defaultLetters
             )
