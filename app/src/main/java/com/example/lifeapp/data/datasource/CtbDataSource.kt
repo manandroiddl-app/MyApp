@@ -9,11 +9,14 @@ import com.example.lifeapp.data.model.TransitEta
 import com.example.lifeapp.data.model.TransitRoute
 import com.example.lifeapp.data.model.TransitStop
 import com.example.lifeapp.data.model.TransitType
+import com.example.lifeapp.util.FileLogger
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.TimeZone
@@ -22,15 +25,16 @@ import javax.inject.Singleton
 
 @Singleton
 class CtbDataSource @Inject constructor(
-    private val ctbApiService: CtbApiService
+    private val ctbApiService: CtbApiService,
+    private val fileLogger: FileLogger
 ) {
 
-    private val semaphore = Semaphore(20)
+    private val semaphore = Semaphore(10)
 
     /**
      * 獲取所有城巴路線 (自動拆解為去程/回程)
      */
-    suspend fun getRoutes(): List<TransitRoute> {
+    suspend fun getRoutes(): List<TransitRoute> = withContext(Dispatchers.IO) {
         val response = ctbApiService.getCtbAllRoutes()
         val dtoList = response.data ?: emptyList()
 
@@ -70,45 +74,47 @@ class CtbDataSource @Inject constructor(
                 )
             )
         }
-        return result
+        result
     }
 
     /**
      * 獲取指定路線的車站清單
      */
-    suspend fun getRouteStops(route: String, bound: String, serviceType: String): List<TransitStop> = coroutineScope {
+    suspend fun getRouteStops(route: String, bound: String, serviceType: String): List<TransitStop> = withContext(Dispatchers.IO) {
         val directionParam = if (bound.equals("I", ignoreCase = true)) "inbound" else "outbound"
         val response = ctbApiService.getCtbRouteStops(
             companyId = "CTB",
             route = route,
             direction = directionParam
         )
-        val routeStops = response.data ?: return@coroutineScope emptyList()
+        val routeStops = response.data ?: return@withContext emptyList()
 
         // 併發拉取每個車站的詳細名稱與經緯度資訊
-        val deferredStops = routeStops.map { rs ->
-            async {
-                val stopId = rs.stopId ?: return@async null
-                val stopInfoResponse = runCatching { ctbApiService.getCtbStopInfo(stopId) }.getOrNull()
-                val stopInfo = stopInfoResponse?.data
+        coroutineScope {
+            val deferredStops = routeStops.map { rs ->
+                async {
+                    val stopId = rs.stopId ?: return@async null
+                    val stopInfoResponse = runCatching { ctbApiService.getCtbStopInfo(stopId) }.getOrNull()
+                    val stopInfo = stopInfoResponse?.data
 
-                TransitStop(
-                    stopId = stopId,
-                    sequence = rs.seq ?: 0,
-                    nameZh = stopInfo?.nameTc ?: "車站 $stopId",
-                    nameEn = stopInfo?.nameEn ?: "Stop $stopId",
-                    latitude = stopInfo?.lat?.toDoubleOrNull() ?: 0.0,
-                    longitude = stopInfo?.long?.toDoubleOrNull() ?: 0.0
-                )
+                    TransitStop(
+                        stopId = stopId,
+                        sequence = rs.seq ?: 0,
+                        nameZh = stopInfo?.nameTc ?: "車站 $stopId",
+                        nameEn = stopInfo?.nameEn ?: "Stop $stopId",
+                        latitude = stopInfo?.lat?.toDoubleOrNull() ?: 0.0,
+                        longitude = stopInfo?.long?.toDoubleOrNull() ?: 0.0
+                    )
+                }
             }
+            deferredStops.awaitAll().filterNotNull().sortedBy { it.sequence }
         }
-        deferredStops.awaitAll().filterNotNull().sortedBy { it.sequence }
     }
 
     /**
      * 獲取指定車站與路線的實時 ETA 到站時間 (支援 bound 方向過濾)
      */
-    suspend fun getEta(stopId: String, route: String, serviceType: String, bound: String? = null): List<TransitEta> {
+    suspend fun getEta(stopId: String, route: String, serviceType: String, bound: String? = null): List<TransitEta> = withContext(Dispatchers.IO) {
         val response = ctbApiService.getCtbEta(
             companyId = "CTB",
             stopId = stopId,
@@ -117,11 +123,11 @@ class CtbDataSource @Inject constructor(
         val etaDtoList = response.data ?: emptyList()
 
         val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.getDefault()).apply {
-            timeZone = TimeZone.getTimeZone("Asia/Hong_Kong")
+            timeZone = TimeZone.TimeZone.getTimeZone("Asia/Hong_Kong")
         }
         val currentTime = System.currentTimeMillis()
 
-        return etaDtoList.mapNotNull { dto ->
+        etaDtoList.mapNotNull { dto ->
             // 方向過濾：若指定了 bound，則僅保留 dto.dir 相符的班次 (如 "O" 或 "I")
             if (!bound.isNullOrEmpty() && dto.dir != null && !dto.dir.equals(bound, ignoreCase = true)) {
                 return@mapNotNull null
@@ -150,9 +156,9 @@ class CtbDataSource @Inject constructor(
     /**
      * 全量獲取城巴所有路線原始 DTO (Phase 2 Batch Sync 專用)
      */
-    suspend fun getAllRoutesRaw(): List<CtbRouteDto> {
+    suspend fun getAllRoutesRaw(): List<CtbRouteDto> = withContext(Dispatchers.IO) {
         val response = ctbApiService.getCtbAllRoutes()
-        return response.data ?: emptyList()
+        response.data ?: emptyList()
     }
 
     /**
@@ -168,6 +174,8 @@ class CtbDataSource @Inject constructor(
                         runCatching {
                             val response = ctbApiService.getCtbRouteStops("CTB", routeName, dir)
                             response.data ?: emptyList()
+                        }.onFailure { ex ->
+                            fileLogger.log("[CTB Error] Failed to fetch RouteStop for route: $routeName, dir: $dir -> ${ex.localizedMessage}")
                         }.getOrDefault(emptyList())
                     }
                 }
@@ -186,6 +194,8 @@ class CtbDataSource @Inject constructor(
                     runCatching {
                         val response = ctbApiService.getCtbStopInfo(stopId)
                         response.data
+                    }.onFailure { ex ->
+                        fileLogger.log("[CTB Error] Failed to fetch Stop Info for stopId: $stopId -> ${ex.localizedMessage}")
                     }.getOrNull()
                 }
             }
