@@ -10,6 +10,7 @@ import com.example.lifeapp.data.local.dao.TransitBookmarkDao
 import com.example.lifeapp.data.local.dao.TransitDao
 import com.example.lifeapp.data.repository.transit.fetcher.CtbDataFetcher
 import com.example.lifeapp.data.repository.transit.fetcher.KmbDataFetcher
+import com.example.lifeapp.util.FileLogger
 import com.google.gson.Gson
 import dagger.Module
 import dagger.Provides
@@ -59,7 +60,10 @@ object DatabaseModule {
 
     @Provides
     @Singleton
-    fun provideCtbDataFetcher(ctbDataSource: CtbDataSource): CtbDataFetcher {
-        return CtbDataFetcher(ctbDataSource)
+    fun provideCtbDataFetcher(
+        ctbDataSource: CtbDataSource,
+        fileLogger: FileLogger
+    ): CtbDataFetcher {
+        return CtbDataFetcher(ctbDataSource, fileLogger)
     }
 }
