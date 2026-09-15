@@ -123,7 +123,7 @@ class CtbDataSource @Inject constructor(
         val etaDtoList = response.data ?: emptyList()
 
         val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.getDefault()).apply {
-            timeZone = TimeZone.TimeZone.getTimeZone("Asia/Hong_Kong")
+            timeZone = TimeZone.getTimeZone("Asia/Hong_Kong")
         }
         val currentTime = System.currentTimeMillis()
 
