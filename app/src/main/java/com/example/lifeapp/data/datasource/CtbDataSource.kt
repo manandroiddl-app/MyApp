@@ -11,6 +11,7 @@ import com.example.lifeapp.data.model.TransitStop
 import com.example.lifeapp.data.model.TransitType
 import com.example.lifeapp.util.FileLogger
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -32,10 +33,31 @@ class CtbDataSource @Inject constructor(
     private val semaphore = Semaphore(10)
 
     /**
+     * 通用 API 重試機制 (防 DNS 抖動、Timeout 等瞬時網絡錯誤)
+     */
+    private suspend fun <T> retryApiCall(
+        times: Int = 3,
+        initialDelayMs: Long = 500,
+        block: suspend () -> T
+    ): T {
+        var currentDelay = initialDelayMs
+        repeat(times - 1) { attempt ->
+            try {
+                return block()
+            } catch (e: Exception) {
+                fileLogger.log("[CTB Retry] Attempt ${attempt + 1} failed: ${e.localizedMessage}. Retrying in ${currentDelay}ms...")
+                delay(currentDelay)
+                currentDelay *= 2
+            }
+        }
+        return block() // 最後一次嘗試，若仍失敗則直接拋出 Exception 讓外層 runCatching 捕獲
+    }
+
+    /**
      * 獲取所有城巴路線 (自動拆解為去程/回程)
      */
     suspend fun getRoutes(): List<TransitRoute> = withContext(Dispatchers.IO) {
-        val response = ctbApiService.getCtbAllRoutes()
+        val response = retryApiCall { ctbApiService.getCtbAllRoutes() }
         val dtoList = response.data ?: emptyList()
 
         val result = mutableListOf<TransitRoute>()
@@ -82,11 +104,13 @@ class CtbDataSource @Inject constructor(
      */
     suspend fun getRouteStops(route: String, bound: String, serviceType: String): List<TransitStop> = withContext(Dispatchers.IO) {
         val directionParam = if (bound.equals("I", ignoreCase = true)) "inbound" else "outbound"
-        val response = ctbApiService.getCtbRouteStops(
-            companyId = "CTB",
-            route = route,
-            direction = directionParam
-        )
+        val response = retryApiCall {
+            ctbApiService.getCtbRouteStops(
+                companyId = "CTB",
+                route = route,
+                direction = directionParam
+            )
+        }
         val routeStops = response.data ?: return@withContext emptyList()
 
         // 併發拉取每個車站的詳細名稱與經緯度資訊
@@ -94,7 +118,9 @@ class CtbDataSource @Inject constructor(
             val deferredStops = routeStops.map { rs ->
                 async {
                     val stopId = rs.stopId ?: return@async null
-                    val stopInfoResponse = runCatching { ctbApiService.getCtbStopInfo(stopId) }.getOrNull()
+                    val stopInfoResponse = runCatching {
+                        retryApiCall { ctbApiService.getCtbStopInfo(stopId) }
+                    }.getOrNull()
                     val stopInfo = stopInfoResponse?.data
 
                     TransitStop(
@@ -115,11 +141,13 @@ class CtbDataSource @Inject constructor(
      * 獲取指定車站與路線的實時 ETA 到站時間 (支援 bound 方向過濾)
      */
     suspend fun getEta(stopId: String, route: String, serviceType: String, bound: String? = null): List<TransitEta> = withContext(Dispatchers.IO) {
-        val response = ctbApiService.getCtbEta(
-            companyId = "CTB",
-            stopId = stopId,
-            route = route
-        )
+        val response = retryApiCall {
+            ctbApiService.getCtbEta(
+                companyId = "CTB",
+                stopId = stopId,
+                route = route
+            )
+        }
         val etaDtoList = response.data ?: emptyList()
 
         val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.getDefault()).apply {
@@ -157,7 +185,7 @@ class CtbDataSource @Inject constructor(
      * 全量獲取城巴所有路線原始 DTO (Phase 2 Batch Sync 專用)
      */
     suspend fun getAllRoutesRaw(): List<CtbRouteDto> = withContext(Dispatchers.IO) {
-        val response = ctbApiService.getCtbAllRoutes()
+        val response = retryApiCall { ctbApiService.getCtbAllRoutes() }
         response.data ?: emptyList()
     }
 
@@ -172,8 +200,10 @@ class CtbDataSource @Inject constructor(
                 async {
                     semaphore.withPermit {
                         runCatching {
-                            val response = ctbApiService.getCtbRouteStops("CTB", routeName, dir)
-                            response.data ?: emptyList()
+                            retryApiCall {
+                                val response = ctbApiService.getCtbRouteStops("CTB", routeName, dir)
+                                response.data ?: emptyList()
+                            }
                         }.onFailure { ex ->
                             fileLogger.log("[CTB Error] Failed to fetch RouteStop for route: $routeName, dir: $dir -> ${ex.localizedMessage}")
                         }.getOrDefault(emptyList())
@@ -192,8 +222,10 @@ class CtbDataSource @Inject constructor(
             async {
                 semaphore.withPermit {
                     runCatching {
-                        val response = ctbApiService.getCtbStopInfo(stopId)
-                        response.data
+                        retryApiCall {
+                            val response = ctbApiService.getCtbStopInfo(stopId)
+                            response.data
+                        }
                     }.onFailure { ex ->
                         fileLogger.log("[CTB Error] Failed to fetch Stop Info for stopId: $stopId -> ${ex.localizedMessage}")
                     }.getOrNull()
