@@ -8,14 +8,12 @@ import com.example.lifeapp.data.local.AppDatabase
 import com.example.lifeapp.data.local.GenericCacheDao
 import com.example.lifeapp.data.local.dao.TransitBookmarkDao
 import com.example.lifeapp.data.local.dao.TransitDao
-import com.example.lifeapp.data.repository.transit.TransitSyncManager
 import com.example.lifeapp.data.repository.transit.fetcher.CtbDataFetcher
 import com.example.lifeapp.data.repository.transit.fetcher.KmbDataFetcher
-import com.example.lifeapp.util.FileLogger
 import com.google.gson.Gson
 import dagger.Module
 import dagger.Provides
-import dagger.InstallIn
+import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
@@ -55,12 +53,6 @@ object DatabaseModule {
 
     @Provides
     @Singleton
-    fun provideFileLogger(@ApplicationContext context: Context): FileLogger {
-        return FileLogger(context)
-    }
-
-    @Provides
-    @Singleton
     fun provideKmbDataFetcher(kmbDataSource: KmbDataSource): KmbDataFetcher {
         return KmbDataFetcher(kmbDataSource)
     }
@@ -69,18 +61,5 @@ object DatabaseModule {
     @Singleton
     fun provideCtbDataFetcher(ctbDataSource: CtbDataSource): CtbDataFetcher {
         return CtbDataFetcher(ctbDataSource)
-    }
-
-    @Provides
-    @Singleton
-    fun provideTransitSyncManager(
-        @ApplicationContext context: Context,
-        database: AppDatabase,
-        transitDao: TransitDao,
-        kmbDataFetcher: KmbDataFetcher,
-        ctbDataFetcher: CtbDataFetcher,
-        fileLogger: FileLogger
-    ): TransitSyncManager {
-        return TransitSyncManager(context, database, transitDao, kmbDataFetcher, ctbDataFetcher, fileLogger)
     }
 }
