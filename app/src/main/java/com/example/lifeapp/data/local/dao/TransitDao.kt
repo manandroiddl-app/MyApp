@@ -18,20 +18,20 @@ interface TransitDao {
     // Batch Insert Methods (Phase 2 批次更新使用)
     // ==========================================
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertRoutes(routes: List<TransitRouteEntity>)
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertStops(stops: List<TransitStopEntity>)
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertRouteStops(routeStops: List<TransitRouteStopEntity>)
 
     // ==========================================
     // Version Control Methods (版本紀錄使用)
     // ==========================================
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertOrUpdateLastUpdate(lastUpdate: TransitLastUpdateEntity)
 
     @Query("SELECT * FROM Transit_Last_Update WHERE id = 1 LIMIT 1")
