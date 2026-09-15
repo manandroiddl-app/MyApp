@@ -5,6 +5,7 @@ import com.example.lifeapp.data.datasource.CtbDataSource
 import com.example.lifeapp.data.local.entity.TransitRouteEntity
 import com.example.lifeapp.data.local.entity.TransitRouteStopEntity
 import com.example.lifeapp.data.local.entity.TransitStopEntity
+import com.example.lifeapp.util.FileLogger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -18,28 +19,35 @@ data class CtbDataBatchResult(
 
 @Singleton
 class CtbDataFetcher @Inject constructor(
-    private val ctbDataSource: CtbDataSource
+    private val ctbDataSource: CtbDataSource,
+    private val fileLogger: FileLogger
 ) {
 
     /**
      * 從 CtbDataSource 獲取並轉換城巴 (CTB) 的全量路線、車站與關聯資料
      */
     suspend fun fetchAllCtbData(): CtbDataBatchResult = withContext(Dispatchers.IO) {
+        fileLogger.log("[CTB Sync] Starting fetchAllCtbData...")
+
         // 1. 撈取全量 Route DTO 列表
         val rawRoutes = ctbDataSource.getAllRoutesRaw()
         Log.d("CtbDataFetcher", "Fetched rawRoutes count: ${rawRoutes.size}")
+        fileLogger.log("[CTB Sync] Step 1: Fetched rawRoutes count = ${rawRoutes.size}")
 
         // 2. 併發拉取所有 Route-Stops (已包含 bound "I" / "O" 的測試與篩選)
         val rawRouteStops = ctbDataSource.getAllRouteStopsParallel(rawRoutes)
         Log.d("CtbDataFetcher", "Fetched rawRouteStops count: ${rawRouteStops.size}")
+        fileLogger.log("[CTB Sync] Step 2: Fetched rawRouteStops count = ${rawRouteStops.size}")
 
         // 3. 記憶體去重: 萃取所有唯一的 stop_id 集合
         val uniqueStopIds = rawRouteStops.mapNotNull { it.stopId }.toSet()
         Log.d("CtbDataFetcher", "Unique stopIds count: ${uniqueStopIds.size}")
+        fileLogger.log("[CTB Sync] Step 3: Extracted uniqueStopIds count = ${uniqueStopIds.size}")
 
         // 4. 併發撈取去重後的 Stop 座標與名稱
         val rawStops = ctbDataSource.getStopsParallel(uniqueStopIds)
         Log.d("CtbDataFetcher", "Fetched rawStops details count: ${rawStops.size}")
+        fileLogger.log("[CTB Sync] Step 4: Fetched rawStops details count = ${rawStops.size}")
 
         // 5. 建立 RouteStop Entities
         val routeStopEntities = rawRouteStops.mapNotNull { rs ->
@@ -57,11 +65,13 @@ class CtbDataFetcher @Inject constructor(
                 stopId = stopId
             )
         }
+        fileLogger.log("[CTB Sync] Step 5: Built routeStopEntities count = ${routeStopEntities.size}")
 
         // 6. 建立 Valid Bounds Set (從 RouteStops 獲取所有實際存在的 route + bound 組合)
         val validRouteBoundSet = routeStopEntities
             .map { Pair(it.routeName, it.bound) }
             .toSet()
+        fileLogger.log("[CTB Sync] Step 6: Unique valid route-bound pairs count = ${validRouteBoundSet.size}")
 
         // 7. 建立 Route Entities (依據 Mapping 規則)
         val rawRouteMap = rawRoutes.filter { !it.route.isNullOrEmpty() }.associateBy { it.route!! }
@@ -93,6 +103,7 @@ class CtbDataFetcher @Inject constructor(
                 )
             )
         }
+        fileLogger.log("[CTB Sync] Step 7: Built routeEntities count = ${routeEntities.size}")
 
         // 8. 建立 Stop Entities (依據 Mapping 規則)
         val stopEntities = rawStops.mapNotNull { stop ->
@@ -106,6 +117,7 @@ class CtbDataFetcher @Inject constructor(
                 lng = stop.long?.toDoubleOrNull() ?: 0.0
             )
         }
+        fileLogger.log("[CTB Sync] Step 8: Built stopEntities count = ${stopEntities.size}")
 
         CtbDataBatchResult(
             routes = routeEntities,
