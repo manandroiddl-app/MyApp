@@ -121,27 +121,13 @@ class TransitSearchViewModel @Inject constructor(
 
     fun checkAndAutoSync() {
         viewModelScope.launch {
-            val updated = transitSyncManager.checkAndAutoSync()
-            if (updated) {
-                loadAllRoutesFromDb()
-                val currentRoute = _uiState.value.selectedRoute
-                if (currentRoute != null) {
-                    selectRouteInternal(currentRoute)
-                }
-            }
+            transitSyncManager.checkAndAutoSync()
         }
     }
 
     fun onManualSyncClick() {
         viewModelScope.launch {
-            val updated = transitSyncManager.forceSync()
-            if (updated) {
-                loadAllRoutesFromDb()
-                val currentRoute = _uiState.value.selectedRoute
-                if (currentRoute != null) {
-                    selectRouteInternal(currentRoute)
-                }
-            }
+            transitSyncManager.forceSync()
         }
     }
 
@@ -395,7 +381,7 @@ class TransitSearchViewModel @Inject constructor(
         selectRoute(targetRoute)
     }
 
-    fun clearSelectedRoute() {
+    clearSelectedRoute() {
         _uiState.update { currentState ->
             currentState.copy(
                 selectedRoute = null,
