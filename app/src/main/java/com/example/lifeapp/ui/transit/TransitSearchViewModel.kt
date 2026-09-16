@@ -52,7 +52,6 @@ data class TransitUiState(
     
     val trackedVehicle: TrackedVehicleInfo? = null,
 
-    // Phase 2 新增：Batch Sync 與最後更新時間狀態
     val lastUpdateTimeFormatted: String? = null,
     val isSyncing: Boolean = false
 )
@@ -153,9 +152,6 @@ class TransitSearchViewModel @Inject constructor(
         }
     }
 
-    /**
-     * 從 Room DB 訂閱可用的公司清單 (co_tc)
-     */
     private fun observeAvailableCompanies() {
         viewModelScope.launch {
             busRepository.getDistinctCompaniesTcFromDb().collectLatest { coTcList ->
@@ -170,9 +166,6 @@ class TransitSearchViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Phase 3 (a)(i): 根據所選公司 (selectedCompany) 從 Room DB 動態加載路線
-     */
     private fun loadAllRoutesFromDb() {
         routesCollectJob?.cancel()
         routesCollectJob = viewModelScope.launch {
@@ -256,7 +249,6 @@ class TransitSearchViewModel @Inject constructor(
 
     fun selectCompany(company: OperatorCompany?) {
         _uiState.update { it.copy(selectedCompany = company) }
-        // 重新發起 Room DB SQL 查詢
         loadAllRoutesFromDb()
     }
 
@@ -271,7 +263,6 @@ class TransitSearchViewModel @Inject constructor(
             }
         }
 
-        // 根據目前 query 計算動態可用的公司清單
         val dynamicCompanies = if (query.isEmpty()) {
             all.map { it.company }.distinct()
         } else {
@@ -381,7 +372,8 @@ class TransitSearchViewModel @Inject constructor(
         selectRoute(targetRoute)
     }
 
-    clearSelectedRoute() {
+    // ✅ 已修復：補上 fun 關鍵字
+    fun clearSelectedRoute() {
         _uiState.update { currentState ->
             currentState.copy(
                 selectedRoute = null,
