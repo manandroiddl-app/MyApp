@@ -1,6 +1,9 @@
 package com.example.lifeapp
 
+import android.Manifest
 import android.app.Activity
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -27,6 +30,8 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.lifeapp.data.local.AppDatabase
@@ -63,6 +68,18 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         
         enableEdgeToEdge()
+
+        // Android 13+ (API 33) 動態請求通知權限以支援 Foreground Service
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) 
+                != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(
+                    this,
+                    arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+                    101
+                )
+            }
+        }
 
         setContent {
             val view = LocalView.current
@@ -125,8 +142,8 @@ fun MainAppLayout(
                                 Toast.makeText(context, "已更新交通消息", Toast.LENGTH_SHORT).show()
                             }
                             Screen.BUS_SEARCH -> {
-                                transitViewModel.refreshCurrentEtasImmediately()
-                                Toast.makeText(context, "已更新到站時間", Toast.LENGTH_SHORT).show()
+                                transitViewModel.onManualSyncClick()
+                                Toast.makeText(context, "已發起數據庫同步", Toast.LENGTH_SHORT).show()
                             }
                         }
                     }
