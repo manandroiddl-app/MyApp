@@ -6,6 +6,7 @@ import android.app.NotificationManager
 import android.content.Context
 import android.content.pm.ServiceInfo
 import android.os.Build
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
@@ -28,14 +29,16 @@ class TransitSyncWorker @AssistedInject constructor(
         const val WORK_NAME_PERIODIC = "TransitSyncWorker_Periodic"
         private const val NOTIFICATION_ID = 1001
         private const val CHANNEL_ID = "transit_sync_channel"
+        private const val TAG = "TransitSyncWorker"
     }
 
     override suspend fun doWork(): Result {
-        // 在執行任務前，將 Worker 提升為 Foreground Service 以防鎖屏斷網/凍結
+        // 在執行任務前，嘗試將 Worker 提升為 Foreground Service 以防鎖屏斷網/凍結
         try {
             setForeground(createForegroundInfo())
         } catch (e: Exception) {
-            // 在某些極端情況下（例如背景限制），setForeground 可能拋出 Exception
+            // 若缺乏 Notification 權限或背景限制，印出警告並降級為普通背景 Worker 繼續運行
+            Log.w(TAG, "Failed to set foreground service, running in background fallback mode.", e)
         }
 
         val isForceSync = inputData.getBoolean(KEY_FORCE_SYNC, false)
