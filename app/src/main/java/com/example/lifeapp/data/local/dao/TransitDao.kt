@@ -31,7 +31,7 @@ interface TransitDao {
     // Version Control Methods (版本紀錄使用)
     // ==========================================
 
-    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertOrUpdateLastUpdate(lastUpdate: TransitLastUpdateEntity)
 
     @Query("SELECT * FROM Transit_Last_Update WHERE id = 1 LIMIT 1")
