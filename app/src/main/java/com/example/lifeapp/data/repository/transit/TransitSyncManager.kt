@@ -5,8 +5,8 @@ import android.util.Log
 import androidx.room.withTransaction
 import androidx.work.Constraints
 import androidx.work.Data
-import androidx.work.ExistingOneTimeWorkRequestPolicy
 import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
@@ -74,8 +74,6 @@ class TransitSyncManager @Inject constructor(
                     val isOneTimeRunning = workInfos.any { it.state == WorkInfo.State.RUNNING }
                     if (isOneTimeRunning) {
                         _isSyncing.value = true
-                    } else if (!_isSyncing.value && workInfos.any { it.state.isFinished }) {
-                        // 當 Work 結束且沒有其他內部 Coroutine 在跑時更新狀態
                     }
                 }
         }
@@ -126,9 +124,10 @@ class TransitSyncManager @Inject constructor(
             .setInputData(inputData)
             .build()
 
+        // ✅ 已修正：使用正確認稱 ExistingWorkPolicy.REPLACE
         workManager.enqueueUniqueWork(
             TransitSyncWorker.WORK_NAME_ONE_TIME,
-            ExistingOneTimeWorkRequestPolicy.REPLACE,
+            ExistingWorkPolicy.REPLACE,
             oneTimeWorkRequest
         )
     }
