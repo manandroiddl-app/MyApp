@@ -11,10 +11,10 @@ import com.example.lifeapp.data.model.TransitStop
 import com.example.lifeapp.data.model.TransitType
 import com.example.lifeapp.util.FileLogger
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
@@ -215,23 +215,42 @@ class CtbDataSource @Inject constructor(
     }
 
     /**
-     * 傳入去重後的 stop_id 集合，併發撈取車站詳細座標與名稱 (Phase 2 Batch Sync 專用)
+     * 傳入去重後的 stop_id 集合，分批 (Chunked) 併發撈取車站詳細座標與名稱 (Phase 2 Batch Sync 專用)
      */
-    suspend fun getStopsParallel(stopIds: Set<String>): List<CtbStopDto> = coroutineScope {
-        val deferredList = stopIds.map { stopId ->
-            async {
-                semaphore.withPermit {
-                    runCatching {
-                        retryApiCall {
-                            val response = ctbApiService.getCtbStopInfo(stopId)
-                            response.data
+    suspend fun getStopsParallel(stopIds: Set<String>): List<CtbStopDto> = withContext(Dispatchers.IO) {
+        val resultList = mutableListOf<CtbStopDto>()
+        
+        val chunkSize = 30
+        val stopIdList = stopIds.toList()
+        val totalChunks = (stopIdList.size + chunkSize - 1) / chunkSize
+
+        stopIdList.chunked(chunkSize).forEachIndexed { index, chunk ->
+            fileLogger.log("[CTB Sync] Step 4: Processing batch ${index + 1}/$totalChunks (Size: ${chunk.size})...")
+
+            val chunkResults = coroutineScope {
+                chunk.map { stopId ->
+                    async {
+                        semaphore.withPermit {
+                            runCatching {
+                                retryApiCall(times = 3, initialDelayMs = 1000) {
+                                    val response = ctbApiService.getCtbStopInfo(stopId)
+                                    response.data
+                                }
+                            }.onFailure { ex ->
+                                fileLogger.log("[CTB Error] Failed to fetch Stop Info for stopId: $stopId -> ${ex.localizedMessage}")
+                            }.getOrNull()
                         }
-                    }.onFailure { ex ->
-                        fileLogger.log("[CTB Error] Failed to fetch Stop Info for stopId: $stopId -> ${ex.localizedMessage}")
-                    }.getOrNull()
-                }
+                    }
+                }.awaitAll().filterNotNull()
+            }
+
+            resultList.addAll(chunkResults)
+
+            if (index < totalChunks - 1) {
+                delay(200)
             }
         }
-        deferredList.awaitAll().filterNotNull()
+
+        resultList
     }
 }
