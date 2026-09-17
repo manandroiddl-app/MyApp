@@ -21,6 +21,7 @@ import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.TimeZone
+import kotlin.random.Random
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -30,14 +31,15 @@ class CtbDataSource @Inject constructor(
     private val fileLogger: FileLogger
 ) {
 
-    private val semaphore = Semaphore(10)
+    // 將 Semaphore 由 10 調小至 6，降低系統 DNS 及網絡介面負擔
+    private val semaphore = Semaphore(6)
 
     /**
-     * 通用 API 重試機制 (防 DNS 抖動、Timeout 等瞬時網絡錯誤)
+     * 通用 API 重試機制 (含指數退避與隨機抖動 Jitter，防止重試風暴與 DNS 堵塞)
      */
     private suspend fun <T> retryApiCall(
         times: Int = 3,
-        initialDelayMs: Long = 500,
+        initialDelayMs: Long = 1000,
         block: suspend () -> T
     ): T {
         var currentDelay = initialDelayMs
@@ -45,12 +47,15 @@ class CtbDataSource @Inject constructor(
             try {
                 return block()
             } catch (e: Exception) {
-                fileLogger.log("[CTB Retry] Attempt ${attempt + 1} failed: ${e.localizedMessage}. Retrying in ${currentDelay}ms...")
-                delay(currentDelay)
+                // 加入 100ms ~ 500ms 隨機抖動 (Jitter)，避免平行 Coroutine 同時發起重試
+                val jitter = Random.nextLong(100, 500)
+                val delayTime = currentDelay + jitter
+                fileLogger.log("[CTB Retry] Attempt ${attempt + 1} failed: ${e.localizedMessage}. Retrying in ${delayTime}ms...")
+                delay(delayTime)
                 currentDelay *= 2
             }
         }
-        return block() // 最後一次嘗試，若仍失敗則直接拋出 Exception 讓外層 runCatching 捕獲
+        return block()
     }
 
     /**
@@ -156,7 +161,6 @@ class CtbDataSource @Inject constructor(
         val currentTime = System.currentTimeMillis()
 
         etaDtoList.mapNotNull { dto ->
-            // 方向過濾：若指定了 bound，則僅保留 dto.dir 相符的班次 (如 "O" 或 "I")
             if (!bound.isNullOrEmpty() && dto.dir != null && !dto.dir.equals(bound, ignoreCase = true)) {
                 return@mapNotNull null
             }
@@ -190,28 +194,48 @@ class CtbDataSource @Inject constructor(
     }
 
     /**
-     * 併發測試每條路線的 inbound 與 outbound 方向並獲取 RouteStop 列表 (Phase 2 Batch Sync 專用)
+     * 分批併發 (Chunked) 測試每條路線的 inbound 與 outbound 方向並獲取 RouteStop 列表 (Phase 2 Batch Sync 專用)
      */
-    suspend fun getAllRouteStopsParallel(routes: List<CtbRouteDto>): List<CtbRouteStopDto> = coroutineScope {
-        val directions = listOf("inbound", "outbound")
-        val deferredList = routes.flatMap { routeDto ->
+    suspend fun getAllRouteStopsParallel(routes: List<CtbRouteDto>): List<CtbRouteStopDto> = withContext(Dispatchers.IO) {
+        val resultList = mutableListOf<CtbRouteStopDto>()
+        
+        // 構建所有需請求的 Pair (Route, Direction)
+        val requestPairs = routes.flatMap { routeDto ->
             val routeName = routeDto.route ?: return@flatMap emptyList()
-            directions.map { dir ->
-                async {
-                    semaphore.withPermit {
-                        runCatching {
-                            retryApiCall {
-                                val response = ctbApiService.getCtbRouteStops("CTB", routeName, dir)
-                                response.data ?: emptyList()
-                            }
-                        }.onFailure { ex ->
-                            fileLogger.log("[CTB Error] Failed to fetch RouteStop for route: $routeName, dir: $dir -> ${ex.localizedMessage}")
-                        }.getOrDefault(emptyList())
+            listOf(Pair(routeName, "inbound"), Pair(routeName, "outbound"))
+        }
+
+        val chunkSize = 40 // 每批處理 40 個請求 (約 20 條路線的雙向)
+        val totalChunks = (requestPairs.size + chunkSize - 1) / chunkSize
+
+        requestPairs.chunked(chunkSize).forEachIndexed { index, chunk ->
+            fileLogger.log("[CTB Sync] Step 2: Fetching RouteStops batch ${index + 1}/$totalChunks (Size: ${chunk.size})...")
+
+            val chunkResults = coroutineScope {
+                chunk.map { (routeName, dir) ->
+                    async {
+                        semaphore.withPermit {
+                            runCatching {
+                                retryApiCall(times = 3, initialDelayMs = 1000) {
+                                    val response = ctbApiService.getCtbRouteStops("CTB", routeName, dir)
+                                    response.data ?: emptyList()
+                                }
+                            }.onFailure { ex ->
+                                fileLogger.log("[CTB Error] Failed to fetch RouteStop for route: $routeName, dir: $dir -> ${ex.localizedMessage}")
+                            }.getOrDefault(emptyList())
+                        }
                     }
-                }
+                }.awaitAll().flatten()
+            }
+
+            resultList.addAll(chunkResults)
+
+            if (index < totalChunks - 1) {
+                delay(150) // 批次間間隔 150ms 給 DNS 與網絡緩衝
             }
         }
-        deferredList.awaitAll().flatten()
+
+        resultList
     }
 
     /**
